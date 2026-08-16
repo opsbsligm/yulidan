@@ -1,0 +1,149 @@
+import Testing
+import Foundation
+@testable import ServiceContainer
+
+private final class TestPlugin: Plugin, @unchecked Sendable {
+    var manifest: PluginManifest
+    var isActive: Bool = false
+    var shouldFailInit = false
+    var shouldFailStart = false
+    
+    init(id: String = "com.harness.test", name: String = "Test") {
+        self.manifest = PluginManifest(
+            id: PluginID(id), name: name,
+            version: PluginVersion(major: 1, minor: 0, patch: 0),
+            description: "Test",
+            minHarnessVersion: PluginVersion(major: 0, minor: 1, patch: 0)
+        )
+    }
+    
+    func initialize(context: PluginContext) async throws {
+        if shouldFailInit { throw PluginInitError.failure }
+    }
+    
+    func start(context: PluginContext) async throws {
+        isActive = true
+        if shouldFailStart { throw PluginStartError.failure }
+    }
+    
+    func stop(context: PluginContext) async { isActive = false }
+}
+
+private enum PluginInitError: Error, Sendable { case failure }
+private enum PluginStartError: Error, Sendable { case failure }
+
+@Suite("PluginManager Tests")
+struct PluginManagerTests {
+    @Test("Install plugin")
+    func testInstall() async throws {
+        let container = ServiceContainer()
+        let eventBus = EventBus()
+        let manager = PluginManager(container: container, eventBus: eventBus)
+        let plugin = TestPlugin()
+        try await manager.install(plugin)
+        #expect(await manager.isActive(plugin.manifest.id))
+    }
+    
+    @Test("Duplicate install throws")
+    func testDuplicate() async throws {
+        let container = ServiceContainer()
+        let eventBus = EventBus()
+        let manager = PluginManager(container: container, eventBus: eventBus)
+        let plugin = TestPlugin()
+        try await manager.install(plugin)
+        do {
+            try await manager.install(plugin)
+            Issue.record("Expected error")
+        } catch {}
+    }
+    
+    @Test("Uninstall plugin")
+    func testUninstall() async throws {
+        let container = ServiceContainer()
+        let eventBus = EventBus()
+        let manager = PluginManager(container: container, eventBus: eventBus)
+        let plugin = TestPlugin()
+        try await manager.install(plugin)
+        try await manager.uninstall(plugin.manifest.id)
+        #expect(await manager.isActive(plugin.manifest.id) == false)
+    }
+    
+    @Test("Uninstall not found throws")
+    func testUninstallNotFound() async {
+        let container = ServiceContainer()
+        let eventBus = EventBus()
+        let manager = PluginManager(container: container, eventBus: eventBus)
+        do {
+            try await manager.uninstall(PluginID("com.harness.none"))
+            Issue.record("Expected error")
+        } catch {}
+    }
+    
+    @Test("List plugins")
+    func testList() async throws {
+        let container = ServiceContainer()
+        let eventBus = EventBus()
+        let manager = PluginManager(container: container, eventBus: eventBus)
+        let plugin = TestPlugin()
+        try await manager.install(plugin)
+        let list = await manager.list()
+        #expect(list.count == 1)
+        #expect(list[0].id.rawValue == "com.harness.test")
+    }
+    
+    @Test("Active plugins")
+    func testActive() async throws {
+        let container = ServiceContainer()
+        let eventBus = EventBus()
+        let manager = PluginManager(container: container, eventBus: eventBus)
+        let plugin = TestPlugin()
+        try await manager.install(plugin)
+        let active = await manager.activePlugins()
+        #expect(active.count == 1)
+    }
+    
+    @Test("Stop all")
+    func testStopAll() async throws {
+        let container = ServiceContainer()
+        let eventBus = EventBus()
+        let manager = PluginManager(container: container, eventBus: eventBus)
+        try await manager.install(TestPlugin(id: "com.harness.a", name: "A"))
+        try await manager.install(TestPlugin(id: "com.harness.b", name: "B"))
+        #expect(await manager.list().count == 2)
+        await manager.stopAll()
+        #expect(await manager.list().count == 0)
+    }
+    
+    @Test("Version mismatch throws")
+    func testVersionMismatch() async throws {
+        let container = ServiceContainer()
+        let eventBus = EventBus()
+        let manager = PluginManager(container: container, eventBus: eventBus,
+                                    harnessVersion: PluginVersion(major: 0, minor: 1, patch: 0))
+        let plugin = TestPlugin()
+        let manifest = PluginManifest(
+            id: PluginID("com.harness.test"), name: "Test",
+            version: PluginVersion(major: 1, minor: 0, patch: 0),
+            description: "Test",
+            minHarnessVersion: PluginVersion(major: 99, minor: 0, patch: 0)
+        )
+        plugin.manifest = manifest
+        do {
+            try await manager.install(plugin)
+            Issue.record("Expected error")
+        } catch {}
+    }
+    
+    @Test("Init failure throws")
+    func testInitFailure() async throws {
+        let container = ServiceContainer()
+        let eventBus = EventBus()
+        let manager = PluginManager(container: container, eventBus: eventBus)
+        let plugin = TestPlugin()
+        plugin.shouldFailInit = true
+        do {
+            try await manager.install(plugin)
+            Issue.record("Expected error")
+        } catch {}
+    }
+}

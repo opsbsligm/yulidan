@@ -1,0 +1,56 @@
+# SwiftLint Configuration — CI Gate
+disabled_rules:
+  - line_length
+  - type_body_length
+  - file_length
+  - function_body_length
+
+opt_in_rules:
+  - empty_count
+  - closure_spacing
+  - contains_over_first_where
+  - empty_string
+  - first_where
+  - implicitly_unwrapped_optional
+  - literal_expression_end_indentation
+  - modifier_order
+  - overridden_super_call
+  - private_outlet
+  - redundant_nil_coalescing
+  - sorted_first_last
+  - unneeded_break_in_switch
+  - vertical_parameter_alignment_on_call
+
+excluded:
+  - .build
+  - DerivedData
+
+line_length:
+  warning: 200
+  error: 300
+
+type_body_length:
+  warning: 300
+  error: 500
+
+file_length:
+  warning: 500
+  error: 1000
+
+function_body_length:
+  warning: 50
+  error: 100
+
+cyclomatic_complexity:
+  warning: 10
+  error: 15
+
+large_tuple:
+  warning: 3
+  error: 5
+
+type_body_length:
+  warning: 300
+  error: 500
+
+reporter: github-actions

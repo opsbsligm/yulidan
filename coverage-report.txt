@@ -1,0 +1,44 @@
+=== Coverage Report ===
+Generated: 2026-08-14 19:55
+Tests: 142 tests in 33 suites, all passed
+
+=== ServiceContainer === 91% (471/517 lines, 46 missed)
+  AnyCodable.swift:     96.20% (76/79)
+  CircuitBreaker.swift: 100.00% (64/64)
+  EventBus.swift:       84.52% (71/84)
+  Plugin.swift:         96.61% (57/59)
+  PluginContext.swift:  100.00% (18/18)
+  PluginManager.swift:  91.61% (142/155)
+  ServiceContainer.swift: 74.14% (43/58)
+  Overall: 91% ✅ (≥90% target met)
+
+=== Session === 96% (100/104 lines, 4 missed)
+  Session.swift:        97.22% (35/36)
+  SessionEvent.swift:   100.00% (39/39)
+  SessionID.swift:      50.00% (3/6) — init(rawValue:) not tested
+  SessionStore.swift:   100.00% (23/23)
+  Overall: 96% ✅ (≥90% target met)
+
+=== Agent === 98% (94/95 lines, 1 missed)
+  Agent.swift:          100.00% (6/6)
+  AgentLoop.swift:      100.00% (40/40) — region 94.74%
+  Inbox.swift:          100.00% (35/35)
+  Turn.swift:           92.86% (13/14)
+  Overall: 98% ✅ (≥90% target met)
+
+=== Tools === 94% (67/71 lines, 4 missed)
+  Tool.swift:           100.00% (21/21)
+  ToolPipeline.swift:   88.57% (31/35)
+  ToolRegistry.swift:   100.00% (15/15)
+  Overall: 94% ✅ (≥90% target met)
+
+=== Summary ===
+| Module | Coverage | Target | Status |
+|--------|----------|--------|--------|
+| ServiceContainer | 91% | ≥90% | ✅ |
+| Session | 96% | ≥90% | ✅ |
+| Agent | 98% | ≥90% | ✅ |
+| Tools | 94% | ≥90% | ✅ |
+| LLM | N/A | — | ⚠️ stub |
+
+Total: 142 tests, 33 suites, all passed

@@ -1,0 +1,158 @@
+name: Swift CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  SWIFT_VERSION: "6.0"
+
+jobs:
+  # ==================== PR Pipeline (≤5 min) ====================
+  pr-check:
+    name: PR Check (Fast)
+    runs-on: macos-latest-xlarge
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Swift
+        uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: ${{ env.SWIFT_VERSION }}
+
+      - name: Cache SPM
+        uses: actions/cache@v4
+        with:
+          path: .build
+          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: ${{ runner.os }}-spm-
+
+      - name: Install SwiftLint
+        run: brew install swiftlint || true
+
+      - name: Install SwiftFormat
+        run: brew install swiftformat || true
+
+      - name: SwiftLint
+        run: swiftlint lint --strict --config .swiftlint.yml
+
+      - name: SwiftFormat
+        run: |
+          swiftformat --lint . --config .swiftformat.yml --reporter github-actions-log
+
+      - name: Build
+        run: swift build --configuration debug
+
+      - name: Build macOS App
+        run: swift build --target HarnessApp --configuration debug
+
+      - name: Unit Tests
+        run: swift test --parallel
+
+      - name: Verify Package
+        run: swift package dump-package
+
+  # ==================== Main Pipeline (Full) ====================
+  main-check:
+    name: Main Check (Full)
+    runs-on: macos-latest-xlarge
+    needs: pr-check
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Swift
+        uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: ${{ env.SWIFT_VERSION }}
+
+      - name: Cache SPM
+        uses: actions/cache@v4
+        with:
+          path: .build
+          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
+
+      - name: Install SwiftLint
+        run: brew install swiftlint || true
+
+      - name: Install SwiftFormat
+        run: brew install swiftformat || true
+
+      - name: SwiftLint
+        run: swiftlint lint --strict --config .swiftlint.yml
+
+      - name: SwiftFormat
+        run: |
+          swiftformat --lint . --config .swiftformat.yml --reporter github-actions-log
+
+      - name: Build Release
+        run: swift build --configuration release
+
+      - name: Build macOS App Release
+        run: swift build --target HarnessApp --configuration release
+
+      - name: Full Test Suite
+        run: swift test --parallel --enable-code-coverage
+
+      - name: Upload Coverage
+        uses: codecov/codecov-action@v4
+        with:
+          fail_ci_if_error: false
+
+      - name: Security Scan (CodeQL)
+        uses: github/codeql-action/init@v3
+        with:
+          languages: swift
+
+      - name: CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+
+      - name: Build CLI Artifact
+        run: |
+          swift build --configuration release
+          strip .build/release/dsh
+
+      - name: Upload CLI
+        uses: actions/upload-artifact@v4
+        with:
+          name: dsh-macos
+          path: .build/release/dsh
+          retention-days: 30
+
+      - name: Build macOS App Artifact
+        run: |
+          mkdir -p HarnessApp.artifact
+          cp -r .build/release/HarnessApp HarnessApp.artifact/
+          cd HarnessApp.artifact && zip -r ../HarnessApp-macos.zip HarnessApp
+
+      - name: Upload macOS App
+        uses: actions/upload-artifact@v4
+        with:
+          name: HarnessApp-macos
+          path: HarnessApp-macos.zip
+          retention-days: 30
+
+  # ==================== Weekly Dependency Audit ====================
+  weekly-audit:
+    name: Weekly Audit
+    runs-on: macos-latest-xlarge
+    schedule:
+      - cron: '0 0 * * 1'  # Monday 00:00 UTC
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Swift
+        uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: ${{ env.SWIFT_VERSION }}
+
+      - name: Resolve Dependencies
+        run: swift package resolve
+
+      - name: Check for Updates
+        run: swift package update --dry-run || true

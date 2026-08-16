@@ -1,0 +1,20 @@
+# SPM
+.build/
+.swiftpm/
+Packages/.build/
+
+# Xcode
+DerivedData/
+*.xcuserstate
+xcuserdata/
+*.xcscmblueprint
+
+# 覆盖率/报告产物
+*.xctestplan.bak
+coverage/.xcbuild/
+
+# macOS
+.DS_Store
+
+# 日志
+*.log

@@ -1,0 +1,206 @@
+import SwiftUI
+import ServiceContainer
+
+struct PluginListView: View {
+    @ObservedObject var viewModel: AppViewModel
+    @State private var searchText = ""
+    @State private var selectedPluginId: String?
+
+    var filtered: [PluginDisplayItem] {
+        if searchText.isEmpty { return viewModel.plugins }
+        return viewModel.plugins.filter { $0.name.localizedCaseInsensitiveContains(searchText) ||
+            $0.description.localizedCaseInsensitiveContains(searchText) }
+    }
+    var activeCount: Int { viewModel.plugins.filter { $0.isActive }.count }
+
+    var body: some View {
+        HStack(spacing: 0) {
+            VStack(spacing: 0) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("插件").font(.system(.title2, design: .rounded)).fontWeight(.semibold)
+                        Text("\(activeCount) / \(viewModel.plugins.count) 已启用（来自 PluginManager 实时状态）")
+                            .font(.system(size: 13))
+                            .foregroundStyle(HarnessTheme.textSecondary)
+                    }
+                    Spacer()
+                    HStack(spacing: 6) {
+                        Image(systemName: "magnifyingglass").font(.system(size: 11))
+                            .foregroundStyle(HarnessTheme.textTertiary)
+                        TextField("搜索插件…", text: $searchText).font(.system(size: 13))
+                            .textFieldStyle(.plain).disableAutocorrection(true)
+                    }
+                    .frame(width: 200).padding(8)
+                    .background(HarnessTheme.surface).cornerRadius(8)
+                }
+                .padding(.horizontal, 20).padding(.vertical, 16)
+                Divider()
+                ScrollView {
+                    LazyVStack(spacing: 8) {
+                        ForEach(filtered, id: \.id) { plugin in
+                            PluginCard(plugin: plugin) {
+                                viewModel.togglePlugin(plugin)
+                            }
+                            .onTapGesture {
+                                selectedPluginId = (selectedPluginId == plugin.id) ? nil : plugin.id
+                            }
+                        }
+                        if filtered.isEmpty {
+                            ContentUnavailableView("未找到插件", systemImage: "puzzlepiece.extension",
+                                description: Text("尝试其他搜索词")).padding(.top, 40)
+                        }
+                    }
+                    .padding(20)
+                }
+            }
+            if let id = selectedPluginId, let plugin = viewModel.plugins.first(where: { $0.id == id }) {
+                Divider().frame(height: 1)
+                PluginDetailView(plugin: plugin).frame(minWidth: 280, maxWidth: 340)
+            }
+        }
+        .background(HarnessTheme.bgPrimary)
+    }
+}
+
+struct PluginCard: View {
+    let plugin: PluginDisplayItem
+    let onToggle: () -> Void
+    @State private var isHovered = false
+
+    var body: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 8).fill(plugin.isActive ? Color.green.opacity(0.12) : HarnessTheme.surface)
+                    .frame(width: 36, height: 36)
+                Image(systemName: plugin.isActive ? "puzzlepiece.extension.fill" : "puzzlepiece.extension")
+                    .font(.system(size: 16))
+                    .foregroundStyle(plugin.isActive ? .green : HarnessTheme.textTertiary)
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text(plugin.name).font(.system(.body, design: .rounded)).fontWeight(.medium)
+                    Text("v\(plugin.version)").font(.system(size: 11)).foregroundStyle(HarnessTheme.textTertiary)
+                    Spacer()
+                    StateBadge(state: plugin.state)
+                }
+                Text(plugin.description).font(.system(size: 12))
+                    .foregroundStyle(HarnessTheme.textSecondary).lineLimit(2)
+                HStack(spacing: 4) {
+                    ForEach(plugin.permissions.prefix(3), id: \.self) { perm in
+                        Text(perm).font(.system(size: 9))
+                            .padding(.horizontal, 4).padding(.vertical, 2)
+                            .background(Color.orange.opacity(0.15)).cornerRadius(3)
+                            .foregroundStyle(Color.orange)
+                    }
+                    if plugin.permissions.count > 3 {
+                        Text("+\(plugin.permissions.count - 3)").font(.system(size: 9))
+                            .foregroundStyle(HarnessTheme.textTertiary)
+                    }
+                }
+            }
+            Spacer()
+            // 真实开关：调用 PluginManager install/uninstall
+            Toggle("", isOn: Binding(
+                get: { plugin.isActive },
+                set: { _ in onToggle() }
+            )).labelsHidden()
+            .toggleStyle(.switch)
+            .controlSize(.small)
+            .disabled(plugin.state == .loading || plugin.state == .initializing ||
+                      plugin.state == .starting || plugin.state == .stopping)
+        }
+        .padding(12)
+        .background(isHovered ? Color(NSColor.controlBackgroundColor).opacity(0.4) : HarnessTheme.surface.opacity(0.5))
+        .cornerRadius(10)
+        .overlay(RoundedRectangle(cornerRadius: 10)
+            .stroke(isHovered ? HarnessTheme.accent.opacity(0.3) : HarnessTheme.border, lineWidth: 0.5))
+        .onHover { isHovered = $0 }
+        .contentShape(Rectangle())
+    }
+}
+
+struct StateBadge: View {
+    let state: PluginState
+    var color: Color {
+        switch state {
+        case .active: return .green
+        case .stopped: return .gray
+        case .failed, .errored: return .red
+        case .loading, .initializing, .starting, .stopping: return .orange
+        }
+    }
+    var label: String {
+        switch state {
+        case .active: return "运行中"
+        case .stopped: return "已停用"
+        case .failed: return "失败"
+        case .errored: return "错误"
+        case .loading: return "加载中"
+        case .initializing: return "初始化"
+        case .starting: return "启动中"
+        case .stopping: return "停止中"
+        }
+    }
+    var body: some View {
+        HStack(spacing: 4) {
+            Circle().fill(color).frame(width: 6, height: 6)
+            Text(label).font(.system(size: 11)).foregroundStyle(color)
+        }
+    }
+}
+
+struct PluginDetailView: View {
+    let plugin: PluginDisplayItem
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("插件详情").font(.system(.headline, design: .rounded)).fontWeight(.semibold)
+            VStack(alignment: .leading, spacing: 12) {
+                DetailRow(label: "名称", value: plugin.name)
+                DetailRow(label: "版本", value: "v\(plugin.version)")
+                DetailRow(label: "状态", value: plugin.state == .active ? "运行中" : "已停用")
+                DetailRow(label: "作者", value: plugin.author ?? "未知")
+            }
+            Divider()
+            Text("描述").font(.system(.caption, design: .rounded)).fontWeight(.semibold)
+                .foregroundStyle(HarnessTheme.textSecondary)
+            Text(plugin.description).font(.system(size: 13)).foregroundStyle(HarnessTheme.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+            Divider()
+            Text("权限").font(.system(.caption, design: .rounded)).fontWeight(.semibold)
+                .foregroundStyle(HarnessTheme.textSecondary)
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(plugin.permissions, id: \.self) { perm in
+                    HStack(spacing: 6) {
+                        Image(systemName: "shield.check").font(.system(size: 10)).foregroundStyle(Color.orange)
+                        Text(perm).font(.system(size: 12, design: .monospaced))
+                    }
+                }
+                if plugin.permissions.isEmpty {
+                    Text("无需特殊权限").font(.system(size: 12)).foregroundStyle(HarnessTheme.textTertiary).italic()
+                }
+            }
+            Divider()
+            Text("说明").font(.system(.caption, design: .rounded)).fontWeight(.semibold)
+                .foregroundStyle(HarnessTheme.textSecondary)
+            Text("该插件由 PluginManager 统一管理生命周期，启用/停用会真实调用 install / uninstall 流程。")
+                .font(.system(size: 12)).foregroundStyle(HarnessTheme.textTertiary)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer()
+        }
+        .padding(16)
+        .frame(maxHeight: .infinity, alignment: .top)
+        .background(HarnessTheme.sidebarBg)
+    }
+}
+
+struct DetailRow: View {
+    let label: String
+    let value: String
+    var body: some View {
+        HStack(spacing: 12) {
+            Text(label).font(.system(size: 12)).foregroundStyle(HarnessTheme.textSecondary)
+                .frame(width: 60, alignment: .leading)
+            Text(value).font(.system(size: 12, design: .monospaced))
+        }
+    }
+}
