@@ -310,7 +310,7 @@ final class AppViewModel: ObservableObject {
         toolRegistry = ToolRegistry()
         mcpManager = MCPServerManager()
         notificationCenter = NotificationCoordinator(
-            service: SystemNotificationService(),
+            service: Self.notificationServiceFactory?() ?? SystemNotificationService(),
             isEnabled: UserDefaults.standard.object(forKey: "notificationsEnabled") as? Bool ?? true
         )
         xpcHost = XPCPluginHost()
@@ -950,8 +950,17 @@ final class AppViewModel: ObservableObject {
 
     // MARK: - 多 Agent 协作（真实 SubagentCoordinator 编排）
 
+    /// 历史文件路径覆盖（单元测试隔离用；生产为 nil）
+    static var subagentHistoryURLOverride: URL?
+
+    /// 通知服务工厂覆盖（单元测试隔离用；生产为 nil → 系统通知）
+    static var notificationServiceFactory: (@Sendable () -> any NotificationService)?
+
     /// 子任务历史文件（~/Library/Application Support/Harness/，与 XPC plist 同目录约定）
     static var subagentHistoryURL: URL {
+        if let override = subagentHistoryURLOverride {
+            return override
+        }
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support")
         let dir = base.appendingPathComponent("Harness", isDirectory: true)

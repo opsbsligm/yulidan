@@ -72,6 +72,9 @@ let package = Package(
                           dependencies: ["HarnessCore", "ServiceContainer", "Session", "LLM", "Tools", "Agent",
                                          "Subagent", "MCP", "Terminal", "Sandbox", "Notifications", "PluginXPC"],
                           path: "Apps/HarnessApp/Sources"),
+        .testTarget(name: "HarnessAppTests",
+                    dependencies: ["HarnessApp", "Agent", "Subagent", "Session", "LLM", "Tools"],
+                    path: "Apps/HarnessApp/Tests"),
 
         // Extended
         .target(name: "Notifications",
