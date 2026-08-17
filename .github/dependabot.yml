@@ -1,18 +1,12 @@
 version: 2
 updates:
+  # Swift 包依赖（Package.swift）
   - package-ecosystem: "swift"
     directory: "/"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 10
-    labels:
-      - "dependencies"
-      - "swift"
-
+  # GitHub Actions
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
-    labels:
-      - "ci"
-      - "dependencies"

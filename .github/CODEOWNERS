@@ -1,12 +1,2 @@
-# Core modules
-/Packages/ServiceContainer/ @core-team
-/Packages/Session/ @core-team
-/Packages/Agent/ @core-team
-/Packages/LLM/ @core-team
-/Packages/Tools/ @core-team
-
-# CI/CD
-/.github/workflows/ @infra-team
-
-# Documentation
-/docs/ @docs-team
+# 仓库所有者
+* @opsbsligm
