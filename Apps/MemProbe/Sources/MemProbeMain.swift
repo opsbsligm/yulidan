@@ -1,7 +1,7 @@
 import Foundation
+import LLM
 import ServiceContainer
 import Session
-import LLM
 import Tools
 
 /// 内存/性能探针 — 在 leaks 下反复执行应用核心路径：
@@ -16,10 +16,11 @@ struct MemProbe {
             version: PluginVersion(major: 1, minor: 0, patch: 0),
             description: "memprobe",
             minHarnessVersion: PluginVersion(major: 0, minor: 1, patch: 0),
-            permissions: [.filesystemRead])
-        func initialize(context: PluginContext) async throws {}
-        func start(context: PluginContext) async throws {}
-        func stop(context: PluginContext) async {}
+            permissions: [.filesystemRead]
+        )
+        func initialize(context _: PluginContext) async throws {}
+        func start(context _: PluginContext) async throws {}
+        func stop(context _: PluginContext) async {}
     }
 
     static func main() async {
@@ -31,13 +32,14 @@ struct MemProbe {
             // 1) 会话持久化
             let db = try SessionDB(dbURL: dbURL)
             var alive: [SessionID] = []
-            for i in 0..<iterations {
-                var s = Session(id: SessionID(),
-                                metadata: SessionMetadata(cwd: URL(fileURLWithPath: "/tmp")))
+            for i in 0 ..< iterations {
+                var s = SessionRecord(id: SessionID(),
+                                      metadata: SessionMetadata(cwd: URL(fileURLWithPath: "/tmp")))
                 s.append(.userMessage(UserMessage(content: [.text("probe-\(i)")])))
                 s.append(.assistantMessage(AssistantMessage(
                     turn: 1, step: 0, content: [.text("ok-\(i)")],
-                    provider: "deepseek", model: "deepseek-chat")))
+                    provider: "deepseek", model: "deepseek-chat"
+                )))
                 s.currentTurn = 1
                 try await db.save(s)
                 alive.append(s.id)
@@ -47,14 +49,18 @@ struct MemProbe {
                     try await db.delete(old)
                 }
             }
-            for id in alive { try await db.delete(id) }
+            for id in alive {
+                try await db.delete(id)
+            }
 
             // 2) 工具执行
             let reg = ToolRegistry()
-            for t in BuiltinTools.makeAll() { await reg.register(t) }
+            for t in BuiltinTools.makeAll() {
+                await reg.register(t)
+            }
             let listTool = await reg.tool(named: "list_files")!
             let ctx = ToolRunContext(signal: CancellationToken(), sessionID: SessionID(), metadata: [:])
-            for _ in 0..<iterations {
+            for _ in 0 ..< iterations {
                 _ = try await listTool.execute(["path": "/tmp", "limit": "20"], context: ctx)
             }
 
@@ -62,7 +68,7 @@ struct MemProbe {
             let container = ServiceContainer()
             let bus = EventBus()
             let pm = PluginManager(container: container, eventBus: bus)
-            for _ in 0..<iterations {
+            for _ in 0 ..< iterations {
                 try await pm.install(ProbePlugin())
                 _ = await pm.list()
                 try await pm.uninstall(PluginID("probe"))
