@@ -1,5 +1,6 @@
 import Foundation
 import LLM
+import Sandbox
 import ServiceContainer
 import Terminal
 
@@ -7,9 +8,25 @@ import Terminal
 // ⚠️ 安全提示：exec_command / write_file 具备真实执行能力，生产环境接入前
 //    建议叠加沙箱（Packages/Sandbox）与权限确认。
 
+// MARK: - 沙箱守卫
+
+enum SandboxGuard {
+    static func reject(_ tool: String, _ path: String) -> ToolResult {
+        ToolResult(content: [.text("❌ 路径超出沙箱允许范围：\(path)")],
+                   error: ToolError(name: tool, code: "outside_sandbox", message: "路径超出沙箱允许范围"))
+    }
+}
+
 // MARK: - read_file
 
 public struct ReadFileTool: Tool {
+    /// 可选路径沙箱；注入后越界路径返回 outside_sandbox 错误
+    public let sandbox: PathSandbox?
+
+    public init(sandbox: PathSandbox? = nil) {
+        self.sandbox = sandbox
+    }
+
     public let name = "read_file"
     public let description = "读取文件内容（默认限制 200KB）"
     public let parameterSchema = "{\"path\": \"文件绝对路径\"}"
@@ -18,6 +35,13 @@ public struct ReadFileTool: Tool {
         guard let path = args["path"]?.trimmingCharacters(in: .whitespaces), !path.isEmpty else {
             return ToolResult(content: [.text("错误：缺少参数 path")],
                               error: ToolError(name: "read_file", code: "missing_arg", message: "缺少 path 参数"))
+        }
+        if let sandbox {
+            do {
+                try sandbox.assertAllowed(path)
+            } catch {
+                return SandboxGuard.reject("read_file", path)
+            }
         }
         let url = URL(fileURLWithPath: (path as NSString).expandingTildeInPath)
         guard FileManager.default.fileExists(atPath: url.path) else {
@@ -43,6 +67,13 @@ public struct ReadFileTool: Tool {
 // MARK: - write_file
 
 public struct WriteFileTool: Tool {
+    /// 可选路径沙箱；注入后越界路径返回 outside_sandbox 错误
+    public let sandbox: PathSandbox?
+
+    public init(sandbox: PathSandbox? = nil) {
+        self.sandbox = sandbox
+    }
+
     public let name = "write_file"
     public let description = "写入文件内容（目录不存在时自动创建）"
     public let parameterSchema = "{\"path\": \"文件绝对路径\", \"content\": \"要写入的内容\"}"
@@ -51,6 +82,13 @@ public struct WriteFileTool: Tool {
         guard let path = args["path"]?.trimmingCharacters(in: .whitespaces), !path.isEmpty else {
             return ToolResult(content: [.text("错误：缺少参数 path")],
                               error: ToolError(name: "write_file", code: "missing_arg", message: "缺少 path 参数"))
+        }
+        if let sandbox {
+            do {
+                try sandbox.assertAllowed(path)
+            } catch {
+                return SandboxGuard.reject("write_file", path)
+            }
         }
         let content = args["content"] ?? ""
         let url = URL(fileURLWithPath: (path as NSString).expandingTildeInPath)
@@ -71,12 +109,26 @@ public struct WriteFileTool: Tool {
 // MARK: - list_files
 
 public struct ListFilesTool: Tool {
+    /// 可选路径沙箱；注入后越界路径返回 outside_sandbox 错误
+    public let sandbox: PathSandbox?
+
+    public init(sandbox: PathSandbox? = nil) {
+        self.sandbox = sandbox
+    }
+
     public let name = "list_files"
     public let description = "列出目录下的文件与子目录"
     public let parameterSchema = "{\"path\": \"目录绝对路径，默认当前目录\", \"limit\": \"最多显示条数，默认 100\"}"
 
     public func execute(_ args: [String: String], context _: ToolRunContext) async throws -> ToolResult {
         let rawPath = (args["path"] ?? ".").trimmingCharacters(in: .whitespaces)
+        if let sandbox {
+            do {
+                try sandbox.assertAllowed(rawPath)
+            } catch {
+                return SandboxGuard.reject("list_files", rawPath)
+            }
+        }
         let url = URL(fileURLWithPath: (rawPath as NSString).expandingTildeInPath)
         let fm = FileManager.default
         var isDir: ObjCBool = false
@@ -159,17 +211,25 @@ public struct ExecCommandTool: Tool {
 // MARK: - 注册辅助
 
 public enum BuiltinTools {
-    /// 创建全部内置工具实例
+    /// 创建全部内置工具实例（不带沙箱，兼容既有调用）
     public static func makeAll() -> [any Tool] {
-        [ReadFileTool(), WriteFileTool(), ListFilesTool(), ExecCommandTool()]
+        makeAll(sandbox: nil)
+    }
+
+    /// 创建全部内置工具实例；注入 PathSandbox 后文件工具受沙箱约束
+    public static func makeAll(sandbox: PathSandbox?) -> [any Tool] {
+        [ReadFileTool(sandbox: sandbox), WriteFileTool(sandbox: sandbox), ListFilesTool(sandbox: sandbox), ExecCommandTool()]
     }
 
     /// 根据工具名推断分类（UI 展示用）
     public static func category(for name: String) -> (id: String, display: String) {
+        if name.hasPrefix("mcp_") {
+            return ("mcp", "MCP")
+        }
         switch name {
-        case "read_file", "write_file", "list_files": ("filesystem", "文件")
-        case "exec_command": ("terminal", "终端")
-        default: ("general", "通用")
+        case "read_file", "write_file", "list_files": return ("filesystem", "文件")
+        case "exec_command": return ("terminal", "终端")
+        default: return ("general", "通用")
         }
     }
 }

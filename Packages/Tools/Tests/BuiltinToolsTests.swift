@@ -1,3 +1,4 @@
+import Sandbox
 import Session
 @testable import Tools
 import XCTest
@@ -86,5 +87,68 @@ final class BuiltinToolsTests: XCTestCase {
         // 超时后 terminate，不应等满 10 秒
         XCTAssertLessThan(elapsed, 8)
         _ = res
+    }
+}
+
+/// 沙箱集成：文件工具注入 PathSandbox 后越界路径被拒绝
+final class BuiltinToolsSandboxTests: XCTestCase {
+    func context() -> ToolRunContext {
+        ToolRunContext(signal: CancellationToken(), sessionID: SessionID(), metadata: [:])
+    }
+
+    private func text(_ res: ToolResult) -> String {
+        res.content.first.flatMap {
+            if case let .text(t) = $0 {
+                return t
+            }
+            return nil
+        } ?? ""
+    }
+
+    func testWriteFileOutsideSandboxRejected() async throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("harness-t-\(UUID().uuidString)")
+        defer {
+            try? FileManager.default.removeItem(at: dir)
+        }
+        let sandbox = PathSandbox(allowedRoots: [dir.path])
+        let tool = WriteFileTool(sandbox: sandbox)
+        let res = try await tool.execute(["path": dir.path + "/../evil.txt", "content": "x"], context: context())
+        XCTAssertEqual(res.error?.code, "outside_sandbox")
+        XCTAssertTrue(text(res).contains("沙箱"))
+    }
+
+    func testWriteFileInsideSandboxAllowed() async throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("harness-t-\(UUID().uuidString)")
+        defer {
+            try? FileManager.default.removeItem(at: dir)
+        }
+        let sandbox = PathSandbox(allowedRoots: [dir.path])
+        let tool = WriteFileTool(sandbox: sandbox)
+        let target = dir.appendingPathComponent("ok.txt").path
+        let res = try await tool.execute(["path": target, "content": "hi"], context: context())
+        XCTAssertNil(res.error)
+        XCTAssertEqual((try? String(contentsOf: URL(fileURLWithPath: target), encoding: .utf8)) ?? "", "hi")
+    }
+
+    func testReadFileOutsideSandboxRejected() async throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("harness-t-\(UUID().uuidString)")
+        defer {
+            try? FileManager.default.removeItem(at: dir)
+        }
+        let sandbox = PathSandbox(allowedRoots: [dir.path])
+        let tool = ReadFileTool(sandbox: sandbox)
+        let res = try await tool.execute(["path": "/etc/hostname"], context: context())
+        XCTAssertEqual(res.error?.code, "outside_sandbox")
+    }
+
+    func testListFilesOutsideSandboxRejected() async throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("harness-t-\(UUID().uuidString)")
+        defer {
+            try? FileManager.default.removeItem(at: dir)
+        }
+        let sandbox = PathSandbox(allowedRoots: [dir.path])
+        let tool = ListFilesTool(sandbox: sandbox)
+        let res = try await tool.execute(["path": "/usr"], context: context())
+        XCTAssertEqual(res.error?.code, "outside_sandbox")
     }
 }
