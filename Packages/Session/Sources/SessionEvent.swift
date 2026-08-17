@@ -138,6 +138,13 @@ public struct ImageBlock: Sendable, Codable {
     public let data: Data
     public let width: Int?
     public let height: Int?
+
+    public init(mimeType: String, data: Data, width: Int?, height: Int?) {
+        self.mimeType = mimeType
+        self.data = data
+        self.width = width
+        self.height = height
+    }
 }
 
 /// 工具调用块
@@ -145,6 +152,12 @@ public struct ToolCallBlock: Sendable, Codable {
     public let id: String
     public let name: String
     public let arguments: String
+
+    public init(id: String, name: String, arguments: String) {
+        self.id = id
+        self.name = name
+        self.arguments = arguments
+    }
 }
 
 /// 工具结果块
@@ -152,6 +165,12 @@ public struct ToolResultBlock: Sendable, Codable {
     public let toolCallId: String
     public let content: [ContentBlock]
     public let isError: Bool
+
+    public init(toolCallId: String, content: [ContentBlock], isError: Bool) {
+        self.toolCallId = toolCallId
+        self.content = content
+        self.isError = isError
+    }
 }
 
 /// 消息来源

@@ -159,6 +159,7 @@ public actor AgentLoop {
         for userMessage in batch {
             history.append(Self.llmMessage(from: userMessage))
         }
+        var stepMessages: [AssistantMessage] = []
         do {
             var step = 0
             while step < maxSteps {
@@ -173,6 +174,7 @@ public actor AgentLoop {
 
                 // 记录助手消息（含可能的工具调用块）
                 history.append(LLM.Message(role: .assistant, content: response.content, source: .model))
+                stepMessages.append(makeStepMessage(step: step, response: response))
 
                 let calls = response.toolCalls ?? []
                 guard !calls.isEmpty else {
@@ -191,7 +193,7 @@ public actor AgentLoop {
                                                totalTokens: $0.totalTokens)
                         }
                     )
-                    return AgentResult(status: .idle, messages: [assistant])
+                    return AgentResult(status: .idle, messages: [assistant], steps: stepMessages)
                 }
 
                 // 执行全部工具调用并把结果回填上下文
@@ -204,11 +206,27 @@ public actor AgentLoop {
             // 达到步数上限
             let error = AgentError.stepLimitExceeded(maxSteps)
             await turn.fail(with: error)
-            return AgentResult(status: .idle, error: error.localizedDescription)
+            return AgentResult(status: .idle, error: error.localizedDescription, steps: stepMessages)
         } catch {
             await turn.fail(with: error)
-            return AgentResult(status: .idle, error: error.localizedDescription)
+            return AgentResult(status: .idle, error: error.localizedDescription, steps: stepMessages)
         }
+    }
+
+    /// 构造当前步的助手消息（含工具调用块，供执行过程展示）
+    private func makeStepMessage(step: Int, response: LLMResponse) -> AssistantMessage {
+        AssistantMessage(
+            turn: turnNumber,
+            step: step,
+            content: response.content.map(Self.sessionBlock(from:)),
+            provider: llm.id,
+            model: response.model,
+            usage: response.usage.map {
+                Session.TokenUsage(promptTokens: $0.promptTokens,
+                                   completionTokens: $0.completionTokens,
+                                   totalTokens: $0.totalTokens)
+            }
+        )
     }
 
     private func executeToolCall(_ call: LLM.ToolCallBlock) async -> ToolResult {
@@ -266,6 +284,24 @@ public actor AgentLoop {
             .toolCall(LLM.ToolCallBlock(id: tc.id, name: tc.name, arguments: tc.arguments))
         case let .toolResult(tr):
             .toolResult(LLM.ToolResultBlock(toolCallId: tr.toolCallId, content: tr.content.map(convertBlock), isError: tr.isError))
+        }
+    }
+
+    /// LLM.ContentBlock → Session.ContentBlock（convertBlock 的反向映射；步骤消息记录用）
+    static func sessionBlock(from block: LLM.ContentBlock) -> Session.ContentBlock {
+        switch block {
+        case let .text(s):
+            .text(s)
+        case let .reasoning(s):
+            .reasoning(s)
+        case let .image(img):
+            .image(Session.ImageBlock(mimeType: img.mimeType, data: img.data, width: img.width, height: img.height))
+        case let .toolCall(tc):
+            .toolCall(Session.ToolCallBlock(id: tc.id, name: tc.name, arguments: tc.arguments))
+        case let .toolResult(tr):
+            .toolResult(Session.ToolResultBlock(toolCallId: tr.toolCallId,
+                                                content: tr.content.map { sessionBlock(from: $0) },
+                                                isError: tr.isError))
         }
     }
 

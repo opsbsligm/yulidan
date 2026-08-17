@@ -183,6 +183,20 @@ struct SubagentCard: View {
                 .background(HarnessTheme.surface)
                 .cornerRadius(HarnessTheme.radiusSmall)
             }
+            if !item.stepLines.isEmpty {
+                VStack(alignment: .leading, spacing: 2) {
+                    ForEach(item.stepLines, id: \.self) { line in
+                        Text(line)
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundStyle(HarnessTheme.textTertiary)
+                            .lineLimit(2)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(8)
+                .background(HarnessTheme.bgSecondary)
+                .cornerRadius(HarnessTheme.radiusSmall)
+            }
         }
         .padding(12)
         .background(HarnessTheme.surface)

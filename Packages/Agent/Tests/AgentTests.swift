@@ -304,6 +304,7 @@ struct AgentLoopTurnTests {
         let result = await awaitTurnResult(loop)
         #expect(result.error == nil)
         #expect(result.messages.count == 1)
+        #expect(result.steps.count == 1)
         #expect(await llm.callCount == 1)
     }
 
@@ -327,6 +328,7 @@ struct AgentLoopTurnTests {
         }
         #expect(finalText == "执行完毕")
         #expect(await llm.callCount == 2)
+        #expect(result.steps.count == 2)
         let toolResults = await loop.allToolResults
         #expect(toolResults.count == 1)
         let first = toolResults.first
@@ -356,6 +358,7 @@ struct AgentLoopTurnTests {
         let result = await awaitTurnResult(loop)
         #expect(result.error != nil)
         #expect(result.error?.contains("模拟网络错误") == true)
+        #expect(result.steps.isEmpty)
     }
 
     @Test("步数上限：连续工具调用达到 maxSteps 后终止")
@@ -371,6 +374,7 @@ struct AgentLoopTurnTests {
         #expect(result.error != nil)
         #expect(result.error?.contains("超过上限") == true)
         #expect(await llm.callCount == 3)
+        #expect(result.steps.count == 3)
     }
 
     @Test("parseArguments：字符串/数字/布尔/嵌套结构解析")

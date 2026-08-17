@@ -159,6 +159,7 @@ struct SubagentDisplayItem: Identifiable, Hashable {
     let resultText: String?
     let error: String?
     let elapsed: TimeInterval?
+    let stepLines: [String]
 
     init(state: SubagentState) {
         id = state.id.rawValue.uuidString
@@ -177,6 +178,30 @@ struct SubagentDisplayItem: Identifiable, Hashable {
         resultText = text
         error = state.error
         elapsed = state.elapsed
+        stepLines = Self.stepLines(from: state.result?.steps ?? [])
+    }
+
+    /// 执行过程时间线（工具调用 / 文本回复，按步序）
+    static func stepLines(from steps: [AssistantMessage]) -> [String] {
+        steps.enumerated().map { index, msg in
+            let n = index + 1
+            let calls = msg.content.compactMap { block -> String? in
+                if case let .toolCall(c) = block {
+                    return "\(c.name) \(c.arguments)"
+                }
+                return nil
+            }
+            if !calls.isEmpty {
+                return "步骤\(n) · 工具调用 \(calls.map { String($0.prefix(60)) }.joined(separator: "；"))"
+            }
+            let text = msg.content.compactMap { block -> String? in
+                if case let .text(s) = block {
+                    return s
+                }
+                return nil
+            }.joined()
+            return "步骤\(n) · 回复 \(text.isEmpty ? "（无文本）" : String(text.prefix(80)))"
+        }
     }
 }
 

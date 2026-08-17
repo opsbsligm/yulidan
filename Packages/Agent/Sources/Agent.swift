@@ -34,10 +34,13 @@ public struct AgentResult: Sendable {
     public let status: AgentStatus
     public let messages: [AssistantMessage]
     public let error: String?
+    /// 本 turn 的全部助手消息（含中间工具调用步骤，按步序；最终回答在最后）
+    public let steps: [AssistantMessage]
 
-    public init(status: AgentStatus, messages: [AssistantMessage] = [], error: String? = nil) {
+    public init(status: AgentStatus, messages: [AssistantMessage] = [], error: String? = nil, steps: [AssistantMessage] = []) {
         self.status = status
         self.messages = messages
         self.error = error
+        self.steps = steps
     }
 }
