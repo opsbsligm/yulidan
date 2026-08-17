@@ -6,16 +6,16 @@ public actor CircuitBreaker {
         case open
         case halfOpen
     }
-    
+
     public var state: State = .closed
     public var failureCount: Int = 0
     public var successCount: Int = 0
-    
+
     private let failureThreshold: Int
     private let successThreshold: Int
     private let resetTimeout: TimeInterval
     private var openUntil: Date?
-    
+
     public init(
         failureThreshold: Int = 5,
         successThreshold: Int = 3,
@@ -24,9 +24,9 @@ public actor CircuitBreaker {
         self.failureThreshold = failureThreshold
         self.successThreshold = successThreshold
         self.resetTimeout = resetTimeout
-        self.openUntil = nil
+        openUntil = nil
     }
-    
+
     public func call<T: Sendable>(_ operation: @escaping @Sendable () async throws -> T) async throws -> T {
         switch state {
         case .closed:
@@ -40,7 +40,7 @@ public actor CircuitBreaker {
                 }
                 throw error
             }
-            
+
         case .open:
             if let openUntil, Date() >= openUntil {
                 state = .halfOpen
@@ -48,7 +48,7 @@ public actor CircuitBreaker {
                 return try await call(operation)
             }
             throw CircuitBreakerError.open
-            
+
         case .halfOpen:
             do {
                 let result = try await operation()
@@ -65,12 +65,12 @@ public actor CircuitBreaker {
             }
         }
     }
-    
+
     private func open() {
         state = .open
         openUntil = Date().addingTimeInterval(resetTimeout)
     }
-    
+
     public func reset() {
         state = .closed
         failureCount = 0
@@ -83,12 +83,12 @@ public enum CircuitBreakerError: Error, Sendable, CustomStringConvertible {
     case open
     case timeout
     case maxAttemptsExceeded
-    
+
     public var description: String {
         switch self {
-        case .open: return "Circuit breaker is open"
-        case .timeout: return "Circuit breaker timeout"
-        case .maxAttemptsExceeded: return "Max attempts exceeded"
+        case .open: "Circuit breaker is open"
+        case .timeout: "Circuit breaker timeout"
+        case .maxAttemptsExceeded: "Max attempts exceeded"
         }
     }
 }

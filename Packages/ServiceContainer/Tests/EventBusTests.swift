@@ -1,6 +1,6 @@
-import Testing
 import Foundation
 @testable import ServiceContainer
+import Testing
 
 @Suite("EventBus Tests")
 struct EventBusTests {
@@ -12,7 +12,7 @@ struct EventBusTests {
         let result = await bus.waterfall(payload: payload, eventType: "test")
         #expect(result != nil)
     }
-    
+
     @Test("Parallel runs all handlers")
     func testParallel() async {
         let bus = EventBus()
@@ -22,7 +22,7 @@ struct EventBusTests {
         await bus.parallel(payload: AnyCodable("x"), eventType: "test")
         #expect(await counter.value == 2)
     }
-    
+
     @Test("Serial runs in order")
     func testSerial() async {
         let bus = EventBus()
@@ -32,14 +32,14 @@ struct EventBusTests {
         await bus.serial(payload: AnyCodable("x"), eventType: "test")
         #expect(await order.elements == [1, 2])
     }
-    
+
     @Test("Clear removes handlers")
     func testClear() async {
         let bus = EventBus()
         await bus.onEmit(eventType: "test") { _ in }
         await bus.clear(eventType: "test")
     }
-    
+
     @Test("ClearAll removes all")
     func testClearAll() async {
         let bus = EventBus()
@@ -51,10 +51,14 @@ struct EventBusTests {
 
 private actor Counter {
     var value: Int = 0
-    func increment() { value += 1 }
+    func increment() {
+        value += 1
+    }
 }
 
 private actor IntArray {
     var elements: [Int] = []
-    func append(_ element: Int) { elements.append(element) }
+    func append(_ element: Int) {
+        elements.append(element)
+    }
 }

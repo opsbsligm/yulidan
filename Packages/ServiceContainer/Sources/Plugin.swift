@@ -2,8 +2,13 @@ import Foundation
 
 public struct PluginID: Sendable, Hashable, Codable, CustomStringConvertible {
     public let rawValue: String
-    public init(_ rawValue: String) { self.rawValue = rawValue }
-    public var description: String { rawValue }
+    public init(_ rawValue: String) {
+        self.rawValue = rawValue
+    }
+
+    public var description: String {
+        rawValue
+    }
 }
 
 public struct PluginVersion: Sendable, Hashable, Codable, CustomStringConvertible {
@@ -12,7 +17,7 @@ public struct PluginVersion: Sendable, Hashable, Codable, CustomStringConvertibl
     public let patch: Int
     public let prerelease: String?
     public let buildMetadata: String?
-    
+
     public init(major: Int, minor: Int, patch: Int, prerelease: String? = nil, buildMetadata: String? = nil) {
         self.major = major
         self.minor = minor
@@ -20,23 +25,27 @@ public struct PluginVersion: Sendable, Hashable, Codable, CustomStringConvertibl
         self.prerelease = prerelease
         self.buildMetadata = buildMetadata
     }
-    
+
     public init?(description: String) {
         let parts = description.split(separator: "+")
         let versionParts = parts[0].split(separator: "-")
         let numbers = versionParts[0].split(separator: ".").compactMap { Int($0) }
         guard numbers.count == 3 else { return nil }
-        self.major = numbers[0]
-        self.minor = numbers[1]
-        self.patch = numbers[2]
-        self.prerelease = versionParts.count > 1 ? String(versionParts[1]) : nil
-        self.buildMetadata = parts.count > 1 ? String(parts[1]) : nil
+        major = numbers[0]
+        minor = numbers[1]
+        patch = numbers[2]
+        prerelease = versionParts.count > 1 ? String(versionParts[1]) : nil
+        buildMetadata = parts.count > 1 ? String(parts[1]) : nil
     }
-    
+
     public var description: String {
         var result = "\(major).\(minor).\(patch)"
-        if let prerelease { result += "-\(prerelease)" }
-        if let buildMetadata { result += "+\(buildMetadata)" }
+        if let prerelease {
+            result += "-\(prerelease)"
+        }
+        if let buildMetadata {
+            result += "+\(buildMetadata)"
+        }
         return result
     }
 }
@@ -51,7 +60,7 @@ public struct PluginManifest: Sendable, Codable {
     public let permissions: [Permission]
     public let author: String?
     public let license: String?
-    
+
     public init(
         id: PluginID,
         name: String,
@@ -80,7 +89,7 @@ public struct PluginDependency: Sendable, Codable {
     public let minVersion: PluginVersion
     public let maxVersion: PluginVersion?
     public let required: Bool
-    
+
     public init(id: PluginID, minVersion: PluginVersion, maxVersion: PluginVersion? = nil, required: Bool = true) {
         self.id = id
         self.minVersion = minVersion
@@ -92,12 +101,12 @@ public struct PluginDependency: Sendable, Codable {
 public enum Permission: String, Sendable, Codable, CaseIterable {
     case filesystemRead, filesystemWrite, shellExecution, networkAccess
     case subprocessSpawn, terminalAccess, clipboardAccess, screenCapture, keychainAccess
-    
+
     public var level: PermissionLevel {
         switch self {
-        case .filesystemRead, .clipboardAccess: return .low
-        case .filesystemWrite, .networkAccess, .keychainAccess: return .medium
-        case .shellExecution, .subprocessSpawn, .terminalAccess, .screenCapture: return .high
+        case .filesystemRead, .clipboardAccess: .low
+        case .filesystemWrite, .networkAccess, .keychainAccess: .medium
+        case .shellExecution, .subprocessSpawn, .terminalAccess, .screenCapture: .high
         }
     }
 }
@@ -120,20 +129,25 @@ public struct PluginHealth: Sendable, Codable {
     public let message: String?
     public let timestamp: Date
     public let metrics: [String: Double]
-    
+
     public enum HealthStatus: String, Sendable, Codable {
         case healthy, degraded, unhealthy, unknown
     }
-    
+
     public init(status: HealthStatus, message: String? = nil, metrics: [String: Double] = [:]) {
         self.status = status
         self.message = message
-        self.timestamp = Date()
+        timestamp = Date()
         self.metrics = metrics
     }
 }
 
 public extension Plugin {
-    var isActive: Bool { false }
-    func healthCheck() async -> PluginHealth { PluginHealth(status: .unknown) }
+    var isActive: Bool {
+        false
+    }
+
+    func healthCheck() async -> PluginHealth {
+        PluginHealth(status: .unknown)
+    }
 }
