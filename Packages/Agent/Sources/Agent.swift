@@ -1,7 +1,7 @@
 import Foundation
+import LLM
 import ServiceContainer
 import Session
-import LLM
 import Tools
 
 public protocol Agent: Sendable {
@@ -17,7 +17,9 @@ public protocol Agent: Sendable {
 
 public struct AgentID: Sendable, Hashable, Codable {
     public let rawValue: UUID
-    public init() { self.rawValue = UUID() }
+    public init() {
+        rawValue = UUID()
+    }
 }
 
 public enum AgentStatus: String, Sendable, Codable {
@@ -32,7 +34,7 @@ public struct AgentResult: Sendable {
     public let status: AgentStatus
     public let messages: [AssistantMessage]
     public let error: String?
-    
+
     public init(status: AgentStatus, messages: [AssistantMessage] = [], error: String? = nil) {
         self.status = status
         self.messages = messages

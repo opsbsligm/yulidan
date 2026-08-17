@@ -6,7 +6,7 @@ final class Inbox: @unchecked Sendable {
     private let lock = NSLock()
     private var nextTurn: [UserMessage] = []
     private var nextStep: [UserMessage] = []
-    
+
     func append(_ message: UserMessage, target: InboxTarget) {
         lock.lock()
         defer { lock.unlock() }
@@ -15,7 +15,7 @@ final class Inbox: @unchecked Sendable {
         case .nextStep: nextStep.append(message)
         }
     }
-    
+
     func claimNext() -> [UserMessage]? {
         lock.lock()
         defer { lock.unlock() }
@@ -28,14 +28,14 @@ final class Inbox: @unchecked Sendable {
         }
         return batch.isEmpty ? nil : batch
     }
-    
+
     func clear() {
         lock.lock()
         defer { lock.unlock() }
         nextTurn.removeAll()
         nextStep.removeAll()
     }
-    
+
     var hasPending: Bool {
         lock.lock()
         defer { lock.unlock() }
