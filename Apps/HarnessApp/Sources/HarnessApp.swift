@@ -31,27 +31,64 @@ enum ThemeManager {
     }
 }
 
+extension AppDelegate {
+    /// 远程排障：HARNESS_DEBUG=1 时把窗口状态写 /tmp/harness-debug.log
+    static let debugEnabled = ProcessInfo.processInfo.environment["HARNESS_DEBUG"] == "1"
+    /// 重建窗口预算：窗口服务器持续碎片化时防止无限重建刷屏（最多 2 次，间隔 ≥30s）
+    static let recreateBudget = OSAllocatedUnfairLock<Int>(initialState: 2)
+    static let lastRecreate = OSAllocatedUnfairLock<Date?>(initialState: nil)
+
+    enum RecreateState {
+        /// 有预算且距上次重建 ≥30s 才允许；成功放行时消耗预算
+        static func allow(now: Date) -> Bool {
+            let last = lastRecreate.withLock { $0 }
+            if let last, now.timeIntervalSince(last) < 30 {
+                return false
+            }
+            let granted = recreateBudget.withLock { count -> Bool in
+                guard count > 0 else {
+                    return false
+                }
+                count -= 1
+                return true
+            }
+            guard granted else {
+                return false
+            }
+            lastRecreate.withLock { $0 = now }
+            return true
+        }
+    }
+
+    static func debugLog(_ msg: String) {
+        guard debugEnabled else { return }
+        let line = "\(Date()): \(msg)\n"
+        if let data = line.data(using: .utf8) {
+            let url = URL(fileURLWithPath: "/tmp/harness-debug.log")
+            if let fh = try? FileHandle(forWritingTo: url) {
+                defer { try? fh.close() }
+                fh.seekToEndOfFile()
+                fh.write(data)
+            } else {
+                try? data.write(to: url)
+            }
+        }
+    }
+}
+
 class AppDelegate: NSObject, NSApplicationDelegate {
     private var window: NSWindow?
+    /// 长生命周期 hosting：重建窗口时复用，避免 AppViewModel（会话状态）丢失
+    private var hosting: NSHostingController<ContentView>?
 
     func applicationDidFinishLaunching(_: Notification) {
         // 不再强制深色 — 跟随系统 / 用户设置
         ThemeManager.applyFromStorage()
         NSApp.setActivationPolicy(.regular)
 
-        let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 1100, height: 750),
-            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
-            backing: .buffered,
-            defer: false
-        )
-        window.title = "Harness"
-        window.titlebarAppearsTransparent = true
-        window.titleVisibility = .hidden
-        window.minSize = NSSize(width: 800, height: 500)
-        window.backgroundColor = NSColor.windowBackgroundColor
-
         let hosting = NSHostingController(rootView: ContentView())
+        self.hosting = hosting
+        let window = makeWindow()
         window.contentViewController = hosting
         window.makeKeyAndOrderFront(nil)
         // 启动时铺满“用户所在屏”的可视区域：
@@ -69,7 +106,44 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         self.window = window
         NSApp.activate(ignoringOtherApps: true)
+        AppDelegate.debugLog("launched win#\(window.windowNumber) frame=\(window.frame) mini=\(window.isMiniaturized) screens=\(NSScreen.screens.map { "\($0.frame)" })")
         startFrameWatchdog(for: window)
+    }
+
+    /// 创建标准主窗口（启动与重建共用）
+    private func makeWindow() -> NSWindow {
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 1100, height: 750),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = "Harness"
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
+        window.minSize = NSSize(width: 800, height: 500)
+        window.backgroundColor = NSColor.windowBackgroundColor
+        return window
+    }
+
+    /// 窗口服务器把窗口压成碎片且重映射无效时：重建整个窗口（换 windowNumber 重新映射）
+    /// 顺序讲究：先建新窗口挂好 VC 并映射，再释放旧窗口，避免 use-after-free
+    func recreateWindow(target: NSScreen) {
+        guard let old = window, let contentVC = hosting else { return }
+        AppDelegate.debugLog("recreateWindow: replacing fragmented win#\(old.windowNumber)")
+        frameWatchdog?.invalidate()
+        let newWindow = makeWindow()
+        old.contentViewController = nil
+        newWindow.contentViewController = contentVC
+        newWindow.setFrame(target.visibleFrame, display: true)
+        newWindow.makeKeyAndOrderFront(nil)
+        old.isReleasedWhenClosed = false
+        old.orderOut(nil)
+        old.close()
+        window = newWindow
+        NSApp.activate(ignoringOtherApps: true)
+        AppDelegate.debugLog("recreateWindow: new win#\(newWindow.windowNumber) frame=\(newWindow.frame)")
+        startFrameWatchdog(for: newWindow)
     }
 
     /// 看门狗：无头/远程环境下显示配置可能抖动（窗口掉屏、被窗口服务器压成碎片、被最小化）。
@@ -100,16 +174,33 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 mismatch.withLock { $0 = 0 }
                 return
             }
+            let screenDesc = String(describing: window.screen?.frame)
+            let state = "win#\(window.windowNumber) frame=\(window.frame) appOK=\(appSideOK) srvOK=\(serverOK) scr=\(screenDesc) tgt=\(target.frame)"
+            AppDelegate.debugLog("watchdog mismatch " + state)
             let n = mismatch.withLock { count in
                 count += 1
                 return count
             }
             // 连续 2 次异常才重映射，避免瞬时抖动导致闪烁
             guard n >= 2 else { return }
-            mismatch.withLock { $0 = 0 }
+            // 连续 4 次仍异常（重映射已失效，窗口被压成碎片）→ 重建窗口
+            if n >= 4 {
+                mismatch.withLock { $0 = 0 }
+                let now = Date()
+                let budgetOK = AppDelegate.RecreateState.allow(now: now)
+                AppDelegate.debugLog("watchdog recreate-check budgetOK=\(budgetOK)")
+                if budgetOK, let delegate = appDelegateInstance {
+                    MainActor.assumeIsolated {
+                        delegate.recreateWindow(target: target)
+                    }
+                }
+                return
+            }
+            // 不清零：让计数持续累积，重映射无效时升级到现场重建
             window.orderOut(nil)
             window.setFrame(target.visibleFrame, display: true)
             window.makeKeyAndOrderFront(nil)
+            AppDelegate.debugLog("watchdog REMAPPED to \(target.visibleFrame) -> win#\(window.windowNumber) frame=\(window.frame)")
         }
     }
 
