@@ -930,9 +930,34 @@ final class AppViewModel: ObservableObject {
             systemPrompt: "你是子任务执行 Agent：直接完成给定任务，输出简洁结果，不要反问。"
         )
         Task {
-            _ = await subagentCoordinator.spawn(agent: agent, spec: SubagentSpec(name: name, task: task, timeout: timeout))
+            let id = await subagentCoordinator.spawn(agent: agent, spec: SubagentSpec(name: name, task: task, timeout: timeout))
             showToast("已派生子任务：\(name)")
+            let state = await subagentCoordinator.waitFor(id)
+            await notifySubagentFinished(state)
         }
+    }
+
+    /// 子任务到达终态 → 系统通知（复用 Notifications 包；取消为用户主动操作，不通知）
+    private func notifySubagentFinished(_ state: SubagentState) async {
+        guard let title = state.phase.notificationTitle else { return }
+        var detail = "「\(state.name)」"
+        switch state.phase {
+        case .succeeded:
+            if let first = state.result?.messages.first {
+                let text = first.content.compactMap { block -> String? in
+                    if case let .text(s) = block {
+                        return s
+                    }
+                    return nil
+                }.joined()
+                detail += String(text.prefix(60))
+            }
+        case .failed, .timedOut:
+            detail += state.error ?? "未知错误"
+        default:
+            break
+        }
+        await notificationCenter.post(event: title, detail: detail)
     }
 
     func cancelSubagent(_ item: SubagentDisplayItem) {

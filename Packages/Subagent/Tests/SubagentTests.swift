@@ -3,6 +3,7 @@ import Foundation
 import LLM
 import Session
 import Subagent
+import Testing
 import Tools
 import XCTest
 
@@ -302,6 +303,19 @@ private final class ScriptedTextLLM: LLMProvider, @unchecked Sendable {
         AsyncThrowingStream { continuation in
             continuation.finish()
         }
+    }
+}
+
+@Suite("SubagentPhase 通知标题映射")
+struct SubagentPhaseNotificationTests {
+    @Test("succeeded/failed/timedOut 有标题；cancelled 与进行中为 nil")
+    func titles() {
+        #expect(SubagentPhase.succeeded.notificationTitle == "子任务完成")
+        #expect(SubagentPhase.failed.notificationTitle == "子任务失败")
+        #expect(SubagentPhase.timedOut.notificationTitle == "子任务超时")
+        #expect(SubagentPhase.cancelled.notificationTitle == nil)
+        #expect(SubagentPhase.pending.notificationTitle == nil)
+        #expect(SubagentPhase.running.notificationTitle == nil)
     }
 }
 

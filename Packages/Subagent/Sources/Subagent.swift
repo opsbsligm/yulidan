@@ -54,6 +54,16 @@ public enum SubagentPhase: String, Sendable {
             false
         }
     }
+
+    /// 终态对应的系统通知标题（nil = 不发通知，如用户主动取消 / 非终态）
+    public var notificationTitle: String? {
+        switch self {
+        case .succeeded: "子任务完成"
+        case .failed: "子任务失败"
+        case .timedOut: "子任务超时"
+        case .cancelled, .pending, .running: nil
+        }
+    }
 }
 
 /// 子任务可观察状态
