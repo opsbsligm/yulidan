@@ -38,7 +38,7 @@ public struct SubagentSpec: Sendable {
 // MARK: - 状态与事件
 
 /// 子任务阶段
-public enum SubagentPhase: String, Sendable {
+public enum SubagentPhase: String, Sendable, Codable, Hashable {
     case pending // 排队等待并发槽位
     case running
     case succeeded
@@ -279,5 +279,49 @@ public actor SubagentCoordinator {
         if !slotWaiters.isEmpty {
             slotWaiters.removeFirst().resume()
         }
+    }
+}
+
+// MARK: - 历史持久化
+
+/// 子任务历史记录（磁盘 JSON 存储；App 重启后展示终态子任务）
+public struct SubagentHistoryItem: Sendable, Codable, Hashable {
+    public let id: String
+    public let name: String
+    public let phase: SubagentPhase
+    public let resultText: String?
+    public let error: String?
+    public let elapsed: TimeInterval?
+    public let stepLines: [String]
+    public let finishedAt: Date
+
+    public init(id: String, name: String, phase: SubagentPhase, resultText: String?,
+                error: String?, elapsed: TimeInterval?, stepLines: [String], finishedAt: Date) {
+        self.id = id
+        self.name = name
+        self.phase = phase
+        self.resultText = resultText
+        self.error = error
+        self.elapsed = elapsed
+        self.stepLines = stepLines
+        self.finishedAt = finishedAt
+    }
+}
+
+/// 历史文件读写（JSON 数组；最新在前；带数量上限）
+public enum SubagentHistoryStore {
+    public static let defaultCap = 50
+
+    /// 读取历史；文件不存在 / 损坏时返回空
+    public static func load(url: URL) -> [SubagentHistoryItem] {
+        guard let data = try? Data(contentsOf: url) else { return [] }
+        return (try? JSONDecoder().decode([SubagentHistoryItem].self, from: data)) ?? []
+    }
+
+    /// 保存历史（截取前 cap 条，原子写入；失败静默）
+    public static func save(_ items: [SubagentHistoryItem], url: URL, cap: Int = defaultCap) {
+        let trimmed = Array(items.prefix(cap))
+        guard let data = try? JSONEncoder().encode(trimmed) else { return }
+        try? data.write(to: url, options: .atomic)
     }
 }

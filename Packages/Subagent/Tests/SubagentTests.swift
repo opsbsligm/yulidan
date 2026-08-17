@@ -353,3 +353,56 @@ final class CoordinatorRealAgentLoopTests: XCTestCase {
         XCTAssertNotNil(state.error)
     }
 }
+
+// MARK: - 历史持久化测试
+
+@Suite("SubagentHistoryStore 持久化测试")
+struct SubagentHistoryStoreTests {
+    private func makeItem(_ n: Int) -> SubagentHistoryItem {
+        SubagentHistoryItem(id: "id-\(n)", name: "任务\(n)", phase: n % 2 == 0 ? .succeeded : .failed,
+                            resultText: "结果\(n)", error: n % 2 == 0 ? nil : "err-\(n)",
+                            elapsed: 1.0 + Double(n), stepLines: ["步骤1 · 回复 x"], finishedAt: Date(timeIntervalSince1970: 1_700_000_000 + Double(n)))
+    }
+
+    private func tempURL() -> URL {
+        URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("subagent-history-\(UUID().uuidString).json")
+    }
+
+    @Test("往返：保存后读取字段一致")
+    func roundTrip() throws {
+        let url = tempURL()
+        defer { try? FileManager.default.removeItem(at: url) }
+        let items = [makeItem(1), makeItem(2)]
+        SubagentHistoryStore.save(items, url: url)
+        let loaded = SubagentHistoryStore.load(url: url)
+        #expect(loaded.count == 2)
+        #expect(loaded[0].id == "id-1")
+        #expect(loaded[0].phase == .failed)
+        #expect(loaded[0].error == "err-1")
+        #expect(loaded[1].phase == .succeeded)
+        #expect(loaded[1].resultText == "结果2")
+        #expect(loaded[1].stepLines == ["步骤1 · 回复 x"])
+    }
+
+    @Test("上限：超出 cap 的旧条目被截断（最新在前）")
+    func cap() throws {
+        let url = tempURL()
+        defer { try? FileManager.default.removeItem(at: url) }
+        let items = (1 ... 60).map(makeItem) // items[0] 最新
+        SubagentHistoryStore.save(items, url: url)
+        let loaded = SubagentHistoryStore.load(url: url)
+        #expect(loaded.count == 50)
+        #expect(loaded.first?.id == "id-1")
+        #expect(loaded.last?.id == "id-50")
+    }
+
+    @Test("空文件与缺失文件：返回空数组")
+    func empty() {
+        #expect(SubagentHistoryStore.load(url: tempURL()).isEmpty)
+        let url = tempURL()
+        SubagentHistoryStore.save([], url: url)
+        #expect(SubagentHistoryStore.load(url: url).isEmpty)
+        try? FileManager.default.removeItem(at: url)
+    }
+}

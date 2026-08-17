@@ -152,7 +152,7 @@ struct MarketplaceDisplayItem: Identifiable, Hashable {
 
 // MARK: - 子任务显示模型
 
-struct SubagentDisplayItem: Identifiable, Hashable {
+struct SubagentDisplayItem: Identifiable, Hashable, Codable {
     let id: String
     let name: String
     let phase: SubagentPhase
@@ -160,6 +160,7 @@ struct SubagentDisplayItem: Identifiable, Hashable {
     let error: String?
     let elapsed: TimeInterval?
     let stepLines: [String]
+    let finishedAt: Date?
 
     init(state: SubagentState) {
         id = state.id.rawValue.uuidString
@@ -179,6 +180,26 @@ struct SubagentDisplayItem: Identifiable, Hashable {
         error = state.error
         elapsed = state.elapsed
         stepLines = Self.stepLines(from: state.result?.steps ?? [])
+        finishedAt = state.finishedAt
+    }
+
+    /// 从持久化历史构造
+    init(from history: SubagentHistoryItem) {
+        id = history.id
+        name = history.name
+        phase = history.phase
+        resultText = history.resultText
+        error = history.error
+        elapsed = history.elapsed
+        stepLines = history.stepLines
+        finishedAt = history.finishedAt
+    }
+
+    /// 转为持久化历史条目
+    var toHistory: SubagentHistoryItem {
+        SubagentHistoryItem(id: id, name: name, phase: phase, resultText: resultText,
+                            error: error, elapsed: elapsed, stepLines: stepLines,
+                            finishedAt: finishedAt ?? Date())
     }
 
     /// 执行过程时间线（工具调用 / 文本回复，按步序）
@@ -272,8 +293,8 @@ final class AppViewModel: ObservableObject {
     let mcpManager: MCPServerManager
     var subagentCoordinator: SubagentCoordinator
 
-    /// 多 Agent
-    @Published var subagents: [SubagentDisplayItem] = []
+    /// 多 Agent（默认值 = 磁盘历史，重启后终态子任务仍可见）
+    @Published var subagents: [SubagentDisplayItem] = AppViewModel.loadSubagentHistoryItems()
 
     private var generateTask: Task<Void, Never>?
     private var sessionTitles: [UUID: String] = [:]
@@ -929,9 +950,32 @@ final class AppViewModel: ObservableObject {
 
     // MARK: - 多 Agent 协作（真实 SubagentCoordinator 编排）
 
+    /// 子任务历史文件（~/Library/Application Support/Harness/，与 XPC plist 同目录约定）
+    static var subagentHistoryURL: URL {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support")
+        let dir = base.appendingPathComponent("Harness", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir.appendingPathComponent("subagent_history.json")
+    }
+
+    static func loadSubagentHistoryItems() -> [SubagentDisplayItem] {
+        SubagentHistoryStore.load(url: subagentHistoryURL).map { SubagentDisplayItem(from: $0) }
+    }
+
     func refreshSubagents() async {
         let states = await subagentCoordinator.allStates()
-        subagents = states.map { SubagentDisplayItem(state: $0) }
+        let live = states.map { SubagentDisplayItem(state: $0) }
+        var history = SubagentHistoryStore.load(url: Self.subagentHistoryURL)
+        let knownIDs = Set(history.map(\.id))
+        // 新到终态的条目写入历史（去重、最新在前、带上限）
+        let fresh = live.filter { $0.phase.isTerminal && !knownIDs.contains($0.id) }
+        if !fresh.isEmpty {
+            history = Array((fresh.map(\.toHistory) + history).prefix(SubagentHistoryStore.defaultCap))
+            SubagentHistoryStore.save(history, url: Self.subagentHistoryURL)
+        }
+        let liveIDs = Set(live.map(\.id))
+        subagents = live + history.filter { !liveIDs.contains($0.id) }.map { SubagentDisplayItem(from: $0) }
     }
 
     func spawnSubagent(name: String, task: String, timeout: TimeInterval) {
@@ -995,9 +1039,12 @@ final class AppViewModel: ObservableObject {
     func clearFinishedSubagents() {
         Task {
             let removed = await subagentCoordinator.removeFinished()
+            let historyCount = SubagentHistoryStore.load(url: Self.subagentHistoryURL).count
+            SubagentHistoryStore.save([], url: Self.subagentHistoryURL)
             await refreshSubagents()
-            if removed > 0 {
-                showToast("已清理 \(removed) 个完成的子任务")
+            let total = removed + historyCount
+            if total > 0 {
+                showToast("已清理 \(total) 个完成的子任务")
             }
         }
     }

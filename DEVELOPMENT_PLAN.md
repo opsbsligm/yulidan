@@ -152,7 +152,7 @@ class ChatViewModel: ObservableObject { /* ... */ }
 ### Phase 3 (已完成)
 - [x] XPC 进程隔离
 - [x] 插件市场
-- [x] 多 Agent 协作（包层 SubagentCoordinator + App「多Agent」页：派生/取消/超时/清理/完成通知/执行过程步骤时间线）
+- [x] 多 Agent 协作（包层 SubagentCoordinator + App「多Agent」页：派生/取消/超时/清理/完成通知/执行过程步骤时间线/历史持久化）
 - [x] 性能优化（启动会话加载 N+1 修复，实测 212×；见 docs/PERFORMANCE.md）
 - [x] macOS 系统通知（生成完成/失败，设置可开关）
 - [ ] Spotlight / Shortcuts（需正式 bundle 签名注册，debug 壳不适用，暂缓）
