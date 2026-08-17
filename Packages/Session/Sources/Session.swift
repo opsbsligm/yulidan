@@ -1,14 +1,14 @@
 import Foundation
 
-/// 会话 — 替代 DeepSeek Harness 的 Session
-public struct Session: Sendable, Identifiable, Hashable {
+/// 会话 — 替代 DeepSeek Harness 的 SessionRecord
+public struct SessionRecord: Sendable, Identifiable, Hashable {
     public let id: SessionID
     public let metadata: SessionMetadata
     public var events: [SessionEvent]
     public var currentTurn: Int
     public var currentStep: Int
     public var status: SessionStatus
-    
+
     public init(
         id: SessionID = SessionID(),
         metadata: SessionMetadata,
@@ -24,29 +24,29 @@ public struct Session: Sendable, Identifiable, Hashable {
         self.currentStep = currentStep
         self.status = status
     }
-    
-    // Hashable conformance
+
+    /// Hashable conformance
     public func hash(into hasher: inout Hasher) {
         hasher.combine(id)
     }
-    
-    public static func == (lhs: Session, rhs: Session) -> Bool {
+
+    public static func == (lhs: SessionRecord, rhs: SessionRecord) -> Bool {
         lhs.id == rhs.id
     }
-    
+
     /// 追加事件 (追加型日志)
     public mutating func append(_ event: SessionEvent) {
         events.append(event)
     }
-    
+
     /// 从日志推导消息历史
     func deriveMessages() -> [Message] {
         var messages: [Message] = []
         for event in events {
             switch event {
-            case .userMessage(let msg):
+            case let .userMessage(msg):
                 messages.append(Message(role: .user, content: msg.content, id: msg.id))
-            case .assistantMessage(let msg):
+            case let .assistantMessage(msg):
                 messages.append(Message(role: .assistant, content: msg.content, id: msg.id))
             default:
                 break
@@ -62,7 +62,7 @@ public struct SessionMetadata: Sendable, Codable {
     public let createdAt: Date
     public let forkedFrom: SessionID?
     public let origin: SessionOrigin
-    
+
     public init(cwd: URL, createdAt: Date = Date(), forkedFrom: SessionID? = nil, origin: SessionOrigin = .user) {
         self.cwd = cwd
         self.createdAt = createdAt
@@ -92,14 +92,14 @@ public struct Message: Sendable, Identifiable {
     public let id: MessageID
     public let role: MessageRole
     public let content: [ContentBlock]
-    
+
     public enum MessageRole: String, Sendable, Codable {
         case system
         case user
         case assistant
         case tool
     }
-    
+
     public init(role: MessageRole, content: [ContentBlock], id: MessageID = MessageID()) {
         self.id = id
         self.role = role

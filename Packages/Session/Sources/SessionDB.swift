@@ -27,7 +27,7 @@ public actor SessionDB {
             throw SessionDBError.openFailed(error.localizedDescription)
         }
         try Self.migrate(q)
-        self.dbQueue = q
+        dbQueue = q
     }
 
     private static func migrate(_ dbQueue: DatabaseQueue) throws {
@@ -53,11 +53,11 @@ public actor SessionDB {
     // MARK: - 读写 API
 
     /// 加载全部会话（按创建时间倒序）
-    public func loadAll() throws -> [Session] {
+    public func loadAll() throws -> [SessionRecord] {
         try dbQueue.read { db in
             let request: SQLRequest<Row> = "SELECT * FROM sessions ORDER BY created_at DESC"
             let rows = try request.fetchAll(db)
-            var result: [Session] = []
+            var result: [SessionRecord] = []
             for rd in rows {
                 let idStr = rd["id"] as? String ?? ""
                 let metadataJSON = rd["metadata_json"] as? String ?? ""
@@ -65,13 +65,15 @@ public actor SessionDB {
                 let status: String? = rd["status"]
 
                 guard let metaData = metadataJSON.data(using: .utf8),
-                      let metadata = try? JSONDecoder().decode(SessionMetadata.self, from: metaData) else {
+                      let metadata = try? JSONDecoder().decode(SessionMetadata.self, from: metaData)
+                else {
                     continue
                 }
                 var events: [SessionEvent] = []
                 let ereq: SQLRequest<Row> = SQLRequest(
                     sql: "SELECT payload FROM events WHERE session_id = ? ORDER BY seq",
-                    arguments: [idStr])
+                    arguments: [idStr]
+                )
                 let erows = try ereq.fetchAll(db)
                 for erd in erows {
                     if let p = erd["payload"] as? String,
@@ -81,7 +83,7 @@ public actor SessionDB {
                     }
                 }
                 let id = SessionID(rawValue: UUID(uuidString: idStr) ?? UUID())
-                result.append(Session(
+                result.append(SessionRecord(
                     id: id,
                     metadata: metadata,
                     events: events,
@@ -94,7 +96,7 @@ public actor SessionDB {
     }
 
     /// 全量保存一个会话（会话行 upsert + 事件表重写）
-    public func save(_ session: Session) throws {
+    public func save(_ session: SessionRecord) throws {
         try dbQueue.write { db in
             let metaJSON = String(data: (try? JSONEncoder().encode(session.metadata)) ?? Data("{}".utf8), encoding: .utf8) ?? "{}"
             try db.execute(
@@ -111,7 +113,7 @@ public actor SessionDB {
                     metaJSON,
                     session.currentTurn,
                     session.status.rawValue,
-                    session.metadata.createdAt.timeIntervalSince1970
+                    session.metadata.createdAt.timeIntervalSince1970,
                 ]
             )
             try db.execute(sql: "DELETE FROM events WHERE session_id = ?",
@@ -138,7 +140,7 @@ public enum SessionDBError: Error, LocalizedError {
     case openFailed(String)
     public var errorDescription: String? {
         switch self {
-        case .openFailed(let m): return "会话数据库打开失败：\(m)"
+        case let .openFailed(m): "会话数据库打开失败：\(m)"
         }
     }
 }

@@ -1,5 +1,5 @@
-import ServiceContainer
 import Foundation
+import ServiceContainer
 
 /// 会话事件 — 追加型日志的事件类型
 /// 替代 DeepSeek Harness 的 SessionEventMap
@@ -7,41 +7,41 @@ public enum SessionEvent: Sendable, Codable {
     // Turn 生命周期
     case turnStart(turn: Int)
     case turnEnd(turn: Int, reason: TurnEndReason)
-    
+
     // Step 生命周期
     case stepStart(turn: Int, step: Int)
     case stepEnd(turn: Int, step: Int)
-    
+
     // 消息
     case userMessage(UserMessage)
     case assistantChunk(AssistantChunk)
     case assistantMessage(AssistantMessage)
-    
+
     // 工具
     case toolCall(ToolCallEvent)
     case toolResult(ToolResultEvent)
-    
+
     // 请求
     case requestHeader(EpochHeader)
     case requestContext(RequestContext)
-    
-    // Todo
+
+    /// Todo
     case todoWrite([TodoItem])
-    
+
     public var eventType: String {
         switch self {
-        case .turnStart: return "turn/start"
-        case .turnEnd: return "turn/end"
-        case .stepStart: return "step/start"
-        case .stepEnd: return "step/end"
-        case .userMessage: return "user/message"
-        case .assistantChunk: return "assistant/chunk"
-        case .assistantMessage: return "assistant/message"
-        case .toolCall: return "tool/call"
-        case .toolResult: return "tool/result"
-        case .requestHeader: return "request/header"
-        case .requestContext: return "request/context"
-        case .todoWrite: return "todo/write"
+        case .turnStart: "turn/start"
+        case .turnEnd: "turn/end"
+        case .stepStart: "step/start"
+        case .stepEnd: "step/end"
+        case .userMessage: "user/message"
+        case .assistantChunk: "assistant/chunk"
+        case .assistantMessage: "assistant/message"
+        case .toolCall: "tool/call"
+        case .toolResult: "tool/result"
+        case .requestHeader: "request/header"
+        case .requestContext: "request/context"
+        case .todoWrite: "todo/write"
         }
     }
 }
@@ -60,12 +60,12 @@ public struct UserMessage: Sendable, Codable {
     public let content: [ContentBlock]
     public let source: MessageSource
     public let createdAt: Date
-    
+
     public init(id: MessageID = MessageID(), content: [ContentBlock], source: MessageSource = .user) {
         self.id = id
         self.content = content
         self.source = source
-        self.createdAt = Date()
+        createdAt = Date()
     }
 }
 
@@ -79,7 +79,7 @@ public struct AssistantMessage: Sendable, Codable {
     public let model: String
     public let usage: TokenUsage?
     public let createdAt: Date
-    
+
     public init(
         id: MessageID = MessageID(),
         turn: Int,
@@ -96,7 +96,7 @@ public struct AssistantMessage: Sendable, Codable {
         self.provider = provider
         self.model = model
         self.usage = usage
-        self.createdAt = Date()
+        createdAt = Date()
     }
 }
 
@@ -117,9 +117,9 @@ public struct StreamChunk: Sendable, Codable {
 /// 消息 ID
 public struct MessageID: Sendable, Hashable, Codable {
     public let rawValue: UUID
-    
+
     public init() {
-        self.rawValue = UUID()
+        rawValue = UUID()
     }
 }
 
@@ -158,12 +158,12 @@ public struct ToolResultBlock: Sendable, Codable {
 public struct MessageSource: Sendable, Codable {
     public let kind: String
     public var plugin: String?
-    
+
     public static let user = MessageSource(kind: "user")
     public static let plugin = MessageSource(kind: "plugin")
     public static let model = MessageSource(kind: "model")
     public static let tool = MessageSource(kind: "tool")
-    
+
     public init(kind: String, plugin: String? = nil) {
         self.kind = kind
         self.plugin = plugin
@@ -175,6 +175,12 @@ public struct TokenUsage: Sendable, Codable {
     public let promptTokens: Int
     public let completionTokens: Int
     public let totalTokens: Int
+
+    public init(promptTokens: Int, completionTokens: Int, totalTokens: Int) {
+        self.promptTokens = promptTokens
+        self.completionTokens = completionTokens
+        self.totalTokens = totalTokens
+    }
 }
 
 /// 工具调用事件

@@ -1,11 +1,14 @@
-import XCTest
 import GRDB
 @testable import Session
+import XCTest
 
 /// SessionDB 持久化测试：save / loadAll / delete 往返
 final class SessionDBTests: XCTestCase {
+    // 测试夹具：setUp 中赋值，XCTest 标准模式
+    // swiftlint:disable implicitly_unwrapped_optional
     private var dbURL: URL!
     private var db: SessionDB!
+    // swiftlint:enable implicitly_unwrapped_optional
 
     override func setUpWithError() throws {
         dbURL = FileManager.default.temporaryDirectory
@@ -19,11 +22,12 @@ final class SessionDBTests: XCTestCase {
 
     func testSaveAndLoadRoundTrip() async throws {
         let meta = SessionMetadata(cwd: URL(fileURLWithPath: "/tmp"))
-        var session = Session(id: SessionID(), metadata: meta)
+        var session = SessionRecord(id: SessionID(), metadata: meta)
         session.append(.userMessage(UserMessage(content: [.text("你好，Harness")])))
         session.append(.assistantMessage(AssistantMessage(
             turn: 1, step: 0, content: [.text("你好！有什么可以帮你？")],
-            provider: "deepseek", model: "deepseek-chat")))
+            provider: "deepseek", model: "deepseek-chat"
+        )))
         session.currentTurn = 1
         try await db.save(session)
 
@@ -32,16 +36,18 @@ final class SessionDBTests: XCTestCase {
         XCTAssertEqual(loaded[0].id, session.id)
         XCTAssertEqual(loaded[0].currentTurn, 1)
         XCTAssertEqual(loaded[0].events.count, 2)
-        if case .userMessage(let m) = loaded[0].events.first! {
-            if case .text(let t) = m.content.first! {
+        if case let .userMessage(m) = try XCTUnwrap(loaded[0].events.first) {
+            if case let .text(t) = try XCTUnwrap(m.content.first) {
                 XCTAssertEqual(t, "你好，Harness")
-            } else { XCTFail("expected text block") }
+            } else {
+                XCTFail("expected text block")
+            }
         }
     }
 
     func testUpsertRewritesEvents() async throws {
         let meta = SessionMetadata(cwd: URL(fileURLWithPath: "/tmp"))
-        var session = Session(id: SessionID(), metadata: meta)
+        var session = SessionRecord(id: SessionID(), metadata: meta)
         session.append(.userMessage(UserMessage(content: [.text("第一条")])))
         try await db.save(session)
 
@@ -54,7 +60,7 @@ final class SessionDBTests: XCTestCase {
 
     func testDelete() async throws {
         let meta = SessionMetadata(cwd: URL(fileURLWithPath: "/tmp"))
-        let session = Session(id: SessionID(), metadata: meta)
+        let session = SessionRecord(id: SessionID(), metadata: meta)
         try await db.save(session)
         try await db.delete(session.id)
         let loaded = try await db.loadAll()
@@ -64,8 +70,8 @@ final class SessionDBTests: XCTestCase {
     func testMultipleSessionsOrdered() async throws {
         let m1 = SessionMetadata(cwd: URL(fileURLWithPath: "/tmp"), createdAt: Date().addingTimeInterval(-100))
         let m2 = SessionMetadata(cwd: URL(fileURLWithPath: "/tmp"), createdAt: Date())
-        try await db.save(Session(id: SessionID(), metadata: m1))
-        try await db.save(Session(id: SessionID(), metadata: m2))
+        try await db.save(SessionRecord(id: SessionID(), metadata: m1))
+        try await db.save(SessionRecord(id: SessionID(), metadata: m2))
         let loaded = try await db.loadAll()
         XCTAssertEqual(loaded.count, 2)
         XCTAssertGreaterThan(loaded[0].metadata.createdAt, loaded[1].metadata.createdAt)
