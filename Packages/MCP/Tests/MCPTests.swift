@@ -75,8 +75,10 @@ final class MCPTests: XCTestCase {
 
         let tools = await manager.makeTools()
         XCTAssertEqual(tools.count, 2) // greet + boom
-        let greet = tools.first { $0.name == "mcp_mock_greet" }
-        let res = try try await XCTUnwrap(greet?.execute(["name": "Agent"], context: context()))
+        guard let greet = tools.first(where: { $0.name == "mcp_mock_greet" }) else {
+            return XCTFail("mcp_mock_greet 未找到")
+        }
+        let res = try await greet.execute(["name": "Agent"], context: context())
         XCTAssertNil(res.error)
     }
 
