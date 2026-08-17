@@ -1,6 +1,6 @@
-import SwiftUI
-import ServiceContainer
 import LLM
+import ServiceContainer
+import SwiftUI
 
 struct SettingsView: View {
     @State private var selectedTab = SettingsTab.general
@@ -71,7 +71,7 @@ struct SettingsSidebarRow: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .background(isSelected ? Color.blue.opacity(0.12) :
-                        isHovered ? HarnessTheme.surface : .clear)
+                isHovered ? HarnessTheme.surface : .clear)
             .cornerRadius(6)
         }
         .buttonStyle(.plain)
@@ -84,23 +84,25 @@ struct SettingsSidebarRow: View {
 enum SettingsTab: CaseIterable, Identifiable {
     case general, llm, plugins, about
 
-    var id: String { title }
+    var id: String {
+        title
+    }
 
     var title: String {
         switch self {
-        case .general: return "通用"
-        case .llm: return "模型服务"
-        case .plugins: return "插件"
-        case .about: return "关于"
+        case .general: "通用"
+        case .llm: "模型服务"
+        case .plugins: "插件"
+        case .about: "关于"
         }
     }
 
     var icon: String {
         switch self {
-        case .general: return "gear"
-        case .llm: return "brain"
-        case .plugins: return "puzzlepiece.extension"
-        case .about: return "info.circle"
+        case .general: "gear"
+        case .llm: "brain"
+        case .plugins: "puzzlepiece.extension"
+        case .about: "info.circle"
         }
     }
 }
@@ -142,7 +144,7 @@ struct GeneralSettingsView: View {
                                 .font(.system(.body))
                                 .foregroundStyle(HarnessTheme.textPrimary)
 
-                            Slider(value: $fontSize, in: 12...24) {
+                            Slider(value: $fontSize, in: 12 ... 24) {
                                 Text("正文字号: \(Int(fontSize))pt")
                             }
                             .frame(width: 200)
@@ -289,7 +291,7 @@ struct LLMSettingsView: View {
                             Text("\(Int(viewModel.maxTokens))")
                                 .foregroundStyle(HarnessTheme.textSecondary)
                         }
-                        Slider(value: $viewModel.maxTokens, in: 256...8192, step: 256) {
+                        Slider(value: $viewModel.maxTokens, in: 256 ... 8192, step: 256) {
                             Text("最大 Token 数")
                         }
 
@@ -309,14 +311,17 @@ struct LLMSettingsView: View {
                 // 连接测试（真实 HTTP 探测）
                 SettingsCard(title: "连接测试", icon: "link") {
                     HStack(spacing: 14) {
-                        Button(action: { viewModel.testConnection() }) {
-                            HStack(spacing: 6) {
-                                if viewModel.isTesting {
-                                    ProgressView().scaleEffect(0.8)
+                        Button(
+                            action: { viewModel.testConnection() },
+                            label: {
+                                HStack(spacing: 6) {
+                                    if viewModel.isTesting {
+                                        ProgressView().scaleEffect(0.8)
+                                    }
+                                    Text(viewModel.isTesting ? "测试中…" : "测试连接")
                                 }
-                                Text(viewModel.isTesting ? "测试中…" : "测试连接")
                             }
-                        }
+                        )
                         .buttonStyle(.borderedProminent)
                         .disabled(viewModel.isTesting)
 
@@ -338,7 +343,7 @@ struct LLMSettingsView: View {
         }
         .background(HarnessTheme.bgPrimary)
         .alert("已保存", isPresented: $showSaveConfirmation) {
-            Button("好的", role: .cancel) { }
+            Button("好的", role: .cancel) {}
         } message: {
             Text("配置已保存，API Key 已写入 macOS 钥匙串，对话将立即使用新配置。")
         }
@@ -387,7 +392,7 @@ struct ProviderCard: View {
             .frame(maxWidth: .infinity)
             .padding(12)
             .background(isSelected ? Color.blue.opacity(0.08) :
-                        isHovered ? HarnessTheme.surface : .clear)
+                isHovered ? HarnessTheme.surface : .clear)
             .cornerRadius(10)
             .overlay(
                 RoundedRectangle(cornerRadius: 10)
@@ -425,7 +430,9 @@ final class LLMSettingsViewModel: ObservableObject {
     }
 
     func hasKey(for provider: ModelProvider) -> Bool {
-        if provider == .local { return true }
+        if provider == .local {
+            return true
+        }
         return KeychainStorage.getAPIKey(forProvider: provider.rawValue) != nil
     }
 
@@ -464,26 +471,30 @@ final class LLMSettingsViewModel: ObservableObject {
         testResult = nil
         testTask = Task { [weak self] in
             guard let self else { return }
-            let key = self.apiKey.trimmingCharacters(in: .whitespaces)
+            let key = apiKey.trimmingCharacters(in: .whitespaces)
             let provider: any LLMProvider
-            switch self.selectedProvider {
+            switch selectedProvider {
             case .openAI: provider = OpenAIAdapter(apiKey: key)
             case .deepSeek: provider = DeepSeekAdapter(apiKey: key)
             case .anthropic: provider = AnthropicAdapter(apiKey: key)
             case .local:
-                let base = URL(string: self.localBaseURL) ?? URL(string: "http://localhost:11434/v1")!
+                let base = URL(string: localBaseURL) ?? URL(string: "http://localhost:11434/v1")!
                 provider = LocalAdapter(apiKey: key.isEmpty ? "local" : key, baseURL: base)
             }
             do {
                 let msg = try await provider.checkConnection()
-                if Task.isCancelled { return }
-                self.isTesting = false
-                self.testResult = (true, "\(self.selectedProvider.displayName)：\(msg)")
+                if Task.isCancelled {
+                    return
+                }
+                isTesting = false
+                testResult = (true, "\(selectedProvider.displayName)：\(msg)")
             } catch {
-                if Task.isCancelled { return }
-                self.isTesting = false
+                if Task.isCancelled {
+                    return
+                }
+                isTesting = false
                 let desc = (error as? LLMError)?.errorDescription ?? error.localizedDescription
-                self.testResult = (false, "连接失败：\(desc)")
+                testResult = (false, "连接失败：\(desc)")
             }
         }
     }

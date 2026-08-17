@@ -1,5 +1,5 @@
-import SwiftUI
 import Session
+import SwiftUI
 
 struct ContentView: View {
     @State private var viewModel = AppViewModel()
@@ -11,6 +11,7 @@ struct ContentView: View {
                 selectedTab: $viewModel.selectedTab,
                 selectedSession: $viewModel.selectedSession,
                 sessions: viewModel.sessions,
+                titleFor: { viewModel.sessionTitle(for: $0) },
                 onNewSession: { viewModel.createNewSession() },
                 onSelectSession: { viewModel.selectSession($0) },
                 onDeleteSession: { viewModel.deleteSession($0) }
@@ -68,23 +69,25 @@ struct ContentView: View {
 enum AppTab: CaseIterable, Identifiable {
     case chat, plugins, tools, settings
 
-    var id: String { title }
+    var id: String {
+        title
+    }
 
     var title: String {
         switch self {
-        case .chat: return "对话"
-        case .plugins: return "插件"
-        case .tools: return "工具"
-        case .settings: return "设置"
+        case .chat: "对话"
+        case .plugins: "插件"
+        case .tools: "工具"
+        case .settings: "设置"
         }
     }
 
     var icon: String {
         switch self {
-        case .chat: return "bubble.left.and.bubble.right"
-        case .plugins: return "puzzlepiece.extension"
-        case .tools: return "wrench.and.screwdriver"
-        case .settings: return "gear"
+        case .chat: "bubble.left.and.bubble.right"
+        case .plugins: "puzzlepiece.extension"
+        case .tools: "wrench.and.screwdriver"
+        case .settings: "gear"
         }
     }
 }

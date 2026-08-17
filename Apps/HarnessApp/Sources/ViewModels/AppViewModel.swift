@@ -1,46 +1,51 @@
-import SwiftUI
-import Foundation
-import AppKit
-import Session
-import ServiceContainer
-import Tools
-import LLM
+// 技术债：本文件/类超过长度阈值，计划拆分为 会话管理 / 生成流程 / 设置 三个 ViewModel（见 docs/CODE_REVIEW.md）
+// swiftlint:disable file_length type_body_length
 import Agent
+import AppKit
+import Foundation
+import HarnessCore
+import LLM
+import ServiceContainer
+import Session
+import SwiftUI
+import Tools
 
 // MARK: - 模型提供商
 
 enum ModelProvider: String, CaseIterable, Identifiable {
     case openAI = "openai"
     case deepSeek = "deepseek"
-    case anthropic = "anthropic"
-    case local = "local"
+    case anthropic
+    case local
 
-    var id: String { rawValue }
+    var id: String {
+        rawValue
+    }
 
     var displayName: String {
         switch self {
-        case .openAI: return "OpenAI"
-        case .deepSeek: return "DeepSeek"
-        case .anthropic: return "Anthropic"
-        case .local: return "本地模型"
+        case .openAI: "OpenAI"
+        case .deepSeek: "DeepSeek"
+        case .anthropic: "Anthropic"
+        case .local: "本地模型"
         }
     }
 
     var icon: String {
         switch self {
-        case .openAI: return "sparkle"
-        case .deepSeek: return "brain"
-        case .anthropic: return "cpu"
-        case .local: return "server.rack"
+        case .openAI: "sparkle"
+        case .deepSeek: "brain"
+        case .anthropic: "cpu"
+        case .local: "server.rack"
         }
     }
 
     var defaultModel: String {
         switch self {
-        case .openAI: return "gpt-4o"
-        case .deepSeek: return "deepseek-chat"
-        case .anthropic: return "claude-sonnet-4-20250514"
-        case .local: return "local"
+        case .openAI: "gpt-4o"
+        case .deepSeek: "deepseek-chat"
+        case .anthropic: "claude-sonnet-4-20250514"
+        case .local: "local"
         }
     }
 }
@@ -81,14 +86,14 @@ struct PluginDisplayItem: Identifiable, Hashable {
 
     /// 从 PluginManager 的真实 PluginInfo 构造
     init(info: PluginInfo) {
-        self.id = info.id.rawValue
-        self.name = info.name
-        self.version = info.version
-        self.state = info.state
-        self.isActive = info.state == .active
-        self.permissions = BuiltInPluginCatalog.info[info.id.rawValue]?.permissions ?? []
-        self.author = "Harness 内置"
-        self.description = BuiltInPluginCatalog.info[info.id.rawValue]?.description ?? "内置插件"
+        id = info.id.rawValue
+        name = info.name
+        version = info.version
+        state = info.state
+        isActive = info.state == .active
+        permissions = BuiltInPluginCatalog.info[info.id.rawValue]?.permissions ?? []
+        author = "Harness 内置"
+        description = BuiltInPluginCatalog.info[info.id.rawValue]?.description ?? "内置插件"
     }
 }
 
@@ -116,10 +121,10 @@ struct ToolDisplayItem: Identifiable, Hashable {
 
     init(schema: ToolSchema) {
         let cat = BuiltinTools.category(for: schema.name)
-        self.id = schema.name; self.name = schema.name
-        self.description = schema.description; self.parameters = schema.parameters
-        self.category = cat.id; self.categoryDisplay = cat.display
-        self.isExecuted = false; self.lastResult = nil; self.executing = false
+        id = schema.name; name = schema.name
+        description = schema.description; parameters = schema.parameters
+        category = cat.id; categoryDisplay = cat.display
+        isExecuted = false; lastResult = nil; executing = false
     }
 }
 
@@ -129,18 +134,18 @@ struct ToolDisplayItem: Identifiable, Hashable {
 final class AppViewModel: ObservableObject {
     // 导航
     @Published var selectedTab: AppTab = .chat
-    @Published var selectedSession: Session?
+    @Published var selectedSession: SessionRecord?
     @Published var toastMessage: String?
 
     // 对话
-    @Published var sessions: [Session] = []
+    @Published var sessions: [SessionRecord] = []
     @Published var messages: [ChatMessage] = []
     @Published var isGenerating = false
     @Published var generationError: String?
     @Published var lastUserMessage = ""
     @Published var attachments: [FileAttachment] = []
 
-    // 模型
+    /// 模型
     @Published var llmConfig: LLMConfig
 
     // 插件 / 工具
@@ -154,7 +159,7 @@ final class AppViewModel: ObservableObject {
 
     private var generateTask: Task<Void, Never>?
     private var sessionTitles: [UUID: String] = [:]
-    nonisolated(unsafe) private var configObserver: (any NSObjectProtocol)?
+    private nonisolated(unsafe) var configObserver: (any NSObjectProtocol)?
 
     // MARK: - 初始化
 
@@ -239,55 +244,65 @@ final class AppViewModel: ObservableObject {
             let loaded = try await db.loadAll()
             sessions = loaded
             selectedSession = loaded.first
-            if let s = selectedSession { loadMessages(for: s) }
+            if let s = selectedSession {
+                loadMessages(for: s)
+            }
         } catch {
             generationError = "会话数据库加载失败：\(error.localizedDescription)"
         }
     }
 
     func createNewSession(silent: Bool = false) {
-        let session = Session(metadata: SessionMetadata(cwd: URL(fileURLWithPath: NSHomeDirectory())))
+        let session = SessionRecord(metadata: SessionMetadata(cwd: URL(fileURLWithPath: NSHomeDirectory())))
         sessions.insert(session, at: 0)
         selectedSession = session
         messages.removeAll()
         generationError = nil
         lastUserMessage = ""
         persistSession()
-        if !silent { showToast("已创建新对话") }
+        if !silent {
+            showToast("已创建新对话")
+        }
     }
 
-    func deleteSession(_ session: Session) {
+    func deleteSession(_ session: SessionRecord) {
         sessions.removeAll { $0.id == session.id }
         Task { [db = sessionDB] in
-            if let db { try? await db.delete(session.id) }
+            if let db {
+                try? await db.delete(session.id)
+            }
         }
         if let data = try? JSONEncoder().encode(sessionTitles.filter { $0.key != session.id.rawValue }) {
             UserDefaults.standard.set(data, forKey: "sessionTitles")
         }
         if selectedSession?.id == session.id {
             selectedSession = sessions.first
-            if let s = selectedSession { loadMessages(for: s) } else { messages.removeAll() }
+            if let s = selectedSession {
+                loadMessages(for: s)
+            } else {
+                messages.removeAll()
+            }
         }
         showToast("已删除对话")
     }
 
-    func selectSession(_ session: Session) {
+    func selectSession(_ session: SessionRecord) {
         withAnimation(.smooth) { selectedSession = session }
         loadMessages(for: session)
         generationError = nil
     }
 
     /// 从会话事件日志重建 UI 消息
-    private func loadMessages(for session: Session) {
+    private func loadMessages(for session: SessionRecord) {
         var out: [ChatMessage] = []
         for event in session.events {
             switch event {
-            case .userMessage(let m):
+            case let .userMessage(m):
                 if case let .text(t)? = m.content.first {
                     out.append(ChatMessage(id: UUID(), role: .user, content: t,
                                            timestamp: m.createdAt, status: .delivered))
                 }
-            case .assistantMessage(let m):
+            case let .assistantMessage(m):
                 if case let .text(t)? = m.content.first {
                     out.append(ChatMessage(id: UUID(), role: .assistant, content: t,
                                            timestamp: m.createdAt, status: .delivered))
@@ -307,18 +322,20 @@ final class AppViewModel: ObservableObject {
             if m.role == .user {
                 turn += 1
                 events.append(.userMessage(UserMessage(
-                    content: [.text(m.content)])))
+                    content: [.text(m.content)]
+                )))
             } else if m.role == .assistant {
                 events.append(.assistantMessage(AssistantMessage(
                     turn: turn, step: 0,
                     content: [.text(m.content)],
-                    provider: llmConfig.providerRaw, model: llmConfig.modelName)))
+                    provider: llmConfig.providerRaw, model: llmConfig.modelName
+                )))
             }
         }
         let currentTurn = session.currentTurn
-        let updated = Session(id: session.id, metadata: session.metadata,
-                              events: events, currentTurn: max(turn, currentTurn),
-                              status: .active)
+        let updated = SessionRecord(id: session.id, metadata: session.metadata,
+                                    events: events, currentTurn: max(turn, currentTurn),
+                                    status: .active)
         // 同步内存
         if let idx = sessions.firstIndex(where: { $0.id == session.id }) {
             sessions[idx] = updated
@@ -345,13 +362,15 @@ final class AppViewModel: ObservableObject {
         }
     }
 
-    func sessionTitle(for session: Session) -> String {
-        if let t = sessionTitles[session.id.rawValue] { return t }
+    func sessionTitle(for session: SessionRecord) -> String {
+        if let t = sessionTitles[session.id.rawValue] {
+            return t
+        }
         if let first = messages.first(where: { $0.role == .user }) {
             return String(first.content.prefix(20))
         }
         for event in session.events {
-            if case .userMessage(let m) = event, case let .text(t)? = m.content.first {
+            if case let .userMessage(m) = event, case let .text(t)? = m.content.first {
                 return String(t.prefix(20))
             }
         }
@@ -360,7 +379,9 @@ final class AppViewModel: ObservableObject {
 
     private func autoTitle() {
         guard let session = selectedSession else { return }
-        if sessionTitles[session.id.rawValue] != nil { return }
+        if sessionTitles[session.id.rawValue] != nil {
+            return
+        }
         if let first = messages.first(where: { $0.role == .user }) {
             sessionTitles[session.id.rawValue] = String(first.content.prefix(20))
             saveTitles()
@@ -379,7 +400,9 @@ final class AppViewModel: ObservableObject {
     // MARK: - 模型 / LLM
 
     var hasAPIKey: Bool {
-        if llmConfig.provider == .local { return true }
+        if llmConfig.provider == .local {
+            return true
+        }
         return KeychainStorage.getAPIKey(forProvider: llmConfig.providerRaw) != nil
     }
 
@@ -402,8 +425,10 @@ final class AppViewModel: ObservableObject {
     func sendMessage(_ rawText: String) {
         let text = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty || !attachments.isEmpty else { return }
-        if selectedSession == nil { createNewSession(silent: true) }
-        guard let session = selectedSession else { return }
+        if selectedSession == nil {
+            createNewSession(silent: true)
+        }
+        guard selectedSession != nil else { return }
 
         var userText = text
         if !attachments.isEmpty {
@@ -454,9 +479,13 @@ final class AppViewModel: ObservableObject {
 
         do {
             let resp = try await provider.request(request)
-            if Task.isCancelled { isGenerating = false; return }
+            if Task.isCancelled {
+                isGenerating = false; return
+            }
             let content = resp.content.compactMap { block -> String? in
-                if case .text(let t) = block { return t }
+                if case let .text(t) = block {
+                    return t
+                }
                 return nil
             }.joined(separator: "\n")
             messages.append(ChatMessage(id: UUID(), role: .assistant, content: content,
@@ -469,7 +498,9 @@ final class AppViewModel: ObservableObject {
         } catch let e as URLError where e.code == .cancelled {
             isGenerating = false
         } catch {
-            if Task.isCancelled { isGenerating = false; return }
+            if Task.isCancelled {
+                isGenerating = false; return
+            }
             let desc = (error as? LLMError)?.errorDescription ?? error.localizedDescription
             messages.append(ChatMessage(id: UUID(), role: .assistant,
                                         content: "⚠️ 请求失败：\(desc)",
@@ -553,7 +584,9 @@ final class AppViewModel: ObservableObject {
                 )
                 let res = try await toolImpl.execute(Self.parseParams(params), context: context)
                 let text = res.content.compactMap { block -> String? in
-                    if case .text(let t) = block { return t }
+                    if case let .text(t) = block {
+                        return t
+                    }
                     return nil
                 }.joined(separator: "\n")
                 result = res.error.map { "❌ \($0.message)\n\n\(text)" } ?? text
@@ -579,8 +612,12 @@ final class AppViewModel: ObservableObject {
         guard !trimmed.isEmpty, let data = trimmed.data(using: .utf8) else { return [:] }
         if let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
             return obj.compactMapValues { v in
-                if let s = v as? String { return s }
-                if let n = v as? NSNumber { return n.stringValue }
+                if let s = v as? String {
+                    return s
+                }
+                if let n = v as? NSNumber {
+                    return n.stringValue
+                }
                 return nil
             }
         }
@@ -612,12 +649,13 @@ final class AppViewModel: ObservableObject {
         var newOnes: [FileAttachment] = []
         for url in panel.urls.prefix(5) {
             guard let data = try? Data(contentsOf: url), data.count <= 200_000,
-                  let text = String(data: data, encoding: .utf8) else {
+                  let text = String(data: data, encoding: .utf8)
+            else {
                 showToast("跳过 \(url.lastPathComponent)（非 UTF-8 文本或超过 200KB）")
                 continue
             }
             newOnes.append(FileAttachment(name: url.lastPathComponent, path: url.path,
-                                          content: text, truncated: text.count > 50_000))
+                                          content: text, truncated: text.count > 50000))
         }
         if !newOnes.isEmpty {
             attachments.append(contentsOf: newOnes)
@@ -678,8 +716,8 @@ final class AppViewModel: ObservableObject {
         lastUserMessage = ""
         if let session = selectedSession {
             if let idx = sessions.firstIndex(where: { $0.id == session.id }) {
-                sessions[idx] = Session(id: session.id, metadata: session.metadata,
-                                        events: [], currentTurn: session.currentTurn)
+                sessions[idx] = SessionRecord(id: session.id, metadata: session.metadata,
+                                              events: [], currentTurn: session.currentTurn)
                 selectedSession = sessions[idx]
                 if let db = sessionDB {
                     let s = sessions[idx]; let db2 = db
@@ -696,8 +734,12 @@ final class AppViewModel: ObservableObject {
         toastMessage = message
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in
             MainActor.assumeIsolated {
-                if self?.toastMessage == message { self?.toastMessage = nil }
+                if self?.toastMessage == message {
+                    self?.toastMessage = nil
+                }
             }
         }
     }
 }
+
+// swiftlint:enable file_length type_body_length

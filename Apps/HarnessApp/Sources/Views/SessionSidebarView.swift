@@ -1,13 +1,13 @@
-import SwiftUI
 import Session
+import SwiftUI
 
 struct SessionSidebarView: View {
-    let sessions: [Session]
-    @Binding var selectedSession: Session?
+    let sessions: [SessionRecord]
+    @Binding var selectedSession: SessionRecord?
     let onNewSession: () -> Void
     @State private var searchText = ""
-    
-    var filteredSessions: [Session] {
+
+    var filteredSessions: [SessionRecord] {
         if searchText.isEmpty {
             return sessions
         }
@@ -16,7 +16,7 @@ struct SessionSidebarView: View {
             return title.localizedCaseInsensitiveContains(searchText)
         }
     }
-    
+
     var body: some View {
         VStack(spacing: 0) {
             // Header with new session button
@@ -25,9 +25,9 @@ struct SessionSidebarView: View {
                     .font(.system(.headline, design: .rounded))
                     .fontWeight(.semibold)
                     .foregroundStyle(HarnessTheme.textPrimary)
-                
+
                 Spacer()
-                
+
                 Button {
                     onNewSession()
                 } label: {
@@ -38,18 +38,18 @@ struct SessionSidebarView: View {
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
-            
+
             // Search bar
             HStack {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(HarnessTheme.textTertiary)
                     .font(.system(size: 12))
-                
+
                 TextField("Search sessions...", text: $searchText)
                     .font(.system(.body, design: .rounded))
                     .textFieldStyle(.plain)
                     .disableAutocorrection(true)
-                
+
                 if !searchText.isEmpty {
                     Button {
                         searchText = ""
@@ -65,8 +65,8 @@ struct SessionSidebarView: View {
             .cornerRadius(HarnessTheme.radiusMedium)
             .padding(.horizontal, 12)
             .padding(.bottom, 8)
-            
-            // Session list
+
+            // SessionRecord list
             ScrollView {
                 LazyVStack(spacing: 2) {
                     ForEach(filteredSessions) { session in
@@ -83,17 +83,17 @@ struct SessionSidebarView: View {
                 }
                 .padding(.top, 4)
             }
-            
+
             // Footer
             Divider()
-            
+
             HStack {
                 Image(systemName: "info.circle")
                     .foregroundStyle(HarnessTheme.textTertiary)
                 Text("\(sessions.count) 个对话")
                     .font(.system(size: 11))
                     .foregroundStyle(HarnessTheme.textTertiary)
-                
+
                 Spacer()
             }
             .padding(.horizontal, 12)
@@ -101,14 +101,14 @@ struct SessionSidebarView: View {
         }
         .background(HarnessTheme.sidebarBg)
     }
-    
-    private func sessionTitle(for session: Session) -> String {
+
+    private func sessionTitle(for session: SessionRecord) -> String {
         if let firstEvent = session.events.first {
             switch firstEvent {
-            case .userMessage(let msg):
+            case let .userMessage(msg):
                 if let firstBlock = msg.content.first {
                     switch firstBlock {
-                    case .text(let text):
+                    case let .text(text):
                         return String(text.prefix(30))
                     default: break
                     }
@@ -120,14 +120,14 @@ struct SessionSidebarView: View {
     }
 }
 
-// MARK: - Session Row
+// MARK: - SessionRecord Row
 
 struct SessionRowView: View {
-    let session: Session
+    let session: SessionRecord
     let isSelected: Bool
     let onTap: () -> Void
     @State private var isHovered = false
-    
+
     var body: some View {
         Button {
             onTap()
@@ -137,19 +137,19 @@ struct SessionRowView: View {
                     Image(systemName: "bubble.right")
                         .font(.system(size: 12))
                         .foregroundStyle(isSelected ? HarnessTheme.accent : HarnessTheme.textTertiary)
-                    
+
                     Text(sessionTitle(for: session))
                         .font(.system(.body, design: .rounded))
                         .lineLimit(1)
                         .foregroundStyle(isSelected ? HarnessTheme.textPrimary : HarnessTheme.textSecondary)
-                    
+
                     Spacer()
-                    
+
                     Text(sessionDate(for: session))
                         .font(.system(size: 11))
                         .foregroundStyle(HarnessTheme.textTertiary)
                 }
-                
+
                 Text(sessionPreview(for: session))
                     .font(.system(size: 11))
                     .foregroundStyle(HarnessTheme.textTertiary)
@@ -157,8 +157,8 @@ struct SessionRowView: View {
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 8)
-            .background(isSelected ? HarnessTheme.sidebarSelected : 
-                        isHovered ? HarnessTheme.sidebarHover : .clear)
+            .background(isSelected ? HarnessTheme.sidebarSelected :
+                isHovered ? HarnessTheme.sidebarHover : .clear)
             .cornerRadius(HarnessTheme.radiusMedium)
         }
         .buttonStyle(.plain)
@@ -166,14 +166,14 @@ struct SessionRowView: View {
             isHovered = hovering
         }
     }
-    
-    private func sessionTitle(for session: Session) -> String {
+
+    private func sessionTitle(for session: SessionRecord) -> String {
         if let firstEvent = session.events.first {
             switch firstEvent {
-            case .userMessage(let msg):
+            case let .userMessage(msg):
                 if let firstBlock = msg.content.first {
                     switch firstBlock {
-                    case .text(let text):
+                    case let .text(text):
                         return String(text.prefix(30))
                     default: break
                     }
@@ -183,20 +183,20 @@ struct SessionRowView: View {
         }
         return "对话 \(session.currentTurn + 1)"
     }
-    
-    private func sessionDate(for session: Session) -> String {
+
+    private func sessionDate(for session: SessionRecord) -> String {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .abbreviated
         return formatter.localizedString(for: session.metadata.createdAt, relativeTo: Date())
     }
-    
-    private func sessionPreview(for session: Session) -> String {
+
+    private func sessionPreview(for session: SessionRecord) -> String {
         if let lastEvent = session.events.last {
             switch lastEvent {
-            case .assistantMessage(let msg):
+            case let .assistantMessage(msg):
                 if let firstBlock = msg.content.first {
                     switch firstBlock {
-                    case .text(let text):
+                    case let .text(text):
                         return String(text.prefix(40))
                     default: break
                     }

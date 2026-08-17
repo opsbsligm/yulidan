@@ -6,9 +6,9 @@ struct ToolListView: View {
     let onClear: (Int) -> Void
     @State private var searchText = ""
     @State private var selectedCategory: String = "全部"
-    
+
     let categories = ["全部", "文件", "终端", "网络", "代理"]
-    
+
     var filtered: [ToolDisplayItem] {
         var result = tools
         if selectedCategory != "全部" {
@@ -17,11 +17,12 @@ struct ToolListView: View {
         }
         if !searchText.isEmpty {
             result = result.filter { $0.name.localizedCaseInsensitiveContains(searchText) ||
-                $0.description.localizedCaseInsensitiveContains(searchText) }
+                $0.description.localizedCaseInsensitiveContains(searchText)
+            }
         }
         return result
     }
-    
+
     var body: some View {
         VStack(spacing: 0) {
             HStack {
@@ -41,7 +42,7 @@ struct ToolListView: View {
             }
             .padding(.horizontal, 20).padding(.vertical, 16)
             Divider()
-            
+
             HStack(spacing: 8) {
                 ForEach(categories, id: \.self) { cat in
                     let count = cat == "全部" ? tools.count :
@@ -56,7 +57,7 @@ struct ToolListView: View {
             }
             .padding(.horizontal, 20).padding(.vertical, 8)
             Divider()
-            
+
             ScrollView {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 300), spacing: 12)], spacing: 12) {
                     ForEach(filtered, id: \.id) { tool in
@@ -65,7 +66,7 @@ struct ToolListView: View {
                     }
                     if filtered.isEmpty {
                         ContentUnavailableView("未找到工具", systemImage: "wrench.and.screwdriver",
-                            description: Text("尝试其他搜索或分类")).padding(.top, 40)
+                                               description: Text("尝试其他搜索或分类")).padding(.top, 40)
                     }
                 }
                 .padding(20)
@@ -103,26 +104,27 @@ struct ToolCard: View {
     let onClear: (Int) -> Void
     @State private var paramText = ""
     @State private var isHovered = false
-    
+
     var icon: String {
         switch tool.category {
-        case "filesystem": return "doc.badge.gear"
-        case "terminal": return "terminal.fill"
-        case "network": return "globe"
-        case "agent": return "person.2.fill"
-        default: return "wrench.and.screwdriver"
+        case "filesystem": "doc.badge.gear"
+        case "terminal": "terminal.fill"
+        case "network": "globe"
+        case "agent": "person.2.fill"
+        default: "wrench.and.screwdriver"
         }
     }
+
     var iconColor: Color {
         switch tool.category {
-        case "filesystem": return .blue
-        case "terminal": return .green
-        case "network": return .purple
-        case "agent": return .orange
-        default: return .gray
+        case "filesystem": .blue
+        case "terminal": .green
+        case "network": .purple
+        case "agent": .orange
+        default: .gray
         }
     }
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {

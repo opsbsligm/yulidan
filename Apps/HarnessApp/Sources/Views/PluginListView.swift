@@ -1,5 +1,5 @@
-import SwiftUI
 import ServiceContainer
+import SwiftUI
 
 struct PluginListView: View {
     @ObservedObject var viewModel: AppViewModel
@@ -7,11 +7,17 @@ struct PluginListView: View {
     @State private var selectedPluginId: String?
 
     var filtered: [PluginDisplayItem] {
-        if searchText.isEmpty { return viewModel.plugins }
+        if searchText.isEmpty {
+            return viewModel.plugins
+        }
         return viewModel.plugins.filter { $0.name.localizedCaseInsensitiveContains(searchText) ||
-            $0.description.localizedCaseInsensitiveContains(searchText) }
+            $0.description.localizedCaseInsensitiveContains(searchText)
+        }
     }
-    var activeCount: Int { viewModel.plugins.filter { $0.isActive }.count }
+
+    var activeCount: Int {
+        viewModel.plugins.filter(\.isActive).count
+    }
 
     var body: some View {
         HStack(spacing: 0) {
@@ -47,7 +53,7 @@ struct PluginListView: View {
                         }
                         if filtered.isEmpty {
                             ContentUnavailableView("未找到插件", systemImage: "puzzlepiece.extension",
-                                description: Text("尝试其他搜索词")).padding(.top, 40)
+                                                   description: Text("尝试其他搜索词")).padding(.top, 40)
                         }
                     }
                     .padding(20)
@@ -104,10 +110,10 @@ struct PluginCard: View {
                 get: { plugin.isActive },
                 set: { _ in onToggle() }
             )).labelsHidden()
-            .toggleStyle(.switch)
-            .controlSize(.small)
-            .disabled(plugin.state == .loading || plugin.state == .initializing ||
-                      plugin.state == .starting || plugin.state == .stopping)
+                .toggleStyle(.switch)
+                .controlSize(.small)
+                .disabled(plugin.state == .loading || plugin.state == .initializing ||
+                    plugin.state == .starting || plugin.state == .stopping)
         }
         .padding(12)
         .background(isHovered ? Color(NSColor.controlBackgroundColor).opacity(0.4) : HarnessTheme.surface.opacity(0.5))
@@ -123,24 +129,26 @@ struct StateBadge: View {
     let state: PluginState
     var color: Color {
         switch state {
-        case .active: return .green
-        case .stopped: return .gray
-        case .failed, .errored: return .red
-        case .loading, .initializing, .starting, .stopping: return .orange
+        case .active: .green
+        case .stopped: .gray
+        case .failed, .errored: .red
+        case .loading, .initializing, .starting, .stopping: .orange
         }
     }
+
     var label: String {
         switch state {
-        case .active: return "运行中"
-        case .stopped: return "已停用"
-        case .failed: return "失败"
-        case .errored: return "错误"
-        case .loading: return "加载中"
-        case .initializing: return "初始化"
-        case .starting: return "启动中"
-        case .stopping: return "停止中"
+        case .active: "运行中"
+        case .stopped: "已停用"
+        case .failed: "失败"
+        case .errored: "错误"
+        case .loading: "加载中"
+        case .initializing: "初始化"
+        case .starting: "启动中"
+        case .stopping: "停止中"
         }
     }
+
     var body: some View {
         HStack(spacing: 4) {
             Circle().fill(color).frame(width: 6, height: 6)
