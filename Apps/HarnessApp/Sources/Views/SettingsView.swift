@@ -4,6 +4,8 @@ import SwiftUI
 
 struct SettingsView: View {
     @State private var selectedTab = SettingsTab.general
+    /// 沙箱设置变更回调（由 AppViewModel 消费，重新注册工具）
+    var onSandboxChange: ((String?) -> Void)?
 
     var body: some View {
         HStack(spacing: 0) {
@@ -33,7 +35,7 @@ struct SettingsView: View {
             // 内容
             switch selectedTab {
             case .general:
-                GeneralSettingsView()
+                GeneralSettingsView(onSandboxChange: onSandboxChange)
             case .llm:
                 LLMSettingsView()
             case .plugins:
@@ -112,6 +114,7 @@ enum SettingsTab: CaseIterable, Identifiable {
 struct GeneralSettingsView: View {
     @AppStorage(ThemeManager.themeKey) private var theme: String = "system"
     @AppStorage("fontSize") private var fontSize: Double = 14
+    var onSandboxChange: ((String?) -> Void)?
 
     var body: some View {
         ScrollView {
@@ -152,6 +155,8 @@ struct GeneralSettingsView: View {
                         }
                     }
                 }
+
+                FileSandboxSection(onSandboxChange: onSandboxChange)
 
                 SettingsCard(title: "快捷键", icon: "keyboard") {
                     VStack(alignment: .leading, spacing: 8) {

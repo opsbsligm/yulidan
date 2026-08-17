@@ -3,6 +3,7 @@ import AppKit
 import Foundation
 import HarnessCore
 import LLM
+import Sandbox
 
 // 技术债：本文件/类超过长度阈值，计划拆分为 会话管理 / 生成流程 / 设置 三个 ViewModel（见 docs/CODE_REVIEW.md）
 // swiftlint:disable file_length type_body_length
@@ -178,9 +179,9 @@ final class AppViewModel: ObservableObject {
         sessionDB = try? SessionDB()
         sessionTitles = Self.loadTitles()
 
-        // 注册真实内置工具 + MCP 演示服务器（内存客户端，处理器为真实能力）
+        // 注册真实内置工具（按设置注入文件沙箱）+ MCP 演示服务器（内存客户端，处理器为真实能力）
         Task {
-            for tool in BuiltinTools.makeAll() {
+            for tool in BuiltinTools.makeAll(sandbox: Self.makeSandboxFromSettings()) {
                 await self.toolRegistry.register(tool)
             }
             let demo = MockMCPClient(name: "local")
@@ -240,6 +241,36 @@ final class AppViewModel: ObservableObject {
         let infos = await pluginManager.list()
         plugins = infos.map { PluginDisplayItem(info: $0) }
             .sorted { !$0.isActive && $1.isActive }
+    }
+
+    // MARK: - 文件沙箱
+
+    /// 当前文件沙箱根目录（UserDefaults 持久化；nil = 不限制）
+    var sandboxRoot: String? {
+        UserDefaults.standard.string(forKey: "sandboxRoot")
+    }
+
+    private static func makeSandboxFromSettings() -> PathSandbox? {
+        UserDefaults.standard.string(forKey: "sandboxRoot").map { PathSandbox(allowedRoots: [$0]) }
+    }
+
+    /// 设置/清除沙箱根目录，并重新注册内置工具 + MCP 工具使其立即生效
+    func setSandboxRoot(_ root: String?) {
+        if let root {
+            UserDefaults.standard.set(root, forKey: "sandboxRoot")
+        } else {
+            UserDefaults.standard.removeObject(forKey: "sandboxRoot")
+        }
+        Task {
+            await self.toolRegistry.clear()
+            for tool in BuiltinTools.makeAll(sandbox: root.map { PathSandbox(allowedRoots: [$0]) }) {
+                await self.toolRegistry.register(tool)
+            }
+            for tool in await self.mcpManager.makeTools() {
+                await self.toolRegistry.register(tool)
+            }
+            await self.refreshTools()
+        }
     }
 
     func refreshTools() async {
