@@ -1,6 +1,7 @@
 import Foundation
 import LLM
 import ServiceContainer
+import Terminal
 
 // 内置真实工具集 — 供 ToolRegistry 注册后在 UI 中真实执行
 // ⚠️ 安全提示：exec_command / write_file 具备真实执行能力，生产环境接入前
@@ -120,105 +121,38 @@ public struct ListFilesTool: Tool {
 // MARK: - exec_command
 
 public struct ExecCommandTool: Tool {
+    public let runner: TerminalRunner
+
+    public init(runner: TerminalRunner = TerminalRunner()) {
+        self.runner = runner
+    }
+
     public let name = "exec_command"
     public let description = "在系统 shell 中执行命令并返回输出（⚠️ 具备真实执行能力，请谨慎）"
     public let parameterSchema = "{\"cmd\": \"要执行的 shell 命令\", \"timeout\": \"超时秒数，默认 30\"}"
 
-    public func execute(_ args: [String: String], context _: ToolRunContext) async throws -> ToolResult {
+    public func execute(_ args: [String: String], context: ToolRunContext) async throws -> ToolResult {
         guard let cmd = args["cmd"]?.trimmingCharacters(in: .whitespaces), !cmd.isEmpty else {
             return ToolResult(content: [.text("错误：缺少参数 cmd")],
                               error: ToolError(name: "exec_command", code: "missing_arg", message: "缺少 cmd 参数"))
         }
-        let timeout = Double(args["timeout"] ?? "30") ?? 30
+        // 支持按次覆盖超时（工具层配置，runner 默认 30s）
+        var config = runner.configuration
+        if let t = Double(args["timeout"] ?? "") {
+            config.timeout = t
+        }
         do {
-            let out = try await Self.run(cmd: cmd, timeout: timeout)
-            return ToolResult(content: [.text(out)],
-                              meta: ["cmd": String(cmd.prefix(200))])
+            let result = try await TerminalRunner(configuration: config).run(cmd, signal: context.signal)
+            return ToolResult(content: [.text(result.displayString(maxCharacters: config.maxOutputCharacters))],
+                              error: nil,
+                              meta: ["cmd": String(cmd.prefix(200)),
+                                     "exit": String(result.terminationStatus),
+                                     "timed_out": String(result.timedOut),
+                                     "cancelled": String(result.cancelled)])
         } catch {
             return ToolResult(content: [.text("❌ 命令执行失败：\(error.localizedDescription)")],
                               error: ToolError(name: "exec_command", code: "exec_failed", message: error.localizedDescription))
         }
-    }
-
-    /// 执行 shell 命令，合并 stdout/stderr，带超时
-    /// 实现说明：全部阻塞操作放在后台队列；stdout/stderr 在两个独立线程
-    /// 并行读取（避免管道缓冲区写满导致死锁），超时后 terminate。
-    static func run(cmd: String, timeout: TimeInterval) async throws -> String {
-        // @unchecked Sendable 盒子：用于把 Process/Pipe 传给 @Sendable 闭包
-        final class RunBox: @unchecked Sendable {
-            let process: Process
-            let outPipe: Pipe
-            let errPipe: Pipe
-            let group: DispatchGroup
-            var outData = Data()
-            var errData = Data()
-            init(process: Process, outPipe: Pipe, errPipe: Pipe, group: DispatchGroup) {
-                self.process = process
-                self.outPipe = outPipe
-                self.errPipe = errPipe
-                self.group = group
-            }
-        }
-        return try await withCheckedThrowingContinuation { cont in
-            let process = Process()
-            let outPipe = Pipe()
-            let errPipe = Pipe()
-            let group = DispatchGroup()
-            let box = RunBox(process: process, outPipe: outPipe, errPipe: errPipe, group: group)
-
-            group.enter()
-            DispatchQueue.global(qos: .userInitiated).async {
-                box.outData = box.outPipe.fileHandleForReading.readDataToEndOfFile()
-                group.leave()
-            }
-            group.enter()
-            DispatchQueue.global(qos: .userInitiated).async {
-                box.errData = box.errPipe.fileHandleForReading.readDataToEndOfFile()
-                group.leave()
-            }
-
-            process.executableURL = URL(fileURLWithPath: "/bin/zsh")
-            process.arguments = ["-c", cmd]
-            process.standardOutput = outPipe
-            process.standardError = errPipe
-
-            do {
-                try process.run()
-            } catch {
-                cont.resume(throwing: error)
-                return
-            }
-
-            // 等待退出（带超时）
-            let deadline = Date().addingTimeInterval(timeout)
-            while process.isRunning {
-                if Date() > deadline {
-                    process.terminate()
-                    break
-                }
-                Thread.sleep(forTimeInterval: 0.05)
-            }
-            process.waitUntilExit()
-            group.wait()
-
-            let combined = Self.combineOutput(stdout: box.outData, stderr: box.errData)
-            cont.resume(returning: "✅ 退出码 \(process.terminationStatus)\n\n\(combined)")
-        }
-    }
-
-    /// 合并 stdout/stderr 为结果文本（无输出时给占位说明；截断至 50000 字符）
-    static func combineOutput(stdout: Data, stderr: Data) -> String {
-        var result = ""
-        if let o = String(data: stdout, encoding: .utf8), !o.isEmpty {
-            result += o
-        }
-        if let e = String(data: stderr, encoding: .utf8), !e.isEmpty {
-            result += (result.isEmpty ? "" : "\n") + "[stderr]\n" + e
-        }
-        if result.isEmpty {
-            result = "（无输出）"
-        }
-        return String(result.prefix(50000))
     }
 }
 

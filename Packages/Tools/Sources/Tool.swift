@@ -64,3 +64,8 @@ public final class CancellationToken: @unchecked Sendable {
         _isCancelled = true
     }
 }
+
+import Terminal
+
+/// Tools 的取消信号桥接到 Terminal 包
+extension CancellationToken: TerminalCancellationToken {}
