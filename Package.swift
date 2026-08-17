@@ -81,6 +81,18 @@ let package = Package(
                     dependencies: ["Notifications"],
                     path: "Packages/Notifications/Tests"),
 
+        .target(name: "PluginXPC",
+                dependencies: ["ServiceContainer"],
+                path: "Packages/PluginXPC/Sources"),
+        .testTarget(name: "PluginXPCTests",
+                    dependencies: ["PluginXPC", "ServiceContainer"],
+                    path: "Packages/PluginXPC/Tests"),
+
+        // XPC 插件 worker（launchd 按需拉起，崩溃隔离）
+        .executableTarget(name: "HarnessPluginWorker",
+                          dependencies: ["PluginXPC", "HarnessCore", "ServiceContainer"],
+                          path: "Apps/HarnessPluginWorker/Sources"),
+
         .target(name: "Workspace",
                 dependencies: ["ServiceContainer", "Session"],
                 path: "Packages/Workspace/Sources"),
