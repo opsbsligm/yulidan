@@ -142,16 +142,16 @@ class ChatViewModel: ObservableObject { /* ... */ }
 - [x] SwiftUI 应用骨架
 - [x] Liquid Glass 设计系统
 
-### Phase 2 (进行中)
-- [ ] LLM 适配器实现 (OpenAI/DeepSeek)
-- [ ] 工具系统完善
-- [ ] MCP 协议实现
-- [ ] 沙箱集成
-- [ ] 终端集成
+### Phase 2 (已完成)
+- [x] LLM 适配器实现 (OpenAI/DeepSeek)
+- [x] 工具系统完善
+- [x] MCP 协议实现
+- [x] 沙箱集成
+- [x] 终端集成
 
-### Phase 3 (规划中)
+### Phase 3 (进行中)
 - [ ] XPC 进程隔离
-- [ ] 插件市场
-- [ ] 多 Agent 协作
+- [x] 插件市场
+- [x] 多 Agent 协作
 - [ ] 性能优化
 - [ ] macOS 系统特性集成 (通知、Spotlight、Shortcuts)

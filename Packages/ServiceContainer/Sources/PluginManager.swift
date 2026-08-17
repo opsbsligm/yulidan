@@ -145,10 +145,12 @@ public actor PluginManager {
             throw PluginError.notFound(pluginID)
         }
 
-        guard entry.state == .active, let context = entry.context else { return }
-
-        entry.state = .stopping
-        await entry.plugin.stop(context: context)
+        // 仅对 active 插件执行 stop 生命周期；非 active（如初始化/启动失败）残留条目直接清理，
+        // 否则失败插件会永远阻塞重装
+        if entry.state == .active, let context = entry.context {
+            entry.state = .stopping
+            await entry.plugin.stop(context: context)
+        }
         entry.state = .stopped
         entry.stoppedAt = Date()
 

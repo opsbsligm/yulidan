@@ -151,3 +151,23 @@ public extension Plugin {
         PluginHealth(status: .unknown)
     }
 }
+
+extension PluginVersion: Comparable {
+    /// semver 风格比较：major > minor > patch；数字三元组相同时正式版（无 prerelease）大于预发布版，
+    /// 两个预发布版按字符串字典序比较
+    public static func < (lhs: PluginVersion, rhs: PluginVersion) -> Bool {
+        for (l, r) in zip([lhs.major, lhs.minor, lhs.patch], [rhs.major, rhs.minor, rhs.patch]) where l != r {
+            return l < r
+        }
+        switch (lhs.prerelease, rhs.prerelease) {
+        case (nil, .some):
+            return false
+        case (.some, nil):
+            return true
+        case let (.some(l), .some(r)):
+            return l < r
+        case (nil, nil):
+            return false
+        }
+    }
+}
