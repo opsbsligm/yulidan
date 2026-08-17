@@ -3,6 +3,7 @@ import AppKit
 import Foundation
 import HarnessCore
 import LLM
+import Notifications
 import Sandbox
 
 // 技术债：本文件/类超过长度阈值，计划拆分为 会话管理 / 生成流程 / 设置 三个 ViewModel（见 docs/CODE_REVIEW.md）
@@ -207,6 +208,7 @@ final class AppViewModel: ObservableObject {
     let sessionDB: SessionDB?
     let pluginManager: PluginManager
     let marketplace: PluginMarketplace
+    let notificationCenter: NotificationCoordinator
     let toolRegistry: ToolRegistry
     let mcpManager: MCPServerManager
 
@@ -223,6 +225,10 @@ final class AppViewModel: ObservableObject {
                                       harnessVersion: PluginVersion(major: 0, minor: 1, patch: 0))
         toolRegistry = ToolRegistry()
         mcpManager = MCPServerManager()
+        notificationCenter = NotificationCoordinator(
+            service: SystemNotificationService(),
+            isEnabled: UserDefaults.standard.object(forKey: "notificationsEnabled") as? Bool ?? true
+        )
         marketplace = PluginMarketplace(
             manager: pluginManager,
             harnessVersion: PluginVersion(major: 0, minor: 1, patch: 0),
@@ -590,6 +596,7 @@ final class AppViewModel: ObservableObject {
                                         timestamp: Date(), status: .error))
             generationError = "未配置 API Key，无法发起真实请求。"
             isGenerating = false
+            await notifyGeneration(error: "未配置 API Key")
             return
         }
 
@@ -622,6 +629,7 @@ final class AppViewModel: ObservableObject {
             isGenerating = false
             generationError = nil
             persistSession()
+            await notifyGeneration(error: nil)
         } catch is CancellationError {
             isGenerating = false
         } catch let e as URLError where e.code == .cancelled {
@@ -636,6 +644,7 @@ final class AppViewModel: ObservableObject {
                                         timestamp: Date(), status: .error))
             generationError = desc
             isGenerating = false
+            await notifyGeneration(error: desc)
         }
     }
 
@@ -685,6 +694,29 @@ final class AppViewModel: ObservableObject {
             }
             await refreshPlugins()
         }
+    }
+
+    // MARK: - 系统通知（生成完成/失败）
+
+    var notificationsEnabled: Bool {
+        UserDefaults.standard.object(forKey: "notificationsEnabled") as? Bool ?? true
+    }
+
+    func setNotificationsEnabled(_ enabled: Bool) {
+        UserDefaults.standard.set(enabled, forKey: "notificationsEnabled")
+        Task {
+            await notificationCenter.setEnabled(enabled)
+            if enabled {
+                await notificationCenter.ensureAuthorization()
+            }
+        }
+    }
+
+    private func notifyGeneration(error: String?) async {
+        guard let session = selectedSession else { return }
+        let title = sessionTitles[session.id.rawValue]
+            ?? session.metadata.cwd.lastPathComponent
+        await notificationCenter.postGenerationFinished(sessionTitle: title, error: error)
     }
 
     // MARK: - 插件市场（真实 PluginMarketplace 编排）

@@ -59,7 +59,8 @@ struct ContentView: View {
                 onClear: { viewModel.clearToolResult(at: $0) }
             )
         case .settings:
-            SettingsView(onSandboxChange: { viewModel.setSandboxRoot($0) })
+            SettingsView(onSandboxChange: { viewModel.setSandboxRoot($0) },
+                         onNotificationsChange: { viewModel.setNotificationsEnabled($0) })
         }
     }
 }

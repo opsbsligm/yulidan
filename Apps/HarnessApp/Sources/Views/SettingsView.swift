@@ -6,6 +6,8 @@ struct SettingsView: View {
     @State private var selectedTab = SettingsTab.general
     /// 沙箱设置变更回调（由 AppViewModel 消费，重新注册工具）
     var onSandboxChange: ((String?) -> Void)?
+    /// 系统通知开关变更回调（由 AppViewModel 消费，同步 NotificationCoordinator）
+    var onNotificationsChange: ((Bool) -> Void)?
 
     var body: some View {
         HStack(spacing: 0) {
@@ -35,7 +37,8 @@ struct SettingsView: View {
             // 内容
             switch selectedTab {
             case .general:
-                GeneralSettingsView(onSandboxChange: onSandboxChange)
+                GeneralSettingsView(onSandboxChange: onSandboxChange,
+                                    onNotificationsChange: onNotificationsChange)
             case .llm:
                 LLMSettingsView()
             case .plugins:
@@ -115,6 +118,7 @@ struct GeneralSettingsView: View {
     @AppStorage(ThemeManager.themeKey) private var theme: String = "system"
     @AppStorage("fontSize") private var fontSize: Double = 14
     var onSandboxChange: ((String?) -> Void)?
+    var onNotificationsChange: ((Bool) -> Void)?
 
     var body: some View {
         ScrollView {
@@ -155,6 +159,8 @@ struct GeneralSettingsView: View {
                         }
                     }
                 }
+
+                NotificationsSection(onNotificationsChange: onNotificationsChange)
 
                 FileSandboxSection(onSandboxChange: onSandboxChange)
 
