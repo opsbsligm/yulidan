@@ -10,7 +10,7 @@ struct ChatAreaView: View {
     var body: some View {
         VStack(spacing: 0) {
             // 顶部栏
-            ChatTopBar(viewModel: viewModel, session: session)
+            ChatTopBar(viewModel: viewModel, session: session, draftText: messageText)
                 .background(.ultraThinMaterial)
 
             // 消息区域
@@ -23,7 +23,6 @@ struct ChatAreaView: View {
                     error: viewModel.generationError
                 )
             }
-
             // 输入区域
             ChatInputArea(
                 text: $messageText,
@@ -51,11 +50,11 @@ struct ChatAreaView: View {
 struct ChatTopBar: View {
     @ObservedObject var viewModel: AppViewModel
     let session: SessionRecord
+    let draftText: String
     @State private var modelHovered = false
     @State private var renameText = ""
     @State private var showRenameAlert = false
     @State private var showDeleteConfirm = false
-
     var body: some View {
         HStack(spacing: 8) {
             // 模型选择（真实菜单：提供商 → 模型）
@@ -118,6 +117,7 @@ struct ChatTopBar: View {
                 RealButton(icon: "doc.badge.plus", label: "附件", action: { viewModel.attachFiles() })
                 RealButton(icon: "square.and.arrow.up", label: "分享", action: { viewModel.shareChat() })
                 RealButton(icon: "trash", label: "清空", action: { viewModel.clearChat() })
+                RealButton(icon: "fork", label: "派生", action: { viewModel.spawnSubagentFromChat(draftText) })
                 // 更多（真实菜单）
                 Menu {
                     Button { viewModel.shareChat() } label: { Label("复制到剪贴板", systemImage: "doc.on.doc") }

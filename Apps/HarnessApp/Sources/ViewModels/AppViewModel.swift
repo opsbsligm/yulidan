@@ -1029,6 +1029,17 @@ final class AppViewModel: ObservableObject {
         await notificationCenter.post(event: title, detail: detail)
     }
 
+    /// 对话页「派生」按钮：当前输入（为空时退回最后一条用户消息）→ 子任务
+    func spawnSubagentFromChat(_ draftText: String) {
+        let draft = draftText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let task = draft.isEmpty ? lastUserMessage : draft
+        guard !task.isEmpty else {
+            showToast("没有可派生的输入内容")
+            return
+        }
+        spawnSubagent(name: String(task.prefix(12)), task: task, timeout: 120)
+    }
+
     func cancelSubagent(_ item: SubagentDisplayItem) {
         guard let raw = UUID(uuidString: item.id) else { return }
         Task {
