@@ -153,5 +153,6 @@ class ChatViewModel: ObservableObject { /* ... */ }
 - [x] XPC 进程隔离
 - [x] 插件市场
 - [x] 多 Agent 协作
-- [ ] 性能优化
-- [ ] macOS 系统特性集成 (通知、Spotlight、Shortcuts)
+- [x] 性能优化（启动会话加载 N+1 修复，实测 212×；见 docs/PERFORMANCE.md）
+- [x] macOS 系统通知（生成完成/失败，设置可开关）
+- [ ] Spotlight / Shortcuts（需正式 bundle 签名注册，debug 壳不适用，暂缓）
