@@ -5,6 +5,7 @@ import HarnessCore
 import LLM
 import ServiceContainer
 import Session
+import Subagent
 import Tools
 
 @main
@@ -13,7 +14,7 @@ struct DSH: AsyncParsableCommand {
         commandName: "dsh",
         abstract: "Swift Harness — macOS Native AI Agent Framework",
         version: "0.1.0",
-        subcommands: [WebCommand.self, HeadlessCommand.self, PluginCommand.self]
+        subcommands: [WebCommand.self, HeadlessCommand.self, PluginCommand.self, AgentsCommand.self]
     )
 }
 
@@ -181,6 +182,94 @@ private func printToolDetails(_ toolResults: [ToolResult]) {
             preview = String(t.prefix(120))
         }
         FileHandle.standardError.write(Data("[dsh] \(i + 1). \(preview)\(err)\n".utf8))
+    }
+}
+
+// MARK: - agents（多 Agent 协作：并行子任务）
+
+struct AgentsCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "agents",
+        abstract: "Multi-Agent collaboration (parallel subagents)",
+        subcommands: [AgentsRunCommand.self]
+    )
+}
+
+struct AgentsRunCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "run",
+        abstract: "Spawn one subagent per task and wait for all to finish",
+        discussion: """
+        每个任务一个独立 AgentLoop（共享工具注册表），最多 --parallel 个并行。
+        生命周期事件输出到 stderr，最终结果输出到 stdout；任一失败退出码为 1。
+        环境变量同 run 命令（HARNESS_API_KEY / HARNESS_PROVIDER / ...）。
+        """
+    )
+
+    @Argument(help: "Task descriptions (one subagent per task)")
+    var tasks: [String] = []
+
+    @Option(name: .shortAndLong, help: "Max parallel subagents")
+    var parallel: Int = 4
+
+    @Option(help: "Per-task timeout in seconds")
+    var timeout: Double = 300
+
+    func run() async throws {
+        guard !tasks.isEmpty else {
+            throw CLIError.configMissing("至少一个任务参数")
+        }
+        let cfg = try DSHConfig.resolve()
+        let llm = ProviderFactory.make(cfg)
+        let tools = ToolRegistry()
+        for tool in BuiltinTools.makeAll() {
+            await tools.register(tool)
+        }
+        let coordinator = SubagentCoordinator(maxConcurrent: max(1, parallel), onEvent: Self.logEvent)
+        for (index, task) in tasks.enumerated() {
+            let agent = AgentLoop(
+                sessionID: SessionID(), llm: llm, tools: tools,
+                model: cfg.model, systemPrompt: cfg.systemPrompt, maxSteps: cfg.maxSteps
+            )
+            let name = "task\(index + 1): \(String(task.prefix(16)))"
+            _ = await coordinator.spawn(agent: agent, spec: .init(name: name, task: task, timeout: timeout))
+        }
+        let states = await coordinator.waitForAll()
+        if Self.printResults(states) {
+            throw ExitCode(1)
+        }
+    }
+
+    /// 生命周期事件 → stderr
+    private static func logEvent(_ event: SubagentEvent) {
+        switch event {
+        case let .spawned(id, name):
+            FileHandle.standardError.write(Data("[agents] 排队：\(name)（\(id.rawValue.uuidString.prefix(8))）\n".utf8))
+        case let .started(id):
+            FileHandle.standardError.write(Data("[agents] 启动：\(id.rawValue.uuidString.prefix(8))\n".utf8))
+        case let .finished(_, state):
+            FileHandle.standardError.write(Data("[agents] 结束：\(state.name) → \(state.phase.rawValue)（\(String(format: "%.1f", state.elapsed ?? 0))s）\n".utf8))
+        }
+    }
+
+    /// 打印全部结果到 stdout；返回是否存在失败
+    private static func printResults(_ states: [SubagentState]) -> Bool {
+        var failed = false
+        for state in states {
+            print("=== \(state.name) → \(state.phase.rawValue)（\(String(format: "%.1f", state.elapsed ?? 0))s）")
+            if let error = state.error {
+                print("错误：\(error)")
+                failed = true
+            }
+            if let first = state.result?.messages.first {
+                for block in first.content {
+                    if case let .text(t) = block {
+                        print(t)
+                    }
+                }
+            }
+        }
+        return failed
     }
 }
 

@@ -58,7 +58,7 @@ let package = Package(
                 path: "Apps/HarnessCore/Sources"),
 
         .executableTarget(name: "DSHCLI",
-                          dependencies: ["HarnessCore", "Agent", "LLM", "Tools", "ServiceContainer", "Session",
+                          dependencies: ["HarnessCore", "Agent", "Subagent", "LLM", "Tools", "ServiceContainer", "Session",
                                          .product(name: "ArgumentParser", package: "swift-argument-parser")],
                           path: "Apps/DSHCLI/Sources"),
 
