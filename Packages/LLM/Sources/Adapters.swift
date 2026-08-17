@@ -166,23 +166,19 @@ public struct AnthropicAdapter: LLMProvider {
         self.baseURL = baseURL
     }
 
-    struct AnthMsg: Encodable { let role: String; let content: String }
-    struct AnthRequest: Encodable {
-        let model: String
-        let max_tokens: Int
-        let system: String?
-        let messages: [AnthMsg]
-    }
-
     private func buildMessages(_ messages: [Message], systemPrompt: String?) -> (system: String?, msgs: [AnthMsg]) {
         var system = systemPrompt
         var out: [AnthMsg] = []
         for m in messages {
             let text = m.content.compactMap { block -> String? in
-                if case .text(let t) = block { return t }
+                if case let .text(t) = block {
+                    return t
+                }
                 return nil
             }.joined(separator: "\n")
-            if text.isEmpty { continue }
+            if text.isEmpty {
+                continue
+            }
             // Anthropic 要求首条必须为 user；把 system 角色消息合并进 system 字段
             if m.role == .system, var s = system {
                 s += "\n\(text)"
@@ -191,7 +187,9 @@ public struct AnthropicAdapter: LLMProvider {
                 out.append(AnthMsg(role: m.role == .system ? "user" : m.role.rawValue, content: text))
             }
         }
-        if let s = system { out.insert(AnthMsg(role: "user", content: s), at: 0) }
+        if let s = system {
+            out.insert(AnthMsg(role: "user", content: s), at: 0)
+        }
         return (system, out)
     }
 
@@ -207,7 +205,7 @@ public struct AnthropicAdapter: LLMProvider {
 
         let (system, msgs) = buildMessages(request.messages, systemPrompt: request.systemPrompt)
         let body = AnthRequest(model: request.model,
-                               max_tokens: request.maxTokens ?? 4096,
+                               maxTokens: request.maxTokens ?? 4096,
                                system: system,
                                messages: msgs)
         req.httpBody = try JSONEncoder().encode(body)
@@ -216,26 +214,17 @@ public struct AnthropicAdapter: LLMProvider {
         guard let http = response as? HTTPURLResponse else {
             throw LLMError.networkError("无法解析 HTTP 响应")
         }
-        guard (200..<300).contains(http.statusCode) else {
+        guard (200 ..< 300).contains(http.statusCode) else {
             let msg = String(data: data, encoding: .utf8) ?? ""
             throw LLMError.httpError(status: http.statusCode, body: String(msg.prefix(500)))
         }
-        struct Resp: Decodable {
-            struct Block: Decodable { let type: String; let text: String? }
-            let content: [Block]
-            let usage: Usage?
-            struct Usage: Decodable {
-                let input_tokens: Int?
-                let output_tokens: Int?
-            }
-        }
         do {
-            let r = try JSONDecoder().decode(Resp.self, from: data)
-            let text = r.content.compactMap { $0.text }.joined()
+            let r = try JSONDecoder().decode(AnthResponseDTO.self, from: data)
+            let text = r.content.compactMap(\.text).joined()
             let usage = r.usage.map {
-                TokenUsage(promptTokens: $0.input_tokens ?? 0,
-                           completionTokens: $0.output_tokens ?? 0,
-                           totalTokens: ($0.input_tokens ?? 0) + ($0.output_tokens ?? 0))
+                TokenUsage(promptTokens: $0.inputTokens ?? 0,
+                           completionTokens: $0.outputTokens ?? 0,
+                           totalTokens: ($0.inputTokens ?? 0) + ($0.outputTokens ?? 0))
             }
             return LLMResponse(id: UUID().uuidString, model: request.model,
                                content: [.text(text)], usage: usage,
@@ -248,9 +237,17 @@ public struct AnthropicAdapter: LLMProvider {
     }
 
     public func stream(_ request: LLMRequest) async throws -> AsyncThrowingStream<StreamChunk, Error> {
-        // Anthropic 流式协议较复杂，当前版本回退为非流式
-        try await self.request(request)
+        // Anthropic 流式协议较复杂，当前版本回退为非流式，将完整响应作为单个块返回
+        let response = try await self.request(request)
+        let summary: [String: Any] = [
+            "id": response.id,
+            "model": response.model,
+            "content": response.content,
+            "finish_reason": response.finishReason.rawValue,
+        ]
+        let payload = (try? JSONSerialization.data(withJSONObject: summary)) ?? Data()
         return AsyncThrowingStream { continuation in
+            continuation.yield(StreamChunk(type: "message_complete", data: payload, index: 0))
             continuation.finish()
         }
     }
@@ -258,12 +255,56 @@ public struct AnthropicAdapter: LLMProvider {
     public func checkConnection() async throws -> String {
         guard !apiKey.isEmpty else { throw LLMError.missingAPIKey }
         // 用小 max_tokens 发一次真实请求验证 Key
-        let resp = try await self.request(LLMRequest(
+        let resp = try await request(LLMRequest(
             model: "claude-3-5-haiku-20241022",
             messages: [Message(role: .user, content: [.text("ping")])],
             maxTokens: 1
         ))
         _ = resp
         return "连接成功"
+    }
+}
+
+// MARK: - Anthropic 响应 DTO（文件级，避免局部类型嵌套过深；驼峰 + CodingKeys 对齐 wire 格式）
+
+/// Anthropic 响应内容块
+private struct AnthResponseBlockDTO: Decodable {
+    let type: String
+    let text: String?
+}
+
+/// Anthropic usage 计数
+private struct AnthUsageDTO: Decodable {
+    let inputTokens: Int?
+    let outputTokens: Int?
+    enum CodingKeys: String, CodingKey {
+        case inputTokens = "input_tokens"
+        case outputTokens = "output_tokens"
+    }
+}
+
+/// Anthropic messages 响应
+private struct AnthResponseDTO: Decodable {
+    let content: [AnthResponseBlockDTO]
+    let usage: AnthUsageDTO?
+}
+
+// MARK: - Anthropic 请求 DTO（文件作用域，private 仅供本文件使用）
+
+/// Anthropic 请求消息
+private struct AnthMsg: Encodable {
+    let role: String
+    let content: String
+}
+
+/// Anthropic messages 请求体
+private struct AnthRequest: Encodable {
+    let model: String
+    let maxTokens: Int
+    let system: String?
+    let messages: [AnthMsg]
+    enum CodingKeys: String, CodingKey {
+        case model, system, messages
+        case maxTokens = "max_tokens"
     }
 }

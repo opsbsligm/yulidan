@@ -15,7 +15,7 @@ public struct LLMRequest: Sendable {
     public let tools: [ToolSchema]?
     public let maxTokens: Int?
     public let temperature: Double?
-    
+
     public init(model: String, messages: [Message], systemPrompt: String? = nil, tools: [ToolSchema]? = nil, maxTokens: Int? = nil, temperature: Double? = nil) {
         self.model = model
         self.messages = messages
@@ -33,7 +33,16 @@ public struct LLMResponse: Sendable {
     public let usage: TokenUsage?
     public let toolCalls: [ToolCallBlock]?
     public let finishReason: FinishReason
-    
+
+    public init(id: String = UUID().uuidString, model: String, content: [ContentBlock], usage: TokenUsage? = nil, toolCalls: [ToolCallBlock]? = nil, finishReason: FinishReason) {
+        self.id = id
+        self.model = model
+        self.content = content
+        self.usage = usage
+        self.toolCalls = toolCalls
+        self.finishReason = finishReason
+    }
+
     public enum FinishReason: String, Sendable {
         case stop, length, toolCalls, error
     }
@@ -43,13 +52,19 @@ public struct TokenUsage: Sendable {
     public let promptTokens: Int
     public let completionTokens: Int
     public let totalTokens: Int
+
+    public init(promptTokens: Int, completionTokens: Int, totalTokens: Int) {
+        self.promptTokens = promptTokens
+        self.completionTokens = completionTokens
+        self.totalTokens = totalTokens
+    }
 }
 
 public struct ToolSchema: Sendable {
     public let name: String
     public let description: String
     public let parameters: String // JSON string
-    
+
     public init(name: String, description: String, parameters: String = "{}") {
         self.name = name
         self.description = description
@@ -57,7 +72,7 @@ public struct ToolSchema: Sendable {
     }
 }
 
-// 默认连接测试（各适配器提供真实实现）
+/// 默认连接测试（各适配器提供真实实现）
 public extension LLMProvider {
     func checkConnection() async throws -> String {
         throw LLMError.networkError("该提供商不支持连接测试")

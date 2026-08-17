@@ -1,11 +1,19 @@
-import XCTest
 @testable import LLM
+import XCTest
 
 /// 用 URLProtocol mock 验证 OpenAI 兼容客户端的真实 HTTP 行为
 /// （请求体、鉴权头、响应解析、错误映射）
 final class MockOpenAIURLProtocol: URLProtocol {
-    override class func canInit(with request: URLRequest) -> Bool { true }
-    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    // URLProtocol 协议要求 class 方法，无法改为 static（规则误报，scoped disable）
+    // swiftlint:disable:next static_over_final_class
+    override class func canInit(with _: URLRequest) -> Bool {
+        true
+    }
+
+    // swiftlint:disable:next static_over_final_class
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest {
+        request
+    }
 
     override func startLoading() {
         var body = request.httpBody.flatMap { String(data: $0, encoding: .utf8) } ?? ""
@@ -18,7 +26,9 @@ final class MockOpenAIURLProtocol: URLProtocol {
             var data = Data()
             while stream.hasBytesAvailable {
                 let n = stream.read(buffer, maxLength: bufferSize)
-                if n <= 0 { break }
+                if n <= 0 {
+                    break
+                }
                 data.append(buffer, count: n)
             }
             body = String(data: data, encoding: .utf8) ?? ""
@@ -27,7 +37,7 @@ final class MockOpenAIURLProtocol: URLProtocol {
             let resp = HTTPURLResponse(url: request.url!, statusCode: 200,
                                        httpVersion: "HTTP/1.1", headerFields: ["Content-Type": "application/json"])!
             client?.urlProtocol(self, didReceive: resp, cacheStoragePolicy: .notAllowed)
-            client?.urlProtocol(self, didLoad: #"{"data":[{"id":"m1"}]}"#.data(using: .utf8)!)
+            client?.urlProtocol(self, didLoad: Data(#"{"data":[{"id":"m1"}]}"#.utf8))
             client?.urlProtocolDidFinishLoading(self)
             return
         }
@@ -36,15 +46,16 @@ final class MockOpenAIURLProtocol: URLProtocol {
             let resp = HTTPURLResponse(url: request.url!, statusCode: 400,
                                        httpVersion: "HTTP/1.1", headerFields: nil)!
             client?.urlProtocol(self, didReceive: resp, cacheStoragePolicy: .notAllowed)
-            client?.urlProtocol(self, didLoad: #"{"error":"bad body"}"#.data(using: .utf8)!)
+            client?.urlProtocol(self, didLoad: Data(#"{"error":"bad body"}"#.utf8))
             client?.urlProtocolDidFinishLoading(self)
             return
         }
         let resp = HTTPURLResponse(url: request.url!, statusCode: 200,
                                    httpVersion: "HTTP/1.1", headerFields: ["Content-Type": "application/json"])!
         client?.urlProtocol(self, didReceive: resp, cacheStoragePolicy: .notAllowed)
-        let payload = #"{"id":"cmpl-1","choices":[{"message":{"role":"assistant","content":"来自 Mock 服务端的回复"},"finish_reason":"stop"}],"usage":{"prompt_tokens":5,"completion_tokens":3,"total_tokens":8}}"#
-        client?.urlProtocol(self, didLoad: payload.data(using: .utf8)!)
+        let payload = #"{"id":"cmpl-1","choices":[{"message":{"role":"assistant","content":"来自 Mock 服务端的回复"},"finish_reason":"stop"}],"#
+            + #""usage":{"prompt_tokens":5,"completion_tokens":3,"total_tokens":8}}"#
+        client?.urlProtocol(self, didLoad: Data(payload.utf8))
         client?.urlProtocolDidFinishLoading(self)
     }
 
@@ -52,7 +63,7 @@ final class MockOpenAIURLProtocol: URLProtocol {
 }
 
 final class LLMHTTPTests: XCTestCase {
-    private var client: OpenAICompatChat!
+    private var client: OpenAICompatChat?
 
     override func setUp() {
         let config = URLSessionConfiguration.ephemeral
@@ -64,8 +75,9 @@ final class LLMHTTPTests: XCTestCase {
     }
 
     func testCompleteParsesResponse() async throws {
+        let client = try XCTUnwrap(client)
         let msgs = [
-            LLM.Message(role: .user, content: [.text("你好")])
+            LLM.Message(role: .user, content: [.text("你好")]),
         ]
         let (content, usage) = try await client.complete(model: "deepseek-chat", messages: msgs)
         XCTAssertEqual(content, "来自 Mock 服务端的回复")
@@ -73,17 +85,18 @@ final class LLMHTTPTests: XCTestCase {
     }
 
     func testCheckConnection() async throws {
+        let client = try XCTUnwrap(client)
         let msg = try await client.checkConnection()
         XCTAssertEqual(msg, "连接成功")
     }
 
     func testMissingKeyThrows() async throws {
-        let noKey = OpenAICompatChat(apiKey: "", baseURL: URL(string: "http://mock.local/v1")!,
-                                     session: URLSession(configuration: {
-                                         let c = URLSessionConfiguration.ephemeral
-                                         c.protocolClasses = [MockOpenAIURLProtocol.self]
-                                         return c
-                                     }()))
+        let noKey = try OpenAICompatChat(apiKey: "", baseURL: XCTUnwrap(URL(string: "http://mock.local/v1")),
+                                         session: URLSession(configuration: {
+                                             let c = URLSessionConfiguration.ephemeral
+                                             c.protocolClasses = [MockOpenAIURLProtocol.self]
+                                             return c
+                                         }()))
         do {
             _ = try await noKey.complete(model: "m", messages: [])
             XCTFail("expected missingAPIKey")

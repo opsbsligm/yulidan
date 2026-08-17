@@ -1,13 +1,13 @@
-import Testing
 import Foundation
 @testable import LLM
+import Testing
 
 private final class MockProvider: LLMProvider, @unchecked Sendable {
     var id: String = "mock"
     var supportedModels: [String] = ["mock-model"]
     var mockChunks: [StreamChunk] = []
     var requestCount: Int = 0
-    
+
     func request(_ request: LLMRequest) async throws -> LLMResponse {
         requestCount += 1
         return LLMResponse(
@@ -17,8 +17,8 @@ private final class MockProvider: LLMProvider, @unchecked Sendable {
             finishReason: .stop
         )
     }
-    
-    func stream(_ request: LLMRequest) async throws -> AsyncThrowingStream<StreamChunk, Error> {
+
+    func stream(_: LLMRequest) async throws -> AsyncThrowingStream<StreamChunk, Error> {
         requestCount += 1
         return AsyncThrowingStream { continuation in
             for chunk in self.mockChunks {
@@ -37,9 +37,9 @@ struct LLMTests {
         #expect(req.model == "gpt-4o")
         #expect(req.messages.isEmpty)
     }
-    
+
     @Test("Request with all fields")
-    func testFullRequest() {
+    func fullRequest() {
         let req = LLMRequest(
             model: "gpt-4o", messages: [],
             systemPrompt: "You are helpful",
@@ -49,7 +49,7 @@ struct LLMTests {
         #expect(req.maxTokens == 100)
         #expect(req.temperature == 0.7)
     }
-    
+
     @Test("Mock provider returns response")
     func testProvider() async throws {
         let provider = MockProvider()
@@ -58,7 +58,7 @@ struct LLMTests {
         #expect(response.model == "mock-model")
         #expect(response.finishReason == .stop)
     }
-    
+
     @Test("Mock provider streams")
     func testStream() async throws {
         let provider = MockProvider()
@@ -68,12 +68,14 @@ struct LLMTests {
         ]
         let req = LLMRequest(model: "mock-model", messages: [])
         var received = 0
-        for try await _ in try await provider.stream(req) { received += 1 }
+        for try await _ in try await provider.stream(req) {
+            received += 1
+        }
         #expect(received == 2)
     }
-    
+
     @Test("Token usage")
-    func testTokenUsage() {
+    func tokenUsage() {
         let u = TokenUsage(promptTokens: 100, completionTokens: 50, totalTokens: 150)
         #expect(u.promptTokens == 100)
     }
