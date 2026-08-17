@@ -52,23 +52,46 @@ public actor SessionDB {
 
     // MARK: - 读写 API
 
-    /// 加载全部会话（按创建时间倒序）
+    /// 加载会话列表（仅元数据，不含事件）— 单条 SQL，无按会话的额外查询。
+    /// 启动侧边栏列表专用；事件明细按需经 load(_:) 拉取，避免启动时全量解码全部会话事件
+    public func loadSessions() throws -> [SessionRecord] {
+        try dbQueue.read { db in
+            let rows = try sessionRows(db)
+            return rows.compactMap { mapRow($0, events: []) }
+        }
+    }
+
+    /// 加载单个会话（含事件，按 seq 升序）
+    public func load(_ id: SessionID) throws -> SessionRecord? {
+        try dbQueue.read { db in
+            let sreq: SQLRequest<Row> = SQLRequest(
+                sql: "SELECT * FROM sessions WHERE id = ?",
+                arguments: [id.rawValue.uuidString]
+            )
+            guard let rd = try sreq.fetchOne(db) else { return nil }
+            let ereq: SQLRequest<Row> = SQLRequest(
+                sql: "SELECT payload FROM events WHERE session_id = ? ORDER BY seq",
+                arguments: [id.rawValue.uuidString]
+            )
+            var events: [SessionEvent] = []
+            for erd in try ereq.fetchAll(db) {
+                if let p = erd["payload"] as? String,
+                   let d = p.data(using: .utf8),
+                   let e = try? JSONDecoder().decode(SessionEvent.self, from: d) {
+                    events.append(e)
+                }
+            }
+            return mapRow(rd, events: events)
+        }
+    }
+
+    /// 加载全部会话（含事件，按创建时间倒序）
     public func loadAll() throws -> [SessionRecord] {
         try dbQueue.read { db in
-            let request: SQLRequest<Row> = "SELECT * FROM sessions ORDER BY created_at DESC"
-            let rows = try request.fetchAll(db)
+            let rows = try sessionRows(db)
             var result: [SessionRecord] = []
             for rd in rows {
                 let idStr = rd["id"] as? String ?? ""
-                let metadataJSON = rd["metadata_json"] as? String ?? ""
-                let turn: Int? = rd["turn"]
-                let status: String? = rd["status"]
-
-                guard let metaData = metadataJSON.data(using: .utf8),
-                      let metadata = try? JSONDecoder().decode(SessionMetadata.self, from: metaData)
-                else {
-                    continue
-                }
                 var events: [SessionEvent] = []
                 let ereq: SQLRequest<Row> = SQLRequest(
                     sql: "SELECT payload FROM events WHERE session_id = ? ORDER BY seq",
@@ -82,17 +105,37 @@ public actor SessionDB {
                         events.append(e)
                     }
                 }
-                let id = SessionID(rawValue: UUID(uuidString: idStr) ?? UUID())
-                result.append(SessionRecord(
-                    id: id,
-                    metadata: metadata,
-                    events: events,
-                    currentTurn: turn ?? 0,
-                    status: SessionStatus(rawValue: status ?? "active") ?? .active
-                ))
+                if let record = mapRow(rd, events: events) {
+                    result.append(record)
+                }
             }
             return result
         }
+    }
+
+    private func sessionRows(_ db: Database) throws -> [Row] {
+        let request: SQLRequest<Row> = "SELECT * FROM sessions ORDER BY created_at DESC"
+        return try request.fetchAll(db)
+    }
+
+    private func mapRow(_ rd: Row, events: [SessionEvent]) -> SessionRecord? {
+        let idStr = rd["id"] as? String ?? ""
+        let metadataJSON = rd["metadata_json"] as? String ?? ""
+        let turn: Int? = rd["turn"]
+        let status: String? = rd["status"]
+        guard let metaData = metadataJSON.data(using: .utf8),
+              let metadata = try? JSONDecoder().decode(SessionMetadata.self, from: metaData)
+        else {
+            return nil
+        }
+        let id = SessionID(rawValue: UUID(uuidString: idStr) ?? UUID())
+        return SessionRecord(
+            id: id,
+            metadata: metadata,
+            events: events,
+            currentTurn: turn ?? 0,
+            status: SessionStatus(rawValue: status ?? "active") ?? .active
+        )
     }
 
     /// 全量保存一个会话（会话行 upsert + 事件表重写）

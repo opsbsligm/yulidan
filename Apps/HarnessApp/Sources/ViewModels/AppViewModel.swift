@@ -348,9 +348,14 @@ final class AppViewModel: ObservableObject {
     private func loadSessionsFromDB() async {
         guard let db = sessionDB else { return }
         do {
-            let loaded = try await db.loadAll()
+            // 性能：列表只查元数据（单条 SQL），事件仅对选中会话按需拉取
+            let loaded = try await db.loadSessions()
+            var first: SessionRecord?
+            if let head = loaded.first, let full = try? await db.load(head.id) {
+                first = full
+            }
             sessions = loaded
-            selectedSession = loaded.first
+            selectedSession = first ?? loaded.first
             if let s = selectedSession {
                 loadMessages(for: s)
             }
@@ -383,20 +388,37 @@ final class AppViewModel: ObservableObject {
             UserDefaults.standard.set(data, forKey: "sessionTitles")
         }
         if selectedSession?.id == session.id {
-            selectedSession = sessions.first
-            if let s = selectedSession {
-                loadMessages(for: s)
-            } else {
-                messages.removeAll()
+            selectedSession = nil
+            messages.removeAll()
+            if let s = sessions.first {
+                presentSession(s)
             }
         }
         showToast("已删除对话")
     }
 
     func selectSession(_ session: SessionRecord) {
-        withAnimation(.smooth) { selectedSession = session }
-        loadMessages(for: session)
         generationError = nil
+        presentSession(session)
+    }
+
+    /// 发布选中会话：完整记录直接渲染；仅元数据记录先拉事件再切换，
+    /// 保证 selectedSession 永远不会指向空事件记录（persistSession 按 messages 重建事件，防误清空）
+    private func presentSession(_ session: SessionRecord) {
+        guard session.events.isEmpty, let db = sessionDB else {
+            withAnimation(.smooth) { selectedSession = session }
+            loadMessages(for: session)
+            return
+        }
+        let id = session.id
+        Task { [db] in
+            guard let full = try? await db.load(id) else { return }
+            if let idx = self.sessions.firstIndex(where: { $0.id == id }) {
+                self.sessions[idx] = full
+            }
+            withAnimation(.smooth) { self.selectedSession = full }
+            self.loadMessages(for: full)
+        }
     }
 
     /// 从会话事件日志重建 UI 消息

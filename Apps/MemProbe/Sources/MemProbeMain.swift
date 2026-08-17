@@ -43,7 +43,9 @@ struct MemProbe {
                 s.currentTurn = 1
                 try await db.save(s)
                 alive.append(s.id)
-                _ = try await db.loadAll()
+                // 与 App 启动路径同款：元数据快速列表 + 选中会话完整加载
+                _ = try await db.loadSessions()
+                _ = try await db.load(alive.last!)
                 if i % 20 == 0, let old = alive.first {
                     alive.removeFirst()
                     try await db.delete(old)
