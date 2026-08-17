@@ -1,4 +1,4 @@
-// Goal — 目标管理
+/// Goal — 目标管理
 public struct Goal {
     public var description: String
     public var isCompleted: Bool

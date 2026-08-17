@@ -1,4 +1,4 @@
-// Skill — 技能系统
+/// Skill — 技能系统
 public struct Skill {
     public var name: String
     public var description: String

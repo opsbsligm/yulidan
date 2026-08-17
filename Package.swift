@@ -24,43 +24,44 @@ let package = Package(
         .testTarget(name: "ServiceContainerTests",
                     dependencies: ["ServiceContainer"],
                     path: "Packages/ServiceContainer/Tests"),
-        
+
         .target(name: "Session",
                 dependencies: ["ServiceContainer", .product(name: "GRDB", package: "GRDB.swift")],
                 path: "Packages/Session/Sources"),
         .testTarget(name: "SessionTests",
                     dependencies: ["Session", "ServiceContainer"],
                     path: "Packages/Session/Tests"),
-        
+
         .target(name: "LLM",
                 dependencies: ["ServiceContainer"],
                 path: "Packages/LLM/Sources"),
         .testTarget(name: "LLMTests",
                     dependencies: ["LLM"],
                     path: "Packages/LLM/Tests"),
-        
+
         .target(name: "Tools",
                 dependencies: ["ServiceContainer", "Session", "LLM"],
                 path: "Packages/Tools/Sources"),
         .testTarget(name: "ToolsTests",
                     dependencies: ["Tools", "ServiceContainer", "Session", "LLM"],
                     path: "Packages/Tools/Tests"),
-        
+
         .target(name: "Agent",
                 dependencies: ["ServiceContainer", "Session", "LLM", "Tools"],
                 path: "Packages/Agent/Sources"),
         .testTarget(name: "AgentTests",
                     dependencies: ["Agent", "Session", "LLM", "Tools"],
                     path: "Packages/Agent/Tests"),
-        
+
         .target(name: "HarnessCore",
                 dependencies: ["ServiceContainer", "Session", "LLM", "Tools", "Agent"],
                 path: "Apps/HarnessCore/Sources"),
-        
+
         .executableTarget(name: "DSHCLI",
-                          dependencies: ["HarnessCore", .product(name: "ArgumentParser", package: "swift-argument-parser")],
+                          dependencies: ["HarnessCore", "Agent", "LLM", "Tools", "ServiceContainer", "Session",
+                                         .product(name: "ArgumentParser", package: "swift-argument-parser")],
                           path: "Apps/DSHCLI/Sources"),
-        
+
         // 内存/性能探针
         .executableTarget(name: "MemProbe",
                           dependencies: ["ServiceContainer", "Session", "LLM", "Tools"],
@@ -70,7 +71,7 @@ let package = Package(
         .executableTarget(name: "HarnessApp",
                           dependencies: ["HarnessCore", "ServiceContainer", "Session", "LLM", "Tools", "Agent"],
                           path: "Apps/HarnessApp/Sources"),
-        
+
         // Extended
         .target(name: "Workspace",
                 dependencies: ["ServiceContainer", "Session"],

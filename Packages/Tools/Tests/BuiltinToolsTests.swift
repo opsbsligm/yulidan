@@ -1,9 +1,11 @@
-import XCTest
 import Session
 @testable import Tools
+import XCTest
 
 /// 内置工具真实执行测试
 final class BuiltinToolsTests: XCTestCase {
+    // 测试夹具：setUp 中赋值，XCTest 标准模式
+    // swiftlint:disable:next implicitly_unwrapped_optional
     private var dir: URL!
 
     override func setUpWithError() throws {
@@ -30,7 +32,9 @@ final class BuiltinToolsTests: XCTestCase {
         let r2 = try await r.execute(["path": path], context: context())
         XCTAssertNil(r2.error)
         let text2 = r2.content.compactMap { block -> String? in
-            if case .text(let t) = block { return t }
+            if case let .text(t) = block {
+                return t
+            }
             return nil
         }.joined()
         XCTAssertTrue(text2.contains("你好，Harness"))
@@ -51,7 +55,9 @@ final class BuiltinToolsTests: XCTestCase {
         let res = try await r.execute(["path": dir.path], context: context())
         XCTAssertNil(res.error)
         let text = res.content.first.flatMap {
-            if case .text(let t) = $0 { return t }
+            if case let .text(t) = $0 {
+                return t
+            }
             return nil
         } ?? ""
         XCTAssertTrue(text.contains("a.txt"))
@@ -63,7 +69,9 @@ final class BuiltinToolsTests: XCTestCase {
         let res = try await r.execute(["cmd": "echo hello-from-harness"], context: context())
         XCTAssertNil(res.error)
         let text = res.content.first.flatMap {
-            if case .text(let t) = $0 { return t }
+            if case let .text(t) = $0 {
+                return t
+            }
             return nil
         } ?? ""
         XCTAssertTrue(text.contains("hello-from-harness"))

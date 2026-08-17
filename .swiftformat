@@ -1,0 +1,11 @@
+# SwiftFormat 配置 — CI 门禁（命令行格式，不支持 YAML）
+# 用法：swiftformat --lint . --config .swiftformat.yml
+--indent 4
+--max-width 200
+--allman false
+--disable wrapMultilineStatementBraces
+--self remove
+--trim-whitespace always
+--indent-case false
+--swiftversion 6.0
+--exclude .build DerivedData .swiftpm

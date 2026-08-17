@@ -1,14 +1,14 @@
-# SwiftLint Configuration — CI Gate
+# SwiftLint 配置 — CI 门禁（swiftlint lint --strict）
 disabled_rules:
-  - line_length
-  - type_body_length
-  - file_length
-  - function_body_length
+  - trailing_whitespace
+  # trailing_comma：与 SwiftFormat 配置保持一致（不强制尾逗号），避免双工具冲突
+  - trailing_comma
+  # modifier_order：修饰符顺序以 SwiftFormat 的 modifier-order 规则为准，避免双工具冲突
+  - modifier_order
 
 opt_in_rules:
   - empty_count
   - closure_spacing
-  - contains_over_first_where
   - empty_string
   - first_where
   - implicitly_unwrapped_optional
@@ -30,16 +30,16 @@ line_length:
   error: 300
 
 type_body_length:
-  warning: 300
-  error: 500
+  warning: 400
+  error: 600
 
 file_length:
-  warning: 500
-  error: 1000
+  warning: 600
+  error: 1200
 
 function_body_length:
-  warning: 50
-  error: 100
+  warning: 60
+  error: 120
 
 cyclomatic_complexity:
   warning: 10
@@ -49,8 +49,8 @@ large_tuple:
   warning: 3
   error: 5
 
-type_body_length:
-  warning: 300
-  error: 500
-
-reporter: github-actions
+# 允许 1 字符变量名（i/n/x/t 等惯用短名）；命名决策记录见 docs/CODE_REVIEW.md
+identifier_name:
+  min_length:
+    warning: 1
+    error: 0
