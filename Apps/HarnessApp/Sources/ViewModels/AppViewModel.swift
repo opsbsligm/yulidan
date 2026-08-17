@@ -101,6 +101,52 @@ struct PluginDisplayItem: Identifiable, Hashable {
     }
 }
 
+/// 权限的中文展示名（市场条目用；内置插件另有 BuiltInPluginCatalog）
+extension Permission {
+    var display: String {
+        switch self {
+        case .filesystemRead: "文件读取"
+        case .filesystemWrite: "文件写入"
+        case .shellExecution: "Shell 执行"
+        case .networkAccess: "网络访问"
+        case .subprocessSpawn: "子进程创建"
+        case .terminalAccess: "终端访问"
+        case .clipboardAccess: "剪贴板"
+        case .screenCapture: "屏幕捕获"
+        case .keychainAccess: "钥匙串"
+        }
+    }
+}
+
+// MARK: - 市场条目显示模型
+
+struct MarketplaceDisplayItem: Identifiable, Hashable {
+    let id: String
+    let name: String
+    let version: String
+    let description: String
+    let author: String?
+    let permissions: [String]
+    let isInstalled: Bool
+    let hasUpdate: Bool
+    let incompatibleReason: String?
+
+    init(entry: MarketplaceEntry) {
+        id = entry.listing.id.rawValue
+        name = entry.listing.name
+        version = entry.listing.version.description
+        description = entry.listing.description
+        author = entry.listing.author
+        permissions = entry.listing.permissions.map(\.display)
+        isInstalled = entry.isInstalled
+        hasUpdate = entry.hasUpdate
+        switch entry.status {
+        case let .incompatible(reason): incompatibleReason = reason
+        case .notInstalled, .installed: incompatibleReason = nil
+        }
+    }
+}
+
 // MARK: - 工具显示模型
 
 struct ToolDisplayItem: Identifiable, Hashable {
@@ -154,11 +200,13 @@ final class AppViewModel: ObservableObject {
 
     // 插件 / 工具
     @Published var plugins: [PluginDisplayItem] = []
+    @Published var marketplaceEntries: [MarketplaceDisplayItem] = []
     @Published var tools: [ToolDisplayItem] = []
 
     // 基础设施（真实组件）
     let sessionDB: SessionDB?
     let pluginManager: PluginManager
+    let marketplace: PluginMarketplace
     let toolRegistry: ToolRegistry
     let mcpManager: MCPServerManager
 
@@ -175,6 +223,11 @@ final class AppViewModel: ObservableObject {
                                       harnessVersion: PluginVersion(major: 0, minor: 1, patch: 0))
         toolRegistry = ToolRegistry()
         mcpManager = MCPServerManager()
+        marketplace = PluginMarketplace(
+            manager: pluginManager,
+            harnessVersion: PluginVersion(major: 0, minor: 1, patch: 0),
+            sources: [LocalBuiltInMarketplaceSource()]
+        )
         llmConfig = LLMConfig.load()
         sessionDB = try? SessionDB()
         sessionTitles = Self.loadTitles()
@@ -213,6 +266,7 @@ final class AppViewModel: ObservableObject {
                 // 安装失败不阻塞启动，列表仍会展示真实状态
             }
             await self.refreshPlugins()
+            await self.refreshMarketplace()
         }
 
         // 加载持久化会话
@@ -607,6 +661,53 @@ final class AppViewModel: ObservableObject {
                     showToast("启用失败：\(error.localizedDescription)")
                 }
             }
+            await refreshPlugins()
+        }
+    }
+
+    // MARK: - 插件市场（真实 PluginMarketplace 编排）
+
+    func refreshMarketplace() async {
+        await marketplace.refresh()
+        let entries = await marketplace.browse()
+        marketplaceEntries = entries.map { MarketplaceDisplayItem(entry: $0) }
+    }
+
+    func installFromMarket(_ item: MarketplaceDisplayItem) {
+        Task {
+            do {
+                _ = try await marketplace.install(PluginID(item.id))
+                showToast("已从市场安装插件：\(item.name)")
+            } catch {
+                showToast("安装失败：\(error.localizedDescription)")
+            }
+            await refreshMarketplace()
+            await refreshPlugins()
+        }
+    }
+
+    func updateFromMarket(_ item: MarketplaceDisplayItem) {
+        Task {
+            do {
+                _ = try await marketplace.upgrade(PluginID(item.id))
+                showToast("已更新插件：\(item.name)")
+            } catch {
+                showToast("更新失败：\(error.localizedDescription)")
+            }
+            await refreshMarketplace()
+            await refreshPlugins()
+        }
+    }
+
+    func uninstallFromMarket(_ item: MarketplaceDisplayItem) {
+        Task {
+            do {
+                try await marketplace.uninstall(PluginID(item.id))
+                showToast("已从市场卸载插件：\(item.name)")
+            } catch {
+                showToast("卸载失败：\(error.localizedDescription)")
+            }
+            await refreshMarketplace()
             await refreshPlugins()
         }
     }

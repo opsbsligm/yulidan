@@ -2,9 +2,35 @@ import ServiceContainer
 import SwiftUI
 
 struct PluginListView: View {
+    enum PluginPane: String, CaseIterable, Identifiable {
+        case installed = "已安装"
+        case marketplace = "插件市场"
+        var id: String {
+            rawValue
+        }
+    }
+
     @ObservedObject var viewModel: AppViewModel
     @State private var searchText = ""
     @State private var selectedPluginId: String?
+    @State private var pane: PluginPane = .installed
+
+    var filteredMarket: [MarketplaceDisplayItem] {
+        if searchText.isEmpty {
+            return viewModel.marketplaceEntries
+        }
+        return viewModel.marketplaceEntries.filter { $0.name.localizedCaseInsensitiveContains(searchText) ||
+            $0.description.localizedCaseInsensitiveContains(searchText)
+        }
+    }
+
+    var subtitle: String {
+        if pane == .marketplace {
+            let installable = viewModel.marketplaceEntries.filter { !$0.isInstalled && $0.incompatibleReason == nil }.count
+            return "\(viewModel.marketplaceEntries.count) 个目录条目，\(installable) 个可安装（本地目录源 · 真实安装）"
+        }
+        return "\(activeCount) / \(viewModel.plugins.count) 已启用（来自 PluginManager 实时状态）"
+    }
 
     var filtered: [PluginDisplayItem] {
         if searchText.isEmpty {
@@ -25,15 +51,23 @@ struct PluginListView: View {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("插件").font(.system(.title2, design: .rounded)).fontWeight(.semibold)
-                        Text("\(activeCount) / \(viewModel.plugins.count) 已启用（来自 PluginManager 实时状态）")
+                        Text(subtitle)
                             .font(.system(size: 13))
                             .foregroundStyle(HarnessTheme.textSecondary)
                     }
                     Spacer()
+                    Picker("", selection: $pane) {
+                        ForEach(PluginPane.allCases) { pane in
+                            Text(pane.rawValue).tag(pane)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(width: 220)
                     HStack(spacing: 6) {
                         Image(systemName: "magnifyingglass").font(.system(size: 11))
                             .foregroundStyle(HarnessTheme.textTertiary)
-                        TextField("搜索插件…", text: $searchText).font(.system(size: 13))
+                        TextField(pane == .marketplace ? "搜索市场…" : "搜索插件…", text: $searchText)
+                            .font(.system(size: 13))
                             .textFieldStyle(.plain).disableAutocorrection(true)
                     }
                     .frame(width: 200).padding(8)
@@ -43,28 +77,49 @@ struct PluginListView: View {
                 Divider()
                 ScrollView {
                     LazyVStack(spacing: 8) {
-                        ForEach(filtered, id: \.id) { plugin in
-                            PluginCard(plugin: plugin) {
-                                viewModel.togglePlugin(plugin)
+                        if pane == .installed {
+                            ForEach(filtered, id: \.id) { plugin in
+                                PluginCard(plugin: plugin) {
+                                    viewModel.togglePlugin(plugin)
+                                }
+                                .onTapGesture {
+                                    selectedPluginId = (selectedPluginId == plugin.id) ? nil : plugin.id
+                                }
                             }
-                            .onTapGesture {
-                                selectedPluginId = (selectedPluginId == plugin.id) ? nil : plugin.id
+                            if filtered.isEmpty {
+                                ContentUnavailableView("未找到插件", systemImage: "puzzlepiece.extension",
+                                                       description: Text("尝试其他搜索词")).padding(.top, 40)
                             }
-                        }
-                        if filtered.isEmpty {
-                            ContentUnavailableView("未找到插件", systemImage: "puzzlepiece.extension",
-                                                   description: Text("尝试其他搜索词")).padding(.top, 40)
+                        } else {
+                            ForEach(filteredMarket, id: \.id) { item in
+                                MarketplaceCard(
+                                    item: item,
+                                    onInstall: { viewModel.installFromMarket(item) },
+                                    onUpdate: { viewModel.updateFromMarket(item) },
+                                    onUninstall: { viewModel.uninstallFromMarket(item) }
+                                )
+                            }
+                            if filteredMarket.isEmpty {
+                                ContentUnavailableView("未找到插件", systemImage: "shippingbox",
+                                                       description: Text("尝试其他搜索词")).padding(.top, 40)
+                            }
                         }
                     }
                     .padding(20)
                 }
             }
-            if let id = selectedPluginId, let plugin = viewModel.plugins.first(where: { $0.id == id }) {
+            if pane == .installed, let id = selectedPluginId, let plugin = viewModel.plugins.first(where: { $0.id == id }) {
                 Divider().frame(height: 1)
                 PluginDetailView(plugin: plugin).frame(minWidth: 280, maxWidth: 340)
             }
         }
         .background(HarnessTheme.bgPrimary)
+        .task(id: pane) {
+            await viewModel.refreshMarketplace()
+        }
+        .onChange(of: pane) { _, _ in
+            selectedPluginId = nil
+        }
     }
 }
 
@@ -209,6 +264,95 @@ struct DetailRow: View {
             Text(label).font(.system(size: 12)).foregroundStyle(HarnessTheme.textSecondary)
                 .frame(width: 60, alignment: .leading)
             Text(value).font(.system(size: 12, design: .monospaced))
+        }
+    }
+}
+
+struct MarketplaceCard: View {
+    let item: MarketplaceDisplayItem
+    let onInstall: () -> Void
+    let onUpdate: () -> Void
+    let onUninstall: () -> Void
+    @State private var isHovered = false
+
+    private var hasHighRisk: Bool {
+        item.permissions.contains { ["Shell 执行", "终端访问", "子进程创建", "屏幕捕获"].contains($0) }
+    }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(item.isInstalled ? Color.green.opacity(0.12) : HarnessTheme.surface)
+                    .frame(width: 36, height: 36)
+                Image(systemName: item.isInstalled ? "puzzlepiece.extension.fill" : "shippingbox")
+                    .font(.system(size: 16))
+                    .foregroundStyle(item.isInstalled ? .green : HarnessTheme.textTertiary)
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    Text(item.name).font(.system(.body, design: .rounded)).fontWeight(.medium)
+                    Text("v\(item.version)").font(.system(size: 11)).foregroundStyle(HarnessTheme.textTertiary)
+                    if item.isInstalled {
+                        Text("已安装").font(.system(size: 9))
+                            .padding(.horizontal, 4).padding(.vertical, 2)
+                            .background(Color.green.opacity(0.15)).cornerRadius(3)
+                            .foregroundStyle(.green)
+                    }
+                    if item.hasUpdate {
+                        Text("可更新").font(.system(size: 9))
+                            .padding(.horizontal, 4).padding(.vertical, 2)
+                            .background(Color.blue.opacity(0.15)).cornerRadius(3)
+                            .foregroundStyle(.blue)
+                    }
+                    Spacer()
+                    if let reason = item.incompatibleReason {
+                        Text("不兼容：\(reason)").font(.system(size: 11)).foregroundStyle(.red).lineLimit(1)
+                    } else {
+                        actionButtons
+                    }
+                }
+                Text(item.description).font(.system(size: 12))
+                    .foregroundStyle(HarnessTheme.textSecondary).lineLimit(2)
+                HStack(spacing: 4) {
+                    if hasHighRisk {
+                        Text("高风险权限").font(.system(size: 9))
+                            .padding(.horizontal, 4).padding(.vertical, 2)
+                            .background(Color.red.opacity(0.15)).cornerRadius(3)
+                            .foregroundStyle(.red)
+                    }
+                    ForEach(item.permissions.prefix(3), id: \.self) { perm in
+                        Text(perm).font(.system(size: 9))
+                            .padding(.horizontal, 4).padding(.vertical, 2)
+                            .background(Color.orange.opacity(0.15)).cornerRadius(3)
+                            .foregroundStyle(Color.orange)
+                    }
+                    if item.permissions.count > 3 {
+                        Text("+\(item.permissions.count - 3)").font(.system(size: 9))
+                            .foregroundStyle(HarnessTheme.textTertiary)
+                    }
+                }
+            }
+        }
+        .padding(12)
+        .background(isHovered ? Color(NSColor.controlBackgroundColor).opacity(0.4) : HarnessTheme.surface.opacity(0.5))
+        .cornerRadius(10)
+        .overlay(RoundedRectangle(cornerRadius: 10)
+            .stroke(isHovered ? HarnessTheme.accent.opacity(0.3) : HarnessTheme.border, lineWidth: 0.5))
+        .onHover { isHovered = $0 }
+        .contentShape(Rectangle())
+    }
+
+    private var actionButtons: some View {
+        HStack(spacing: 6) {
+            if item.hasUpdate {
+                Button("更新", action: onUpdate).buttonStyle(.bordered).controlSize(.small)
+            }
+            if item.isInstalled {
+                Button("卸载", action: onUninstall).buttonStyle(.bordered).controlSize(.small)
+            } else {
+                Button("安装", action: onInstall).buttonStyle(.borderedProminent).controlSize(.small)
+            }
         }
     }
 }
