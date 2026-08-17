@@ -149,7 +149,7 @@ class ChatViewModel: ObservableObject { /* ... */ }
 - [x] 沙箱集成
 - [x] 终端集成
 
-### Phase 3 (进行中)
+### Phase 3 (已完成)
 - [x] XPC 进程隔离
 - [x] 插件市场
 - [x] 多 Agent 协作

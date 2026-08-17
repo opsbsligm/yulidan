@@ -12,6 +12,7 @@ import Sandbox
 import MCP
 import ServiceContainer
 import Session
+import Subagent
 import SwiftUI
 import Terminal
 import Tools
@@ -149,6 +150,36 @@ struct MarketplaceDisplayItem: Identifiable, Hashable {
     }
 }
 
+// MARK: - 子任务显示模型
+
+struct SubagentDisplayItem: Identifiable, Hashable {
+    let id: String
+    let name: String
+    let phase: SubagentPhase
+    let resultText: String?
+    let error: String?
+    let elapsed: TimeInterval?
+
+    init(state: SubagentState) {
+        id = state.id.rawValue.uuidString
+        name = state.name
+        phase = state.phase
+        var text: String?
+        if let firstMessage = state.result?.messages.first {
+            let joined = firstMessage.content.compactMap { block -> String? in
+                if case let .text(s) = block {
+                    return s
+                }
+                return nil
+            }.joined()
+            text = joined.isEmpty ? nil : joined
+        }
+        resultText = text
+        error = state.error
+        elapsed = state.elapsed
+    }
+}
+
 // MARK: - 工具显示模型
 
 struct ToolDisplayItem: Identifiable, Hashable {
@@ -214,6 +245,10 @@ final class AppViewModel: ObservableObject {
     @Published var isolatedPluginIDs: Set<String> = []
     let toolRegistry: ToolRegistry
     let mcpManager: MCPServerManager
+    var subagentCoordinator: SubagentCoordinator
+
+    /// 多 Agent
+    @Published var subagents: [SubagentDisplayItem] = []
 
     private var generateTask: Task<Void, Never>?
     private var sessionTitles: [UUID: String] = [:]
@@ -241,6 +276,8 @@ final class AppViewModel: ObservableObject {
         llmConfig = LLMConfig.load()
         sessionDB = try? SessionDB()
         sessionTitles = Self.loadTitles()
+        // 先占位（init 两阶段初始化限制），末尾替换为带事件回调的实例
+        subagentCoordinator = SubagentCoordinator(maxConcurrent: 4)
 
         // 注册真实内置工具（按设置注入文件沙箱）+ MCP 演示服务器（内存客户端，处理器为真实能力）
         Task {
@@ -286,6 +323,11 @@ final class AppViewModel: ObservableObject {
 
         // 监听模型配置变更（设置页保存后同步）
         registerConfigObserver()
+
+        // 子任务协调器（生命周期事件跳主线程刷新列表）
+        subagentCoordinator = SubagentCoordinator(maxConcurrent: 4) { [weak self] _ in
+            Task { @MainActor [weak self] in await self?.refreshSubagents() }
+        }
     }
 
     private func registerConfigObserver() {
@@ -857,6 +899,56 @@ final class AppViewModel: ObservableObject {
             }
             await refreshMarketplace()
             await refreshPlugins()
+        }
+    }
+
+    // MARK: - 多 Agent 协作（真实 SubagentCoordinator 编排）
+
+    func refreshSubagents() async {
+        let states = await subagentCoordinator.allStates()
+        subagents = states.map { SubagentDisplayItem(state: $0) }
+    }
+
+    func spawnSubagent(name: String, task: String, timeout: TimeInterval) {
+        let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let task = task.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty, !task.isEmpty else {
+            showToast("任务名称与任务内容不能为空")
+            return
+        }
+        guard hasAPIKey else {
+            showToast("请先在设置中配置模型 API Key")
+            return
+        }
+        let key = KeychainStorage.getAPIKey(forProvider: llmConfig.providerRaw) ?? ""
+        let provider = makeProvider(llmConfig, key: key)
+        let agent = AgentLoop(
+            sessionID: SessionID(),
+            llm: provider,
+            tools: toolRegistry,
+            model: llmConfig.modelName,
+            systemPrompt: "你是子任务执行 Agent：直接完成给定任务，输出简洁结果，不要反问。"
+        )
+        Task {
+            _ = await subagentCoordinator.spawn(agent: agent, spec: SubagentSpec(name: name, task: task, timeout: timeout))
+            showToast("已派生子任务：\(name)")
+        }
+    }
+
+    func cancelSubagent(_ item: SubagentDisplayItem) {
+        guard let raw = UUID(uuidString: item.id) else { return }
+        Task {
+            await subagentCoordinator.cancel(SubagentID(rawValue: raw))
+        }
+    }
+
+    func clearFinishedSubagents() {
+        Task {
+            let removed = await subagentCoordinator.removeFinished()
+            await refreshSubagents()
+            if removed > 0 {
+                showToast("已清理 \(removed) 个完成的子任务")
+            }
         }
     }
 

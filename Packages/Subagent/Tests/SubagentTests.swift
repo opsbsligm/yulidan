@@ -1,7 +1,9 @@
 import Agent
 import Foundation
+import LLM
 import Session
 import Subagent
+import Tools
 import XCTest
 
 // MARK: - 测试辅助
@@ -265,5 +267,75 @@ final class SubagentCoordinatorTests: XCTestCase {
         } else {
             XCTFail("第三个事件应为 finished")
         }
+    }
+}
+
+// MARK: - 真实 AgentLoop 集成（验证 whenIdle 真实等待 / 超时取消链路）
+
+/// 脚本化文本 LLM（可注入响应延迟）
+private final class ScriptedTextLLM: LLMProvider, @unchecked Sendable {
+    let id = "scripted-llm"
+    let supportedModels = ["mock-model"]
+    private let responses: [LLMResponse]
+    private let delay: Double
+    private let lock = NSLock()
+    private var count = 0
+
+    init(responses: [LLMResponse], delay: Double = 0) {
+        self.responses = responses
+        self.delay = delay
+    }
+
+    func request(_: LLMRequest) async throws -> LLMResponse {
+        var idx = 0
+        lock.withLock {
+            idx = min(count, max(responses.count - 1, 0))
+            count += 1
+        }
+        if delay > 0 {
+            try? await Task.sleep(for: .seconds(delay))
+        }
+        return responses[idx]
+    }
+
+    func stream(_: LLMRequest) async throws -> AsyncThrowingStream<LLM.StreamChunk, Error> {
+        AsyncThrowingStream { continuation in
+            continuation.finish()
+        }
+    }
+}
+
+final class CoordinatorRealAgentLoopTests: XCTestCase {
+    func testSpawnRealAgentLoopAndSucceed() async {
+        let llm = ScriptedTextLLM(
+            responses: [LLMResponse(model: "mock-model", content: [.text("子任务完成")], finishReason: .stop)],
+            delay: 0.05
+        )
+        let coordinator = SubagentCoordinator(maxConcurrent: 2)
+        let agent = AgentLoop(sessionID: SessionID(), llm: llm, tools: ToolRegistry(), model: "mock-model")
+        let id = await coordinator.spawn(agent: agent, spec: .init(name: "真实任务", task: "完成任务"))
+        let state = await coordinator.waitFor(id)
+        XCTAssertEqual(state.phase, .succeeded)
+        XCTAssertNil(state.error)
+        let text = state.result?.messages.first?.content.compactMap { block -> String? in
+            if case let .text(s) = block {
+                return s
+            }
+            return nil
+        }.joined() ?? ""
+        XCTAssertTrue(text.contains("子任务完成"))
+    }
+
+    func testRealAgentLoopTimeout() async {
+        let llm = ScriptedTextLLM(
+            responses: [LLMResponse(model: "mock-model", content: [.text("永远不会到达")], finishReason: .stop)],
+            delay: 2
+        )
+        let coordinator = SubagentCoordinator(maxConcurrent: 2)
+        let agent = AgentLoop(sessionID: SessionID(), llm: llm, tools: ToolRegistry(), model: "mock-model")
+        let id = await coordinator.spawn(agent: agent, spec: .init(name: "超时任务", task: "慢任务", timeout: 0.4))
+        let state = await coordinator.waitFor(id)
+        XCTAssertEqual(state.phase, .timedOut)
+        XCTAssertNotNil(state.error)
     }
 }

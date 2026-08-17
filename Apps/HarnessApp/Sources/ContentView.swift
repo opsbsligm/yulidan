@@ -50,6 +50,8 @@ struct ContentView: View {
             } else {
                 WelcomeAreaView(viewModel: viewModel)
             }
+        case .agents:
+            SubagentView(viewModel: viewModel)
         case .plugins:
             PluginListView(viewModel: viewModel)
         case .tools:
@@ -68,7 +70,7 @@ struct ContentView: View {
 // MARK: - 应用标签
 
 enum AppTab: CaseIterable, Identifiable {
-    case chat, plugins, tools, settings
+    case chat, agents, plugins, tools, settings
 
     var id: String {
         title
@@ -77,6 +79,7 @@ enum AppTab: CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .chat: "对话"
+        case .agents: "多Agent"
         case .plugins: "插件"
         case .tools: "工具"
         case .settings: "设置"
@@ -86,6 +89,7 @@ enum AppTab: CaseIterable, Identifiable {
     var icon: String {
         switch self {
         case .chat: "bubble.left.and.bubble.right"
+        case .agents: "person.3"
         case .plugins: "puzzlepiece.extension"
         case .tools: "wrench.and.screwdriver"
         case .settings: "gear"

@@ -11,6 +11,10 @@ public struct SubagentID: Sendable, Hashable, Codable {
     public init() {
         rawValue = UUID()
     }
+
+    public init(rawValue: UUID) {
+        self.rawValue = rawValue
+    }
 }
 
 // MARK: - 任务规格
@@ -164,6 +168,18 @@ public actor SubagentCoordinator {
     /// 当前全部子任务状态快照
     public func allStates() -> [SubagentState] {
         states.values.sorted { $0.startedAt ?? .distantFuture < $1.startedAt ?? .distantFuture }
+    }
+
+    /// 移除已到终态的条目（UI 清理列表用）；返回移除数量
+    @discardableResult
+    public func removeFinished() -> Int {
+        let finishedIDs = states.filter(\.value.phase.isTerminal).map(\.key)
+        for id in finishedIDs {
+            states[id] = nil
+            agents[id] = nil
+            tasks[id] = nil
+        }
+        return finishedIDs.count
     }
 
     // MARK: 内部

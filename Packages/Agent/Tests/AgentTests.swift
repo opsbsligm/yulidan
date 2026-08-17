@@ -219,10 +219,12 @@ final class ScriptedLLM: LLMProvider, @unchecked Sendable {
     private let responses: [LLMResponse]
     private var count = 0
     private let failing: Bool
+    private let delay: TimeInterval
 
-    init(responses: [LLMResponse], failing: Bool = false) {
+    init(responses: [LLMResponse], failing: Bool = false, delay: TimeInterval = 0) {
         self.responses = responses
         self.failing = failing
+        self.delay = delay
     }
 
     var callCount: Int {
@@ -239,6 +241,9 @@ final class ScriptedLLM: LLMProvider, @unchecked Sendable {
         }
         if shouldFail {
             throw LLMError.networkError("模拟网络错误")
+        }
+        if delay > 0 {
+            try? await Task.sleep(for: .seconds(delay))
         }
         return responses[idx]
     }
@@ -384,5 +389,92 @@ struct AgentLoopTurnTests {
         await turn.receiveChunk(LLM.StreamChunk(type: "delta", data: Data("hi".utf8), index: 0))
         #expect(await turn.chunks.count == 1)
         #expect(await turn.chunks[0].type == "delta")
+    }
+}
+
+// MARK: - AgentLoop Agent 协议与 whenIdle 真实等待测试
+
+/// 在限定时间内取任务结果；超时返回 nil（防止测试挂死）
+func completesIn<T: Sendable>(_ task: Task<T, Never>, within seconds: Double) async -> T? {
+    await withTaskGroup(of: T?.self) { group in
+        group.addTask { await task.value }
+        group.addTask {
+            try? await Task.sleep(for: .seconds(seconds))
+            return nil
+        }
+        let first = await group.next().flatMap(\.self)
+        group.cancelAll()
+        return first
+    }
+}
+
+@Suite("AgentLoop Agent 协议与 whenIdle 真实等待测试")
+struct AgentLoopWhenIdleTests {
+    @Test("AgentLoop 可作为 any Agent 使用（协议一致性）")
+    func conformance() async {
+        let loop = makeLoop()
+        let agent: any Agent = loop
+        #expect(agent.status == .idle)
+        let result = await agent.whenIdle()
+        #expect(result.status == .idle)
+        #expect(await loop.currentStatus == .idle)
+    }
+
+    @Test("whenIdle：空闲且无待处理消息时立即返回")
+    func immediateWhenIdle() async {
+        let loop = makeLoop()
+        let result = await loop.whenIdle()
+        #expect(result.status == .idle)
+    }
+
+    @Test("whenIdle：send 后立即调用（wakeup Task 未启动）也会等到 turn 结束")
+    func waitsForQueuedTurn() async {
+        let llm = ScriptedLLM(responses: [textResponse("任务完成")], delay: 0.1)
+        let loop = AgentLoop(id: AgentID(), sessionID: SessionID(), llm: llm, tools: ToolRegistry(), model: "mock-model")
+        await loop.send(UserMessage(content: [.text("执行任务")]), target: .nextTurn, wakeup: true)
+        let result = await loop.whenIdle()
+        #expect(result.error == nil)
+        #expect(result.messages.count == 1)
+        let text = result.messages.first?.content.compactMap { block -> String? in
+            if case let .text(s) = block {
+                return s
+            }
+            return nil
+        }.joined() ?? ""
+        #expect(text.contains("任务完成"))
+    }
+
+    @Test("whenIdle：运行中的 turn 阻塞等待直到结束（不再是立即返回的假实现）")
+    func blocksWhileRunning() async {
+        let llm = ScriptedLLM(responses: [textResponse("慢任务")], delay: 0.15)
+        let loop = AgentLoop(id: AgentID(), sessionID: SessionID(), llm: llm, tools: ToolRegistry(), model: "mock-model")
+        await loop.send(UserMessage(content: [.text("go")]), target: .nextTurn, wakeup: true)
+        let waiter = Task { await loop.whenIdle() }
+        // 50ms 内不应返回（证明真的在等慢 LLM 响应）
+        #expect(await completesIn(waiter, within: 0.05) == nil)
+        let result = await waiter.value
+        #expect(result.error == nil)
+        #expect(result.messages.count == 1)
+    }
+
+    @Test("cancel：唤醒挂起的 whenIdle 等待者（不再死等）")
+    func cancelWakesWaiter() async {
+        let llm = ScriptedLLM(responses: [textResponse("很慢")], delay: 5)
+        let loop = AgentLoop(id: AgentID(), sessionID: SessionID(), llm: llm, tools: ToolRegistry(), model: "mock-model")
+        await loop.send(UserMessage(content: [.text("go")]), target: .nextTurn, wakeup: true)
+        let waiter = Task { await loop.whenIdle() }
+        try? await Task.sleep(for: .milliseconds(80))
+        await loop.cancel(keepInbox: true)
+        let result = await completesIn(waiter, within: 2) ?? AgentResult(status: .idle)
+        #expect(result.status == .idle)
+    }
+
+    @Test("cancel 标记：cancel 后再调 whenIdle 立即返回空结果")
+    func cancelFlagShortCircuits() async {
+        let loop = makeLoop()
+        await loop.cancel(keepInbox: true)
+        let result = await loop.whenIdle()
+        #expect(result.status == .idle)
+        #expect(result.messages.isEmpty)
     }
 }

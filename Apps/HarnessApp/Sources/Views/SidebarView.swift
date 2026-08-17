@@ -161,7 +161,7 @@ struct SidebarView: View {
                 .onHover { newHover = $0 }
                 .padding(.bottom, 4)
 
-                ForEach([AppTab.chat, .plugins, .tools], id: \.self) { tab in
+                ForEach([AppTab.chat, .agents, .plugins, .tools], id: \.self) { tab in
                     NavRow(tab: tab, isSelected: selectedTab == tab) {
                         withAnimation(.smooth(duration: 0.18)) { selectedTab = tab }
                     }

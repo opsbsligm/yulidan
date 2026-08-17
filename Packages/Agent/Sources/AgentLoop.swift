@@ -25,10 +25,15 @@ public enum AgentError: Error, LocalizedError, Sendable {
 /// 若返回工具调用则经 ToolRegistry 真实执行并把结果回填上下文 →
 /// 直到模型给出最终回答或达到步数上限。
 public actor AgentLoop {
-    let id: AgentID
-    let sessionID: SessionID
-    private var status: AgentStatus = .idle
+    public let id: AgentID
+    public let sessionID: SessionID
+    public nonisolated(unsafe) var status: AgentStatus = .idle
     private var inbox: Inbox
+
+    /// whenIdle() 等待队列（由 processInbox 完成 / cancel 唤醒）
+    private var idleWaiters: [CheckedContinuation<AgentResult, Never>] = []
+    /// 取消标记：置位后 whenIdle 立即返回；新的 send/followup 会清除
+    private var cancelFlag = false
 
     private let llm: any LLMProvider
     private let tools: ToolRegistry
@@ -77,12 +82,14 @@ public actor AgentLoop {
     public func send(_ message: UserMessage, target: InboxTarget, wakeup: Bool) {
         inbox.append(message, target: target)
         if wakeup {
+            cancelFlag = false
             Task { [weak self] in await self?.processInbox() }
         }
     }
 
     public func followup(_ message: UserMessage) {
         inbox.append(message, target: .nextTurn)
+        cancelFlag = false
         Task { [weak self] in await self?.processInbox() }
     }
 
@@ -94,21 +101,53 @@ public actor AgentLoop {
         if !keepInbox {
             inbox.clear()
         }
-        status = .idle
+        cancelFlag = true
+        // 打断运行中的 turn：标记 idle 并唤醒 whenIdle 等待者
+        // （在途 LLM 调用在后台自行完成，不再阻塞协调器）
+        if status != .idle {
+            status = .idle
+            notifyIdleWaiters()
+        }
     }
 
+    /// 等待 Agent 回到空闲（inbox 无待处理批次）
+    ///
+    /// - 空闲且无待处理：立即返回最近一次 turn 的结果
+    /// - 运行中（或消息已入队但 processInbox 尚未启动）：挂起，
+    ///   直到 processInbox 完成或 cancel() 唤醒
     public func whenIdle() async -> AgentResult {
-        AgentResult(status: status)
+        if cancelFlag {
+            return AgentResult(status: .idle)
+        }
+        if status == .idle, !inbox.hasPending {
+            return lastResult
+        }
+        return await withCheckedContinuation { continuation in
+            idleWaiters.append(continuation)
+        }
     }
 
     /// 处理输入箱中的所有待处理批次
     public func processInbox() async {
         guard status == .idle else { return }
         status = .running
-        defer { status = .idle }
+        defer {
+            status = .idle
+            notifyIdleWaiters()
+        }
 
         while let batch = inbox.claimNext() {
             lastResult = await runTurn(batch)
+        }
+    }
+
+    /// 唤醒全部 whenIdle() 等待者并清空队列（保证每个 continuation 只 resume 一次）
+    private func notifyIdleWaiters() {
+        guard !idleWaiters.isEmpty else { return }
+        let waiters = idleWaiters
+        idleWaiters = []
+        for waiter in waiters {
+            waiter.resume(returning: lastResult)
         }
     }
 
@@ -277,3 +316,7 @@ public actor AgentLoop {
         return result
     }
 }
+
+// MARK: - Agent 协议一致性（供 SubagentCoordinator 等编排使用）
+
+extension AgentLoop: Agent {}
