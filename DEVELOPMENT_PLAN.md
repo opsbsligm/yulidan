@@ -150,7 +150,7 @@ class ChatViewModel: ObservableObject { /* ... */ }
 - [x] 终端集成
 
 ### Phase 3 (进行中)
-- [ ] XPC 进程隔离
+- [x] XPC 进程隔离
 - [x] 插件市场
 - [x] 多 Agent 协作
 - [ ] 性能优化

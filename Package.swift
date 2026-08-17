@@ -70,7 +70,7 @@ let package = Package(
         // macOS App
         .executableTarget(name: "HarnessApp",
                           dependencies: ["HarnessCore", "ServiceContainer", "Session", "LLM", "Tools", "Agent",
-                                         "MCP", "Terminal", "Sandbox", "Notifications"],
+                                         "MCP", "Terminal", "Sandbox", "Notifications", "PluginXPC"],
                           path: "Apps/HarnessApp/Sources"),
 
         // Extended

@@ -79,7 +79,8 @@ struct PluginListView: View {
                     LazyVStack(spacing: 8) {
                         if pane == .installed {
                             ForEach(filtered, id: \.id) { plugin in
-                                PluginCard(plugin: plugin) {
+                                PluginCard(plugin: plugin,
+                                           isolated: viewModel.isolatedPluginIDs.contains(plugin.id)) {
                                     viewModel.togglePlugin(plugin)
                                 }
                                 .onTapGesture {
@@ -110,7 +111,7 @@ struct PluginListView: View {
             }
             if pane == .installed, let id = selectedPluginId, let plugin = viewModel.plugins.first(where: { $0.id == id }) {
                 Divider().frame(height: 1)
-                PluginDetailView(plugin: plugin).frame(minWidth: 280, maxWidth: 340)
+                PluginDetailView(viewModel: viewModel, plugin: plugin).frame(minWidth: 280, maxWidth: 340)
             }
         }
         .background(HarnessTheme.bgPrimary)
@@ -125,6 +126,7 @@ struct PluginListView: View {
 
 struct PluginCard: View {
     let plugin: PluginDisplayItem
+    var isolated: Bool = false
     let onToggle: () -> Void
     @State private var isHovered = false
 
@@ -138,9 +140,15 @@ struct PluginCard: View {
                     .foregroundStyle(plugin.isActive ? .green : HarnessTheme.textTertiary)
             }
             VStack(alignment: .leading, spacing: 4) {
-                HStack {
+                HStack(spacing: 6) {
                     Text(plugin.name).font(.system(.body, design: .rounded)).fontWeight(.medium)
                     Text("v\(plugin.version)").font(.system(size: 11)).foregroundStyle(HarnessTheme.textTertiary)
+                    if isolated {
+                        Text("隔离").font(.system(size: 9))
+                            .padding(.horizontal, 4).padding(.vertical, 2)
+                            .background(Color.purple.opacity(0.15)).cornerRadius(3)
+                            .foregroundStyle(.purple)
+                    }
                     Spacer()
                     StateBadge(state: plugin.state)
                 }
@@ -213,7 +221,9 @@ struct StateBadge: View {
 }
 
 struct PluginDetailView: View {
+    @ObservedObject var viewModel: AppViewModel
     let plugin: PluginDisplayItem
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("插件详情").font(.system(.headline, design: .rounded)).fontWeight(.semibold)
@@ -241,6 +251,21 @@ struct PluginDetailView: View {
                 if plugin.permissions.isEmpty {
                     Text("无需特殊权限").font(.system(size: 12)).foregroundStyle(HarnessTheme.textTertiary).italic()
                 }
+            }
+            Divider()
+            Text("进程模型").font(.system(.caption, design: .rounded)).fontWeight(.semibold)
+                .foregroundStyle(HarnessTheme.textSecondary)
+            VStack(alignment: .leading, spacing: 8) {
+                Text(viewModel.isolatedPluginIDs.contains(plugin.id)
+                    ? "独立 worker 进程运行（XPC 崩溃隔离）"
+                    : "主进程内运行（Actor 隔离）")
+                    .font(.system(size: 12)).foregroundStyle(HarnessTheme.textPrimary)
+                Button(
+                    viewModel.isolatedPluginIDs.contains(plugin.id) ? "恢复进程内运行" : "启用进程隔离",
+                    action: { viewModel.toggleIsolation(for: plugin) }
+                )
+                .buttonStyle(.bordered)
+                .controlSize(.small)
             }
             Divider()
             Text("说明").font(.system(.caption, design: .rounded)).fontWeight(.semibold)

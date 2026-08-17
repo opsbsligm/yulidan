@@ -4,6 +4,7 @@ import Foundation
 import HarnessCore
 import LLM
 import Notifications
+import PluginXPC
 import Sandbox
 
 // 技术债：本文件/类超过长度阈值，计划拆分为 会话管理 / 生成流程 / 设置 三个 ViewModel（见 docs/CODE_REVIEW.md）
@@ -209,6 +210,8 @@ final class AppViewModel: ObservableObject {
     let pluginManager: PluginManager
     let marketplace: PluginMarketplace
     let notificationCenter: NotificationCoordinator
+    let xpcHost: XPCPluginHost
+    @Published var isolatedPluginIDs: Set<String> = []
     let toolRegistry: ToolRegistry
     let mcpManager: MCPServerManager
 
@@ -229,6 +232,7 @@ final class AppViewModel: ObservableObject {
             service: SystemNotificationService(),
             isEnabled: UserDefaults.standard.object(forKey: "notificationsEnabled") as? Bool ?? true
         )
+        xpcHost = XPCPluginHost()
         marketplace = PluginMarketplace(
             manager: pluginManager,
             harnessVersion: PluginVersion(major: 0, minor: 1, patch: 0),
@@ -273,12 +277,18 @@ final class AppViewModel: ObservableObject {
             }
             await self.refreshPlugins()
             await self.refreshMarketplace()
+            await self.restoreIsolatedPlugins()
+            await self.refreshPlugins()
         }
 
         // 加载持久化会话
         Task { await self.loadSessionsFromDB() }
 
         // 监听模型配置变更（设置页保存后同步）
+        registerConfigObserver()
+    }
+
+    private func registerConfigObserver() {
         configObserver = NotificationCenter.default.addObserver(
             forName: LLMConfig.configDidChangeNotification, object: nil, queue: .main
         ) { [weak self] _ in
@@ -677,11 +687,7 @@ final class AppViewModel: ObservableObject {
                     showToast("停用失败：\(error.localizedDescription)")
                 }
             } else {
-                let pluginAny: any Plugin
-                switch plugin.id {
-                case "file-system": pluginAny = BuiltInFilesystemPlugin()
-                case "terminal": pluginAny = BuiltInTerminalPlugin()
-                default:
+                guard let pluginAny = makeBuiltInPlugin(plugin.id) else {
                     showToast("未知插件，无法启用")
                     return
                 }
@@ -691,6 +697,94 @@ final class AppViewModel: ObservableObject {
                 } catch {
                     showToast("启用失败：\(error.localizedDescription)")
                 }
+            }
+            await refreshPlugins()
+        }
+    }
+
+    // MARK: - 进程隔离（XPC worker）
+
+    /// 内置插件工厂（id 限定为已实现的两个内置插件）
+    private func makeBuiltInPlugin(_ id: String) -> (any Plugin)? {
+        switch id {
+        case "file-system": BuiltInFilesystemPlugin()
+        case "terminal": BuiltInTerminalPlugin()
+        default: nil
+        }
+    }
+
+    /// worker 二进制路径（与 .app 同目录，debug 构建在 .build/.../debug）
+    var xpcWorkerPath: String? {
+        let appDir = URL(fileURLWithPath: Bundle.main.bundlePath).deletingLastPathComponent()
+        let worker = appDir.appendingPathComponent("HarnessPluginWorker")
+        return FileManager.default.isExecutableFile(atPath: worker.path) ? worker.path : nil
+    }
+
+    private func persistIsolation() {
+        UserDefaults.standard.set(Array(isolatedPluginIDs), forKey: "isolatedPlugins")
+    }
+
+    /// 启动恢复：上次隔离的插件重新挂到 worker（worker 不可用时静默回退进程内）
+    private func restoreIsolatedPlugins() async {
+        let ids = UserDefaults.standard.stringArray(forKey: "isolatedPlugins") ?? []
+        guard !ids.isEmpty else { return }
+        var restored: [String] = []
+        for idStr in ids {
+            let ok = await installIsolated(idStr)
+            if ok {
+                restored.append(idStr)
+            }
+        }
+        if restored != ids {
+            UserDefaults.standard.set(restored, forKey: "isolatedPlugins")
+        }
+    }
+
+    /// 把内置插件改挂到 XPC worker（先卸进程内实例，再安装 proxy）
+    private func installIsolated(_ id: String) async -> Bool {
+        guard let workerPath = xpcWorkerPath,
+              let manifest = makeBuiltInPlugin(id)?.manifest
+        else { return false }
+        guard await xpcHost.ensureWorkerRegistered(workerPath: workerPath),
+              await xpcHost.connect(),
+              await xpcHost.isAlive(timeout: 5),
+              let proxy = await xpcHost.makeProxy(manifest: manifest)
+        else { return false }
+        let pluginID = PluginID(id)
+        do {
+            let installed = await pluginManager.list()
+            if installed.contains(where: { $0.id == pluginID }) {
+                try await pluginManager.uninstall(pluginID)
+            }
+            try await pluginManager.install(proxy)
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    /// 切换插件运行模式：进程内 <-> XPC 隔离进程
+    func toggleIsolation(for plugin: PluginDisplayItem) {
+        Task {
+            let pluginID = PluginID(plugin.id)
+            if isolatedPluginIDs.contains(plugin.id) {
+                do {
+                    try await pluginManager.uninstall(pluginID)
+                    try await pluginManager.install(makeBuiltInPlugin(plugin.id) ?? BuiltInFilesystemPlugin())
+                    isolatedPluginIDs.remove(plugin.id)
+                    persistIsolation()
+                    showToast("插件\(plugin.name)已恢复进程内运行")
+                } catch {
+                    showToast("恢复失败：\(error.localizedDescription)")
+                }
+            } else {
+                guard await installIsolated(plugin.id) else {
+                    showToast("隔离进程不可用（worker 缺失或注册失败）")
+                    return
+                }
+                isolatedPluginIDs.insert(plugin.id)
+                persistIsolation()
+                showToast("插件\(plugin.name)已启用进程隔离（崩溃不影响主进程）")
             }
             await refreshPlugins()
         }
