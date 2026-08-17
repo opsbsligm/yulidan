@@ -69,7 +69,8 @@ let package = Package(
 
         // macOS App
         .executableTarget(name: "HarnessApp",
-                          dependencies: ["HarnessCore", "ServiceContainer", "Session", "LLM", "Tools", "Agent"],
+                          dependencies: ["HarnessCore", "ServiceContainer", "Session", "LLM", "Tools", "Agent",
+                                         "MCP", "Terminal", "Sandbox"],
                           path: "Apps/HarnessApp/Sources"),
 
         // Extended
@@ -86,10 +87,10 @@ let package = Package(
                 dependencies: ["ServiceContainer", "Tools"],
                 path: "Packages/Skill/Sources"),
         .target(name: "MCP",
-                dependencies: ["ServiceContainer", "Tools", "Terminal"],
+                dependencies: ["ServiceContainer", "Tools"],
                 path: "Packages/MCP/Sources"),
         .testTarget(name: "MCPTests",
-                    dependencies: ["MCP", "ServiceContainer", "Tools", "Terminal"],
+                    dependencies: ["MCP", "ServiceContainer", "Tools", "Session"],
                     path: "Packages/MCP/Tests"),
         .target(name: "Subagent",
                 dependencies: ["ServiceContainer", "Agent"],

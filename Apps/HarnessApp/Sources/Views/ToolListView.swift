@@ -7,12 +7,12 @@ struct ToolListView: View {
     @State private var searchText = ""
     @State private var selectedCategory: String = "全部"
 
-    let categories = ["全部", "文件", "终端", "网络", "代理"]
+    let categories = ["全部", "文件", "终端", "MCP", "网络", "代理"]
 
     var filtered: [ToolDisplayItem] {
         var result = tools
         if selectedCategory != "全部" {
-            let catMap: [String: String] = ["文件": "filesystem", "终端": "terminal", "网络": "network", "代理": "agent"]
+            let catMap: [String: String] = ["文件": "filesystem", "终端": "terminal", "MCP": "mcp", "网络": "network", "代理": "agent"]
             result = result.filter { catMap[selectedCategory] == $0.category }
         }
         if !searchText.isEmpty {
@@ -47,7 +47,7 @@ struct ToolListView: View {
                 ForEach(categories, id: \.self) { cat in
                     let count = cat == "全部" ? tools.count :
                         tools.filter {
-                            let catMap: [String: String] = ["文件": "filesystem", "终端": "terminal", "网络": "network", "代理": "agent"]
+                            let catMap: [String: String] = ["文件": "filesystem", "终端": "terminal", "MCP": "mcp", "网络": "network", "代理": "agent"]
                             return catMap[cat] == $0.category
                         }.count
                     CategoryChip(label: cat, isSelected: selectedCategory == cat, count: count) {
@@ -109,6 +109,7 @@ struct ToolCard: View {
         switch tool.category {
         case "filesystem": "doc.badge.gear"
         case "terminal": "terminal.fill"
+        case "mcp": "antenna.radiowaves.left.and.right"
         case "network": "globe"
         case "agent": "person.2.fill"
         default: "wrench.and.screwdriver"
@@ -119,6 +120,7 @@ struct ToolCard: View {
         switch tool.category {
         case "filesystem": .blue
         case "terminal": .green
+        case "mcp": .teal
         case "network": .purple
         case "agent": .orange
         default: .gray

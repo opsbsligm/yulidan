@@ -1,13 +1,16 @@
-// 技术债：本文件/类超过长度阈值，计划拆分为 会话管理 / 生成流程 / 设置 三个 ViewModel（见 docs/CODE_REVIEW.md）
-// swiftlint:disable file_length type_body_length
 import Agent
 import AppKit
 import Foundation
 import HarnessCore
 import LLM
+
+// 技术债：本文件/类超过长度阈值，计划拆分为 会话管理 / 生成流程 / 设置 三个 ViewModel（见 docs/CODE_REVIEW.md）
+// swiftlint:disable file_length type_body_length
+import MCP
 import ServiceContainer
 import Session
 import SwiftUI
+import Terminal
 import Tools
 
 // MARK: - 模型提供商
@@ -156,6 +159,7 @@ final class AppViewModel: ObservableObject {
     let sessionDB: SessionDB?
     let pluginManager: PluginManager
     let toolRegistry: ToolRegistry
+    let mcpManager: MCPServerManager
 
     private var generateTask: Task<Void, Never>?
     private var sessionTitles: [UUID: String] = [:]
@@ -169,13 +173,31 @@ final class AppViewModel: ObservableObject {
         pluginManager = PluginManager(container: container, eventBus: eventBus,
                                       harnessVersion: PluginVersion(major: 0, minor: 1, patch: 0))
         toolRegistry = ToolRegistry()
+        mcpManager = MCPServerManager()
         llmConfig = LLMConfig.load()
         sessionDB = try? SessionDB()
         sessionTitles = Self.loadTitles()
 
-        // 注册真实内置工具
+        // 注册真实内置工具 + MCP 演示服务器（内存客户端，处理器为真实能力）
         Task {
             for tool in BuiltinTools.makeAll() {
+                await self.toolRegistry.register(tool)
+            }
+            let demo = MockMCPClient(name: "local")
+            await demo.addTool(MCPToolSpec(name: "system_info", description: "获取系统信息（OS 版本 / 架构 / 负载）", inputSchema: "{}")) { _ in
+                let runner = TerminalRunner()
+                guard let r = try? await runner.run("sw_vers -productVersion; uname -m; uptime", signal: nil) else {
+                    throw MCPError.serverFailed("系统命令执行失败")
+                }
+                return r.combinedOutput
+            }
+            await demo.addTool(MCPToolSpec(name: "current_time", description: "获取当前本地时间", inputSchema: "{}")) { _ in
+                let fmt = DateFormatter()
+                fmt.dateFormat = "yyyy-MM-dd HH:mm:ss zzz"
+                return fmt.string(from: Date())
+            }
+            await self.mcpManager.register(demo, descriptor: MCPServer(name: "local", transport: "in-memory"))
+            for tool in await self.mcpManager.makeTools() {
                 await self.toolRegistry.register(tool)
             }
             await self.refreshTools()
