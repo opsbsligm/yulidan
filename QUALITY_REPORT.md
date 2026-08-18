@@ -13,7 +13,7 @@
 | SwiftFormat | ✅ 0 改动 | `swiftformat . --config .swiftformat` |
 | SwiftLint | ✅ 0 违规 | `swiftlint lint --strict`（warning 按 error 计） |
 | 编译 | ✅ 通过 | `swift build`（Swift 6.3 / strict concurrency） |
-| 单元测试 | ✅ 354/354 | XCTest 126 + Swift Testing 228（50 suites），0 失败 |
+| 单元测试 | ✅ 358/358 | XCTest 130 + Swift Testing 228（50 suites），0 失败 |
 | 本地镜像备份 | ✅ 每次提交后 | `git push --mirror /Users/liguangming/code/swift-harness-backup.git` |
 | GitHub 推送 | ⏸ 暂缓 | 按用户要求先本地版本控制，未推送远端 |
 
@@ -36,15 +36,16 @@
 | Notifications | 13 | 67.1%（49/73） | ⚠️ SystemNotificationCenter 真实包装层无法在测试进程触达（UNUserNotificationCenter.current() 限制）；编排/服务逻辑已全覆盖 |
 | HarnessApp（App 层） | 15 | 6.1%（631/10392） | ⚠️ SwiftUI 视图层无单测；AppViewModel 逻辑已部分覆盖 |
 
-**总计: 354 个测试用例（XCTest 126 + Swift Testing 228），全部通过。**
+**总计: 358 个测试用例（XCTest 130 + Swift Testing 228），全部通过。**
 
 > 口径说明：行覆盖仅统计各模块 `Sources/` 源文件（不含测试文件）。
 > 核心包（Subagent / Skill / LLM / Sandbox / Tools / MCP / Terminal / PluginXPC / ServiceContainer / Agent / Session）行覆盖全部 ≥90%，满足验收标准。
 
-## 三、rc.2 之后新增能力（48 个提交）
+## 三、rc.2 之后新增能力（49 个提交）
 
 ### 模型与工具
 - **web_fetch 工具**：Agent 真实网页抓取（仅 http/https、512KB 字节上限、字符截断、错误分类），自动进入主 Agent / 子 Agent / CLI 工具链
+- **会话搜索**：侧栏搜索框升级为「标题 + 正文」全量检索（SessionDB.search 的 LIKE 检索 + 改名标题并集 + 250ms 防抖），无新 UI
 - LLM 真实适配器：OpenAI / DeepSeek / Anthropic / 本地 Ollama·vLLM（OpenAI 兼容协议）
 - MCP：协议类型 + 真实 JSON-RPC 2.0 stdio 客户端 + App 演示服务器（system_info / current_time）
 - Terminal 包：TerminalRunner 真实执行，ExecCommandTool 委托
@@ -87,6 +88,7 @@
 - 内置工具补测 11 用例（缺参/超大文件/非 UTF-8/写入失败/目录不存在/非目录/权限拒绝/sizeStr/exec 启动失败）+ ToolPipeline post 处理器用例：Tools 86.8% → 98.4%，ToolPipeline 100%
 - MCP 补测 5 用例（错误描述全集/取消上下文/坏客户端跳过/listTools 缓存/怪癖服务器：垃圾行·无 result 响应·null result·stderr 诊断）+ 删除死代码：MCP 84.3% → 94.0%
 - web_fetch 零网络桩测试 6 用例（缺参/协议白名单/成功+请求头/404/超大拒绝/截断）
+- SessionDB.search 4 用例（内容匹配/大小写/无匹配与空查询/limit/LIKE 通配符转义）
 
 ## 四、CI/CD
 

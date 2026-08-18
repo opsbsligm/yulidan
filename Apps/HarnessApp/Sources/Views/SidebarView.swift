@@ -12,6 +12,8 @@ struct SidebarView: View {
     let onNewSession: () -> Void
     let onSelectSession: (SessionRecord) -> Void
     let onDeleteSession: (SessionRecord) -> Void
+    /// 搜索框输入变化回调（空串 = 清空）
+    let onSearch: (String) -> Void
 
     @State private var searchText = ""
     @State private var showSearch = false
@@ -115,6 +117,9 @@ struct SidebarView: View {
                         .font(.system(size: 11))
                         .foregroundStyle(HarnessTheme.textTertiary)
                     TextField("搜索对话", text: $searchText)
+                        .onChange(of: searchText) { newValue in
+                            onSearch(newValue)
+                        }
                         .font(.system(size: 12))
                         .textFieldStyle(.plain)
                         .disableAutocorrection(true)
@@ -375,7 +380,8 @@ struct SessionListItem: View {
             titleFor: { _ in "示例对话" },
             onNewSession: {},
             onSelectSession: { _ in },
-            onDeleteSession: { _ in }
+            onDeleteSession: { _ in },
+            onSearch: { _ in }
         )
     }
     .frame(width: 260, height: 500)

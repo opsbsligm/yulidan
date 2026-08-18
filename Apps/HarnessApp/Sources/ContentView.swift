@@ -10,11 +10,12 @@ struct ContentView: View {
             SidebarView(
                 selectedTab: $viewModel.selectedTab,
                 selectedSession: $viewModel.selectedSession,
-                sessions: viewModel.sessions,
+                sessions: viewModel.searchResults ?? viewModel.sessions,
                 titleFor: { viewModel.sessionTitle(for: $0) },
                 onNewSession: { viewModel.createNewSession() },
                 onSelectSession: { viewModel.selectSession($0) },
-                onDeleteSession: { viewModel.deleteSession($0) }
+                onDeleteSession: { viewModel.deleteSession($0) },
+                onSearch: { viewModel.handleSessionSearch($0) }
             )
 
             Divider().frame(width: 1)

@@ -275,6 +275,10 @@ final class AppViewModel: ObservableObject {
     @Published var lastUserMessage = ""
     @Published var attachments: [FileAttachment] = []
 
+    /// 会话搜索结果（nil = 未搜索；非 nil 时侧栏展示该列表）
+    @Published var searchResults: [SessionRecord]?
+    private var searchTask: Task<Void, Never>?
+
     /// 模型
     @Published var llmConfig: LLMConfig
 
@@ -815,6 +819,31 @@ final class AppViewModel: ObservableObject {
             }
         }
         return "新对话"
+    }
+
+    /// 会话搜索：DB 正文检索 + 展示标题匹配（含改名，存 UserDefaults 不在 DB）并集，250ms 防抖
+    func handleSessionSearch(_ query: String) {
+        let q = query.trimmingCharacters(in: .whitespaces)
+        searchTask?.cancel()
+        guard !q.isEmpty else {
+            searchResults = nil
+            return
+        }
+        searchTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 250_000_000)
+            guard !Task.isCancelled, let self, let db = sessionDB else { return }
+            var hits: [SessionRecord] = await (try? db.search(query: q)) ?? []
+            let hitIDs = Set(hits.map(\.id))
+            let titleHits = sessions.filter { s in
+                !hitIDs.contains(s.id) && self.sessionTitle(for: s).localizedCaseInsensitiveContains(q)
+            }
+            hits.append(contentsOf: titleHits)
+            hits.sort { $0.metadata.createdAt > $1.metadata.createdAt }
+            guard !Task.isCancelled else { return }
+            DispatchQueue.main.async {
+                self.searchResults = hits
+            }
+        }
     }
 
     private func autoTitle() {

@@ -171,6 +171,34 @@ public actor SessionDB {
         }
     }
 
+    /// 搜索会话：匹配标题（metadata）或事件正文（LIKE，ASCII 大小写不敏感），按创建时间倒序
+    public func search(query: String, limit: Int = 50) throws -> [SessionRecord] {
+        let trimmed = query.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return [] }
+        let like = "%\(Self.escapeLike(trimmed))%"
+        return try dbQueue.read { db in
+            let req: SQLRequest<Row> = SQLRequest(sql: """
+            SELECT * FROM sessions
+            WHERE id IN (
+                SELECT id FROM sessions WHERE metadata_json LIKE ? ESCAPE '\\'
+                UNION
+                SELECT session_id FROM events WHERE payload LIKE ? ESCAPE '\\'
+            )
+            ORDER BY created_at DESC
+            LIMIT ?
+            """, arguments: [like, like, limit])
+            let rows = try req.fetchAll(db)
+            return rows.compactMap { self.mapRow($0, events: []) }
+        }
+    }
+
+    /// LIKE 通配符转义（% / _ / 反斜杠）
+    static func escapeLike(_ s: String) -> String {
+        s.replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "%", with: "\\%")
+            .replacingOccurrences(of: "_", with: "\\_")
+    }
+
     public func delete(_ id: SessionID) throws {
         try dbQueue.write { db in
             try db.execute(sql: "DELETE FROM events WHERE session_id = ?", arguments: [id.rawValue.uuidString])

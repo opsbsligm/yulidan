@@ -164,4 +164,64 @@ final class SessionDBTests: XCTestCase {
         // 宽松阈值：元数据路径不应随事件总量增长（300 会话 × 80 事件下应远快于全量解码）
         XCTAssertLessThan(elapsed, 1.0, "loadSessions took \(elapsed)s, expected < 1.0s")
     }
+
+    func testSearchMatchesEventContent() async throws {
+        let meta1 = SessionMetadata(cwd: URL(fileURLWithPath: "/tmp"))
+        var s1 = SessionRecord(id: SessionID(), metadata: meta1)
+        s1.append(.userMessage(UserMessage(content: [.text("Kubernetes 集群迁移方案")])))
+        let meta2 = SessionMetadata(cwd: URL(fileURLWithPath: "/tmp"))
+        var s2 = SessionRecord(id: SessionID(), metadata: meta2)
+        s2.append(.userMessage(UserMessage(content: [.text("写个排序函数")])))
+        try await db.save(s1)
+        try await db.save(s2)
+
+        let hits = try await db.search(query: "Kubernetes")
+        XCTAssertEqual(hits.count, 1)
+        XCTAssertEqual(hits[0].id, s1.id)
+        // ASCII 大小写不敏感
+        let hitsLower = try await db.search(query: "kubernetes")
+        XCTAssertEqual(hitsLower.count, 1)
+        XCTAssertEqual(hitsLower[0].id, s1.id)
+    }
+
+    func testSearchNoMatchAndEmptyQuery() async throws {
+        let meta = SessionMetadata(cwd: URL(fileURLWithPath: "/tmp"))
+        var s1 = SessionRecord(id: SessionID(), metadata: meta)
+        s1.append(.userMessage(UserMessage(content: [.text("存在的内容")])))
+        try await db.save(s1)
+        let none = try await db.search(query: "不存在的词")
+        XCTAssertTrue(none.isEmpty)
+        let blank = try await db.search(query: "   ")
+        XCTAssertTrue(blank.isEmpty)
+    }
+
+    func testSearchRespectsLimit() async throws {
+        for i in 0 ..< 5 {
+            let meta = SessionMetadata(cwd: URL(fileURLWithPath: "/tmp"))
+            var s = SessionRecord(id: SessionID(), metadata: meta)
+            s.append(.userMessage(UserMessage(content: [.text("共同主题\(i)")])))
+            try await db.save(s)
+        }
+        let hits = try await db.search(query: "共同主题", limit: 3)
+        XCTAssertEqual(hits.count, 3)
+    }
+
+    func testSearchEscapesLikeWildcards() async throws {
+        // 正文含 % 与 _，必须按字面量检索
+        let meta = SessionMetadata(cwd: URL(fileURLWithPath: "/tmp"))
+        var s1 = SessionRecord(id: SessionID(), metadata: meta)
+        s1.append(.userMessage(UserMessage(content: [.text("进度 50% 的 a_b 报告")])))
+        try await db.save(s1)
+        let meta2 = SessionMetadata(cwd: URL(fileURLWithPath: "/tmp"))
+        var s2 = SessionRecord(id: SessionID(), metadata: meta2)
+        s2.append(.userMessage(UserMessage(content: [.text("进度 99% 的 aXb 报告")])))
+        try await db.save(s2)
+        let hits = try await db.search(query: "50% 的 a_b")
+        XCTAssertEqual(hits.count, 1)
+        if case let .userMessage(m)? = hits.first?.events.first {
+            if case let .text(t)? = m.content.first {
+                XCTAssertEqual(t, "进度 50% 的 a_b 报告")
+            }
+        }
+    }
 }
