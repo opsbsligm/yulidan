@@ -345,4 +345,107 @@ final class AdapterHTTPTests: XCTestCase {
             XCTFail("意外错误：\(error)")
         }
     }
+
+    func testDeepSeekAdapterStream() async throws {
+        StubURLProtocol.handler = { _ in .init(status: 200, body: sseBody, contentType: "text/event-stream") }
+        let adapter = DeepSeekAdapter(apiKey: "k", baseURL: base, session: makeStubSession())
+        var collected = ""
+        for try await chunk in try await adapter.stream(LLMRequest(model: "deepseek-chat",
+                                                                   messages: [Message(role: .user, content: [.text("hi")])])) {
+            collected += String(data: chunk.data, encoding: .utf8) ?? ""
+        }
+        XCTAssertEqual(collected, "你好")
+    }
+
+    func testLocalAdapterStream() async throws {
+        StubURLProtocol.handler = { _ in .init(status: 200, body: sseBody, contentType: "text/event-stream") }
+        let adapter = LocalAdapter(baseURL: base, session: makeStubSession())
+        var collected = ""
+        for try await chunk in try await adapter.stream(LLMRequest(model: "llama3.1",
+                                                                   messages: [Message(role: .user, content: [.text("hi")])])) {
+            collected += String(data: chunk.data, encoding: .utf8) ?? ""
+        }
+        XCTAssertEqual(collected, "你好")
+    }
+
+    func testAdapterStreamHttpErrorPropagates() async {
+        StubURLProtocol.handler = { _ in .init(status: 500, body: "boom", contentType: "application/json") }
+        let adapter = DeepSeekAdapter(apiKey: "k", baseURL: base, session: makeStubSession())
+        do {
+            for try await _ in try await adapter.stream(LLMRequest(model: "deepseek-chat",
+                                                                   messages: [Message(role: .user, content: [.text("hi")])])) {}
+            XCTFail("应当抛出 httpError")
+        } catch let e as LLMError {
+            guard case .httpError = e else {
+                return XCTFail("错误类型不符：\(e)")
+            }
+        } catch {
+            XCTFail("意外错误：\(error)")
+        }
+    }
+
+    func testOpenAIAdapterCheckConnection() async throws {
+        StubURLProtocol.handler = { _ in .init(status: 200, body: "[]", contentType: "application/json") }
+        let adapter = OpenAIAdapter(apiKey: "k", baseURL: base, session: makeStubSession())
+        let msg = try await adapter.checkConnection()
+        XCTAssertEqual(msg, "连接成功")
+    }
+
+    func testDeepSeekAdapterCheckConnection() async throws {
+        StubURLProtocol.handler = { _ in .init(status: 200, body: "[]", contentType: "application/json") }
+        let adapter = DeepSeekAdapter(apiKey: "k", baseURL: base, session: makeStubSession())
+        let msg = try await adapter.checkConnection()
+        XCTAssertEqual(msg, "连接成功")
+    }
+
+    func testLocalAdapterCheckConnection() async throws {
+        StubURLProtocol.handler = { _ in .init(status: 200, body: "[]", contentType: "application/json") }
+        let adapter = LocalAdapter(baseURL: base, session: makeStubSession())
+        let msg = try await adapter.checkConnection()
+        XCTAssertEqual(msg, "连接成功")
+    }
+
+    func testOpenAIAdapterCheckConnectionMissingKey() async {
+        let adapter = OpenAIAdapter(apiKey: "", baseURL: base, session: makeStubSession())
+        do {
+            _ = try await adapter.checkConnection()
+            XCTFail("应当抛出 missingAPIKey")
+        } catch let e as LLMError {
+            guard case .missingAPIKey = e else {
+                return XCTFail("错误类型不符：\(e)")
+            }
+        } catch {
+            XCTFail("意外错误：\(error)")
+        }
+    }
+
+    func testAnthropicAdapterCheckConnection() async throws {
+        StubURLProtocol.handler = { _ in .init(status: 200, body: anthropicBody, contentType: "application/json") }
+        let adapter = AnthropicAdapter(apiKey: "k", baseURL: base, session: makeStubSession())
+        let msg = try await adapter.checkConnection()
+        XCTAssertEqual(msg, "连接成功")
+    }
+
+    func testAnthropicAdapterCheckConnectionMissingKey() async {
+        let adapter = AnthropicAdapter(apiKey: "", baseURL: base, session: makeStubSession())
+        do {
+            _ = try await adapter.checkConnection()
+            XCTFail("应当抛出 missingAPIKey")
+        } catch let e as LLMError {
+            guard case .missingAPIKey = e else {
+                return XCTFail("错误类型不符：\(e)")
+            }
+        } catch {
+            XCTFail("意外错误：\(error)")
+        }
+    }
+
+    func testAdapterMetadata() {
+        XCTAssertEqual(OpenAIAdapter(apiKey: "k").id, "openai")
+        XCTAssertEqual(DeepSeekAdapter(apiKey: "k").id, "deepseek")
+        XCTAssertTrue(DeepSeekAdapter(apiKey: "k").supportedModels.contains("deepseek-chat"))
+        XCTAssertEqual(LocalAdapter().id, "local")
+        XCTAssertEqual(AnthropicAdapter(apiKey: "k").id, "anthropic")
+        XCTAssertTrue(AnthropicAdapter(apiKey: "k").supportedModels.contains("claude-3-5-haiku-20241022"))
+    }
 }
