@@ -37,7 +37,7 @@ public final class XPCPluginProxy: Plugin, @unchecked Sendable {
     }
 
     public func stop(context _: PluginContext) async {
-        await withCheckedContinuation { (cont: CheckedContinuation<Bool, Never>) in
+        _ = await withCheckedContinuation { (cont: CheckedContinuation<Bool, Never>) in
             endpoint.stop(pluginID: pluginID) { ok, _ in
                 cont.resume(returning: ok)
             }

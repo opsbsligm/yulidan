@@ -49,7 +49,7 @@ public final class SystemNotificationCenter: NotificationCenterProtocol, @unchec
     }
 
     public func add(_ request: UNNotificationRequest) {
-        try? center.add(request)
+        center.add(request)
     }
 }
 

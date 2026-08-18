@@ -42,7 +42,7 @@ final class PathSandboxTests: XCTestCase {
     }
 
     func testDotDotInsideSandboxAllowed() throws {
-        let file = try write("sub/inner.txt")
+        _ = try write("sub/inner.txt")
         // 沙箱内部的 .. 归约仍然允许
         let inside = base.appendingPathComponent("sub/../inner.txt").path
         XCTAssertTrue(sandbox.isAllowed(inside))

@@ -104,6 +104,32 @@ struct SkillEvolutionTests {
         #expect(clusters.contains(where: { $0.count == 1 }))
     }
 
+    @Test func engineResetClearsWindow() async {
+        let engine = SkillEvolutionEngine(registry: SkillRegistry())
+        await engine.observe(sessionID: "s", task: "任意任务文本内容用于填充")
+        #expect(await engine.pendingObservationCount == 1)
+        await engine.reset()
+        #expect(await engine.pendingObservationCount == 0)
+    }
+
+    @Test func engineObservationCapAt200() async {
+        let engine = SkillEvolutionEngine(registry: SkillRegistry())
+        for i in 0 ..< 210 {
+            await engine.observe(sessionID: "s", task: "填充观测窗口的不同任务\(i)")
+        }
+        #expect(await engine.pendingObservationCount == 200)
+    }
+
+    @Test func evaluateSkipsWhenRegistryHasName() async {
+        let registry = SkillRegistry()
+        await registry.register(Skill(name: "nginx", description: "x", instructions: "y", source: "builtin"))
+        let engine = SkillEvolutionEngine(registry: registry, config: .init(minRepetition: 2, similarityThreshold: 0.5))
+        await engine.observe(sessionID: "s", task: "帮我重启一下 Nginx 服务并检查状态")
+        await engine.observe(sessionID: "s", task: "帮我重启一下 Nginx 服务并检查状态")
+        // 注册表已有同名技能 → 跳过（不写盘）
+        #expect((await engine.evaluate()).isEmpty)
+    }
+
     @Test func makeCandidateRequiresRepetition() {
         let one: [TaskObservation] = [.init(sessionID: "s", task: "帮我重启一下 Nginx 服务并检查状态")]
         #expect(SkillEvolution.makeCandidate(from: one, minRepetition: 2) == nil)
@@ -263,6 +289,70 @@ struct SkillToolsExtendedTests {
         #expect(!SkillStore.load(from: dir).isEmpty)
     }
 
+    @Test func storeDeleteExistingAndMissing() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("skill-del-\(UUID().uuidString)")
+        let dir = root.appendingPathComponent("gone", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        #expect(SkillStore.delete("gone", from: root) == true)
+        #expect(!FileManager.default.fileExists(atPath: dir.path))
+        #expect(SkillStore.delete("nope", from: root) == false)
+    }
+
+    @Test func parseSkipsLeadingBlankLines() throws {
+        let text = "\n\n---\nname: lead\ndescription: d\n---\n正文"
+        #expect(SkillStore.parse(text, source: "t")?.name == "lead")
+    }
+
+    @Test func debuggerBoundaryIssues() {
+        let emptyName = Skill(name: "", description: "d", instructions: "b", source: "s")
+        #expect(SkillDebugger.validate(emptyName).contains { $0.message == "name 为空" })
+        let longName = Skill(name: String(repeating: "a", count: 65), description: "d", instructions: "b", source: "s")
+        #expect(SkillDebugger.validate(longName).contains { $0.message == "name 超过 64 字符" })
+        let upperName = Skill(name: "My-Skill", description: "d", instructions: "b", source: "s")
+        #expect(SkillDebugger.validate(upperName).contains { $0.severity == .warning && $0.message.contains("小写 slug") })
+        let longDesc = Skill(name: "ok", description: String(repeating: "长", count: 201), instructions: "b", source: "s")
+        #expect(SkillDebugger.validate(longDesc).contains { $0.message.contains("超过 200 字符") })
+        let emptyBody = Skill(name: "ok", description: "d", instructions: "", source: "s")
+        #expect(SkillDebugger.validate(emptyBody).contains { $0.message == "instructions 正文为空" })
+        let hugeBody = Skill(name: "ok", description: "d", instructions: String(repeating: "长", count: 20_001), source: "s")
+        #expect(SkillDebugger.validate(hugeBody).contains { $0.message.contains("超过 20000 字符") })
+    }
+
+    @Test func debugRunTextRendersIssues() {
+        let skill = Skill(name: "", description: "", instructions: "b", source: "s")
+        let report = SkillDebugger.debugRun(skill)
+        #expect(report.passed == false)
+        #expect(report.text.contains("⛔ 调试未通过"))
+        #expect(report.text.contains("❌"))
+    }
+
+    @Test func evaluateSurvivesSaveFailure() async throws {
+        // override 指向「普通文件下的子路径」→ createDirectory 必失败 → 保存失败分支（不崩溃、跳过）
+        let fileAsDir = FileManager.default.temporaryDirectory.appendingPathComponent("blocker-\(UUID().uuidString)")
+        try "x".write(to: fileAsDir, atomically: true, encoding: .utf8)
+        defer { try? FileManager.default.removeItem(at: fileAsDir) }
+        SkillStore.userSkillsDirectoryOverride = fileAsDir.appendingPathComponent("impossible")
+        defer { SkillStore.userSkillsDirectoryOverride = nil }
+        let engine = SkillEvolutionEngine(registry: SkillRegistry(),
+                                          config: .init(minRepetition: 2, similarityThreshold: 0.5))
+        await engine.observe(sessionID: "s", task: "帮我重启一下 Nginx 服务并检查状态")
+        await engine.observe(sessionID: "s", task: "帮我重启一下 Nginx 服务并检查状态")
+        #expect((await engine.evaluate()).isEmpty)
+    }
+
+    @Test func sharedEvolutionCachesEngine() async throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("shared-evo-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        SkillStore.userSkillsDirectoryOverride = dir
+        defer { SkillStore.userSkillsDirectoryOverride = nil }
+        let registry = SkillRegistry()
+        let e1 = await SharedSkillEvolution.shared.get(registry: registry)
+        let e2 = await SharedSkillEvolution.shared.get(registry: registry)
+        #expect(e1 === e2)
+        // 复位：换回无持久化的干净引擎，避免污染同进程其它用例
+        await SharedSkillEvolution.shared.replace(SkillEvolutionEngine(registry: registry))
+    }
+
     @Test func makeAllFourTools() {
         #expect(SkillTools.makeAll(registry: registry).map(\.name).sorted()
             == ["debug_skill", "list_skills", "save_skill", "use_skill"])
@@ -322,5 +412,38 @@ struct SkillToolsExtendedTests {
         let names = await (registry.all()).map(\.name)
         _ = names
         _ = created
+    }
+}
+
+// MARK: - Skill 模型（Codable 向后兼容 / summary / id）
+
+@Suite("SkillModelCodable")
+struct SkillModelCodableTests {
+    @Test func decodeLegacyJSONWithoutVersionDefaultsToOne() throws {
+        let json = "{\"name\":\"legacy\",\"description\":\"旧格式\",\"instructions\":\"正文\",\"tags\":[\"a\"],\"source\":\"s\"}"
+        let skill = try JSONDecoder().decode(Skill.self, from: Data(json.utf8))
+        #expect(skill.version == 1)
+        #expect(skill.name == "legacy")
+        #expect(skill.tags == ["a"])
+    }
+
+    @Test func decodeWithVersionPreserved() throws {
+        let json = "{\"name\":\"v3\",\"description\":\"x\",\"instructions\":\"正文\",\"tags\":[],\"source\":\"s\",\"version\":3}"
+        let skill = try JSONDecoder().decode(Skill.self, from: Data(json.utf8))
+        #expect(skill.version == 3)
+    }
+
+    @Test func encodeDecodeRoundTrip() throws {
+        let skill = Skill(name: "rt", description: "d", instructions: "b", tags: ["t"], source: "s", version: 5)
+        let data = try JSONEncoder().encode(skill)
+        let back = try JSONDecoder().decode(Skill.self, from: data)
+        #expect(back == skill)
+    }
+
+    @Test func summaryAndId() {
+        let a = Skill(name: "demo", description: "说明", instructions: "b", tags: ["x", "y"], source: "s")
+        #expect(a.summary == "demo — 说明  [x, y]")
+        #expect(Skill(name: "b", description: "d", instructions: "i", source: "s").summary == "b — d")
+        #expect(a.id == "demo")
     }
 }

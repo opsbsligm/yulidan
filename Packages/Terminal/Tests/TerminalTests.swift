@@ -61,7 +61,7 @@ final class TerminalTests: XCTestCase {
     }
 
     func testOutputTruncation() async throws {
-        var cfg = TerminalConfiguration(maxOutputCharacters: 200)
+        let cfg = TerminalConfiguration(maxOutputCharacters: 200)
         _ = cfg
         let r = try await runner.run("yes | head -c 5000")
         XCTAssertEqual(r.displayString(maxCharacters: 200).count, 200)
@@ -75,7 +75,7 @@ final class TerminalTests: XCTestCase {
     }
 
     func testLaunchFailed() async throws {
-        var cfg = TerminalConfiguration(shellPath: "/nonexistent/shell")
+        let cfg = TerminalConfiguration(shellPath: "/nonexistent/shell")
         _ = cfg
         let bad = TerminalRunner(configuration: cfg)
         do {

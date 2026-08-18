@@ -177,7 +177,7 @@ public actor XPCPluginHost {
     /// 从 launchd 注销 worker（bootout 会同时结束 worker 进程）
     public func deregister() {
         let uid = getuid()
-        try? runner.run(["/bin/launchctl", "bootout", "gui/\(uid)/\(Self.serviceName)"])
+        _ = try? runner.run(["/bin/launchctl", "bootout", "gui/\(uid)/\(Self.serviceName)"])
         disconnect()
     }
 

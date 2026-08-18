@@ -283,7 +283,7 @@ final class StdioMCPClientTests: XCTestCase {
         do {
             _ = try await task.value
             XCTFail("应当抛出 transportClosed")
-        } catch let MCPError.transportClosed {
+        } catch MCPError.transportClosed {
             // 预期
         } catch {
             XCTFail("错误类型不符：\(error)")

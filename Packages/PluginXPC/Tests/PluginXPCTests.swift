@@ -195,7 +195,7 @@ struct XPCEndToEndTests {
 
         // 清理残留注册
         let uid = getuid()
-        try? ProcessCommandRunner().run(["launchctl", "bootout", "gui/\(uid)/\(XPCPluginHost.serviceName)"])
+        _ = try? ProcessCommandRunner().run(["launchctl", "bootout", "gui/\(uid)/\(XPCPluginHost.serviceName)"])
 
         #expect(await host.ensureWorkerRegistered(workerPath: workerPath))
         #expect(await host.connect())
