@@ -522,6 +522,56 @@ final class AppViewModel: ObservableObject {
         raw.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
     }
 
+    /// 导入技能文件（SKILL.md 或技能目录）→ 复制到用户目录并注册
+    func importSkillFile(at url: URL) {
+        var isDir: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir) else {
+            showToast("文件不存在")
+            return
+        }
+        let fileURL = isDir.boolValue ? url.appendingPathComponent("SKILL.md") : url
+        guard let text = try? String(contentsOf: fileURL, encoding: .utf8) else {
+            showToast("无法读取 \(fileURL.lastPathComponent)")
+            return
+        }
+        guard let skill = SkillStore.parse(text, source: fileURL.path) else {
+            showToast("不是合法技能文件（需含 name 的 frontmatter）")
+            return
+        }
+        let target = SkillStore.userSkillsDirectory.appendingPathComponent(skill.name, isDirectory: true)
+            .appendingPathComponent("SKILL.md")
+        do {
+            try FileManager.default.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try text.write(to: target, atomically: true, encoding: .utf8)
+        } catch {
+            showToast("SKILL.md 写入失败")
+            return
+        }
+        let imported = Skill(name: skill.name, description: skill.description, instructions: skill.instructions,
+                             tags: skill.tags, source: target.path)
+        Task {
+            await skillRegistry.register(imported)
+            await self.refreshSkills()
+            self.showToast("已导入技能：\(skill.name)")
+        }
+    }
+
+    /// 导出技能：系统保存对话框 → SKILL.md
+    func exportSkill(_ skill: Skill) {
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "\(skill.name).skill.md"
+        panel.canCreateDirectories = true
+        guard panel.runModal() == .OK, let url = panel.url else {
+            return
+        }
+        do {
+            try SkillStore.serialize(skill).write(to: url, atomically: true, encoding: .utf8)
+            showToast("已导出到 \(url.lastPathComponent)")
+        } catch {
+            showToast("导出失败：\(error.localizedDescription)")
+        }
+    }
+
     /// 删除用户技能（内置技能不可删）
     func deleteUserSkill(_ skill: Skill) {
         guard skill.source != "builtin" else {

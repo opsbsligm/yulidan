@@ -49,6 +49,14 @@ struct SkillView: View {
                         .foregroundStyle(HarnessTheme.accent)
                 }
                 Button {
+                    importSkill()
+                } label: {
+                    Label("导入", systemImage: "square.and.arrow.down")
+                }
+                .font(.system(size: 12))
+                .buttonStyle(.bordered)
+                .disabled(editingSkill != nil)
+                Button {
                     if editingSkill != nil {
                         cancelEdit()
                     } else {
@@ -75,6 +83,8 @@ struct SkillView: View {
                             expandedID = expandedID == skill.id ? nil : skill.id
                         } onEdit: {
                             startEditing(skill)
+                        } onExport: {
+                            viewModel.exportSkill(skill)
                         } onDelete: {
                             viewModel.deleteUserSkill(skill)
                         }
@@ -157,6 +167,19 @@ struct SkillView: View {
         newInstructions = ""
     }
 
+    /// 导入：文件选择器（SKILL.md 文件或技能目录）
+    private func importSkill() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.message = "选择 SKILL.md 文件或技能目录"
+        guard panel.runModal() == .OK, let url = panel.url else {
+            return
+        }
+        viewModel.importSkillFile(at: url)
+    }
+
     private func startEditing(_ skill: Skill) {
         editingSkill = skill
         showForm = true
@@ -175,6 +198,7 @@ private struct SkillCard: View {
     let expanded: Bool
     let onToggle: () -> Void
     let onEdit: () -> Void
+    let onExport: () -> Void
     let onDelete: () -> Void
 
     var isBuiltIn: Bool {
@@ -206,6 +230,15 @@ private struct SkillCard: View {
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(HarnessTheme.textSecondary)
+                Button {
+                    onExport()
+                } label: {
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.system(size: 11))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(HarnessTheme.textSecondary)
+                .help("导出为 SKILL.md")
                 if !isBuiltIn {
                     Button {
                         onEdit()

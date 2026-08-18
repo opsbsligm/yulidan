@@ -157,6 +157,50 @@ struct AppViewModelSkillTests {
         #expect(vm.skills.first(where: { $0.name == builtIn.name })?.description == builtIn.description)
     }
 
+    @Test("importSkillFile：合法文件复制到用户目录并注册")
+    func importValidFile() async {
+        let dir = freshDir()
+        defer { cleanup(dir) }
+        let source = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("import-src-\(UUID().uuidString).skill.md")
+        defer { try? FileManager.default.removeItem(at: source) }
+        try? "---\nname: imported-skill\ndescription: 导入验证\n---\n导入正文".write(to: source, atomically: true, encoding: .utf8)
+        let vm = AppViewModel()
+        vm.importSkillFile(at: source)
+        guard let item = await waitForSkill(vm, name: "imported-skill", expectPresent: true) else {
+            Issue.record("导入后未注册")
+            return
+        }
+        #expect(item.description == "导入验证")
+        #expect(URL(fileURLWithPath: item.source).resolvingSymlinksInPath()
+            == dir.resolvingSymlinksInPath().appendingPathComponent("imported-skill/SKILL.md"))
+        #expect(FileManager.default.fileExists(atPath: dir.appendingPathComponent("imported-skill/SKILL.md").path))
+    }
+
+    @Test("importSkillFile：非法文件 toast 且不注册")
+    func importInvalidFile() {
+        let dir = freshDir()
+        defer { cleanup(dir) }
+        let source = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("import-bad-\(UUID().uuidString).skill.md")
+        defer { try? FileManager.default.removeItem(at: source) }
+        try? "没有 frontmatter 的内容".write(to: source, atomically: true, encoding: .utf8)
+        let vm = AppViewModel()
+        vm.importSkillFile(at: source)
+        #expect(vm.toastMessage == "不是合法技能文件（需含 name 的 frontmatter）")
+        let entries = (try? FileManager.default.contentsOfDirectory(atPath: dir.path)) ?? []
+        #expect(entries.isEmpty)
+    }
+
+    @Test("importSkillFile：路径不存在 toast")
+    func importMissingFile() {
+        let dir = freshDir()
+        defer { cleanup(dir) }
+        let vm = AppViewModel()
+        vm.importSkillFile(at: URL(fileURLWithPath: "/nonexistent-path-\(UUID().uuidString).skill.md"))
+        #expect(vm.toastMessage == "文件不存在")
+    }
+
     @Test("编辑时空正文被拦截（文件不变）")
     func editEmptyBodyRejected() async {
         let dir = freshDir()
