@@ -1,8 +1,8 @@
 # Swift Harness — 质量保障报告
 
-> 生成时间: 2026-08-18 08:15
-> 项目版本: v0.1.0（开发中，HEAD `0c80e11`）
-> 说明: 本版为 2026-08-14 v0.1.0-rc.2 报告的基线更新；测试数、覆盖率、门禁结果均为当前 HEAD 实测，未沿用旧数据。
+> 生成时间: 2026-08-18 12:40
+> 项目版本: v0.1.0（开发中，HEAD `ab1e41c`）
+> 说明: 本版为 2026-08-14 v0.1.0-rc.2 报告的第二次基线更新（技能系统落地后）；测试数、覆盖率、门禁结果均为当前 HEAD 实测，未沿用旧数据。
 
 ---
 
@@ -13,7 +13,7 @@
 | SwiftFormat | ✅ 0 改动 | `swiftformat . --config .swiftformat` |
 | SwiftLint | ✅ 0 违规 | `swiftlint lint --strict`（warning 按 error 计） |
 | 编译 | ✅ 通过 | `swift build`（Swift 6.3 / strict concurrency） |
-| 单元测试 | ✅ 260/260 | XCTest 66 + Swift Testing 194（44 suites），0 失败 |
+| 单元测试 | ✅ 282/282 | XCTest 73 + Swift Testing 209（47 suites），0 失败 |
 | 本地镜像备份 | ✅ 每次提交后 | `git push --mirror /Users/liguangming/code/swift-harness-backup.git` |
 | GitHub 推送 | ⏸ 暂缓 | 按用户要求先本地版本控制，未推送远端 |
 
@@ -21,23 +21,24 @@
 
 | 模块 | 测试用例 | 行覆盖 | 状态 |
 |------|---------|--------|------|
-| ServiceContainer | 88 | 94.2%（1658/1760） | ✅ ≥90% |
+| ServiceContainer | 101 | 94.2%（1658/1760） | ✅ ≥90% |
 | Agent | 35 | 93.8%（709/756） | ✅ ≥90% |
-| Session | 24 | 93.0%（690/742） | ✅ ≥90% |
-| Tools | 20 | 91.2%（474/520） | ✅ ≥90% |
+| Skill | 15 | 96.1%（345/359） | ✅ ≥90% |
 | Subagent | 18 | 95.3%（727/763） | ✅ ≥90% |
-| Terminal | 10 | 95.9%（303/316） | ✅ ≥90% |
-| Sandbox | 10 | 94.0%（156/166） | ✅ ≥90% |
+| Terminal | 10 | 94.9%（300/316） | ✅ ≥90% |
 | PluginXPC | 8 | 94.3%（466/494） | ✅ ≥90% |
+| Sandbox | 10 | 94.0%（156/166） | ✅ ≥90% |
+| Session | 24 | 93.0%（690/742） | ✅ ≥90% |
+| Tools | 20 | 91.2%（475/521） | ✅ ≥90% |
+| HarnessApp（App 层） | 15 | 8.5%（896/10598） | ⚠️ SwiftUI 视图层无单测；AppViewModel/ViewModel 逻辑已部分覆盖 |
 | MCP | 13 | 87.5%（649/742） | ⚠️ stdio 客户端少量分支未覆盖 |
 | Notifications | 5 | 73.4%（91/124） | ⚠️ 授权/重试分支未覆盖 |
 | LLM | 8 | 35.5%（311/876） | ⚠️ 适配器依赖真实 HTTP，集成测试待补 |
 | HarnessCore | 0 | 66.7%（32/48） | ⚠️ 待补测试 |
-| HarnessApp（App 层） | 8 | 6.7%（650/9765） | ⚠️ SwiftUI 视图层无单测；AppViewModel 32.8% |
 
-**总计: 260 个测试用例（XCTest 66 + Swift Testing 194），全部通过。**
+**总计: 282 个测试用例（XCTest 73 + Swift Testing 209），全部通过。**
 
-> 核心包（ServiceContainer / Agent / Session / Tools / Subagent / Terminal / Sandbox / PluginXPC）行覆盖全部 ≥90%，满足验收标准。
+> 核心包（ServiceContainer / Agent / Session / Tools / Subagent / Skill / Terminal / Sandbox / PluginXPC）行覆盖全部 ≥90%，满足验收标准。
 
 ## 三、rc.2 之后新增能力（34 个提交）
 
@@ -56,6 +57,13 @@
 - 对话页「派生」按钮：当前输入 → 子任务
 - CLI：`dsh agents run <任务...> --parallel --timeout`（与 App 同一协调器）
 - **spawn_subagent 工具**：主 Agent 对话中自主委派子任务；子 Agent 用独立工具注册表（不含本工具），防递归死锁
+
+### 技能系统（Skill）
+- Skill 包：Skill 模型 + SKILL.md frontmatter 解析（~/.harness/skills）+ SkillRegistry actor（注册/检索/提示词列表）
+- Agent 工具：list_skills（列技能）/ use_skill（按名加载指令，未找到返回 skill_not_found）
+- 内置技能 ×3：git-commit / code-review / ops-troubleshoot
+- App「技能」页：列表（内置/用户徽章）/ 新建 / 编辑（名称锁定）/ 删除 / 展开正文
+- CLI：dsh skills list / dsh skills show <名称>
 
 ### App / 插件
 - macOS 系统通知（生成完成/失败，设置可开关）
