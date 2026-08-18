@@ -308,6 +308,9 @@ final class AppViewModel: ObservableObject {
     let subagentToolRegistry: ToolRegistry = .init()
     /// 技能注册表（内置 + ~/.harness/skills 用户目录）
     let skillRegistry: SkillRegistry = .init()
+    /// 用户技能目录（构造时一次性捕获：长生命周期 VM 期间目录不漂移；
+    /// 测试在构造前注入 SkillStore.userSkillsDirectoryOverride 即可隔离）
+    let skillUserDirectory: URL
     @Published var skills: [Skill] = []
 
     /// 多 Agent（默认值 = 磁盘历史，重启后终态子任务仍可见）
@@ -319,7 +322,8 @@ final class AppViewModel: ObservableObject {
 
     // MARK: - 初始化
 
-    init() {
+    /// - Parameter skillUserDirectory: 用户技能目录（测试注入隔离目录；生产默认 ~/.harness/skills）
+    init(skillUserDirectory: URL? = nil) {
         let container = ServiceContainer()
         let eventBus = EventBus()
         pluginManager = PluginManager(container: container, eventBus: eventBus,
@@ -337,6 +341,7 @@ final class AppViewModel: ObservableObject {
             sources: [LocalBuiltInMarketplaceSource()]
         )
         llmConfig = LLMConfig.load()
+        self.skillUserDirectory = skillUserDirectory ?? SkillStore.userSkillsDirectory
         sessionDB = try? SessionDB(dbURL: Self.sessionDBURLOverride)
         sessionTitles = Self.loadTitles()
         // 先占位（init 两阶段初始化限制），onEvent 由 registerSubagentRuntime 后置赋值
@@ -471,11 +476,13 @@ final class AppViewModel: ObservableObject {
         for skill in BuiltInSkills.makeAll() {
             await skillRegistry.register(skill)
         }
-        for skill in SkillStore.load(from: SkillStore.userSkillsDirectory) {
+        for skill in SkillStore.load(from: skillUserDirectory) {
             await skillRegistry.register(skill)
         }
         await toolRegistry.register(ListSkillsTool(registry: skillRegistry))
         await toolRegistry.register(UseSkillTool(registry: skillRegistry))
+        await toolRegistry.register(SaveSkillTool(registry: skillRegistry))
+        await toolRegistry.register(DebugSkillTool(registry: skillRegistry))
         await refreshSkills()
     }
 
@@ -544,7 +551,7 @@ final class AppViewModel: ObservableObject {
             showToast("技能正文不能为空")
             return nil
         }
-        let dir = SkillStore.userSkillsDirectory.appendingPathComponent(slug, isDirectory: true)
+        let dir = skillUserDirectory.appendingPathComponent(slug, isDirectory: true)
         guard (try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)) != nil else {
             showToast("技能目录创建失败")
             return nil
@@ -578,7 +585,7 @@ final class AppViewModel: ObservableObject {
             showToast("不是合法技能文件（需含 name 的 frontmatter）")
             return
         }
-        let target = SkillStore.userSkillsDirectory.appendingPathComponent(skill.name, isDirectory: true)
+        let target = skillUserDirectory.appendingPathComponent(skill.name, isDirectory: true)
             .appendingPathComponent("SKILL.md")
         do {
             try FileManager.default.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -1003,6 +1010,8 @@ final class AppViewModel: ObservableObject {
             persistSession()
             // 记忆反馈闭环：蒸馏本轮交换（显式记住/纠正/决策/事实）→ 长期记忆
             await processMemoryFeedback(userText: lastUserMessage, assistantText: content)
+            // 技能进化（Hermes 范式）：观测本轮任务，相似重复任务达阈值自动沉淀为技能
+            await observeSkillEvolution(task: lastUserMessage, content: resp.content)
             await notifyGeneration(error: nil)
         } catch is CancellationError {
             isGenerating = false
@@ -1047,6 +1056,23 @@ final class AppViewModel: ObservableObject {
         if stored > 0 {
             await memoryEngine.save()
         }
+    }
+
+    /// 技能进化观测：上报本轮任务与工具序列；相似重复任务达阈值自动生成技能
+    /// （引擎/注册表为进程级共享：SharedSkillEvolution + skillRegistry，技能落 ~/.harness/skills）
+    private func observeSkillEvolution(task: String, content: [LLM.ContentBlock]) async {
+        let toolNames = content.compactMap { block -> String? in
+            if case let .toolCall(call) = block {
+                return call.name
+            }
+            return nil
+        }
+        var seen = Set<String>()
+        let deduped = toolNames.filter { seen.insert($0).inserted }
+        let sessionID = selectedSession?.id.rawValue.uuidString ?? "app"
+        let engine = await SharedSkillEvolution.shared.get(registry: skillRegistry)
+        await engine.observe(sessionID: sessionID, task: task, toolNames: deduped, succeeded: true)
+        _ = await engine.evaluate()
     }
 
     /// 停止生成（真实取消 URLSession 请求）

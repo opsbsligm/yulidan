@@ -134,7 +134,7 @@ struct SkillRegistryTests {
         return registry
     }
 
-    @Test("重名覆盖 + remove + all 排序", .serialized)
+    @Test("重名覆盖 + remove + all 排序")
     func registerDedupeAndRemove() async {
         let registry = await makeRegistry()
         #expect(await registry.count == 2)

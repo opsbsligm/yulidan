@@ -16,10 +16,18 @@ public actor LongTermMemoryStore {
     }
 
     public static var defaultFileURL: URL {
-        FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".harness")
+        harnessHomeBase()
             .appendingPathComponent("memory")
             .appendingPathComponent("longterm.json")
+    }
+
+    /// ~/.harness 基础目录（HARNESS_HOME 环境变量可覆盖，测试/隔离运行用）
+    private static func harnessHomeBase() -> URL {
+        if let envHome = ProcessInfo.processInfo.environment["HARNESS_HOME"], !envHome.isEmpty {
+            return URL(fileURLWithPath: (envHome as NSString).expandingTildeInPath)
+                .appendingPathComponent(".harness")
+        }
+        return FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".harness")
     }
 
     public func upsert(_ item: MemoryItem) {

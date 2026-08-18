@@ -142,6 +142,8 @@ struct HeadlessCommand: AsyncParsableCommand {
         await connectMCPServers(to: tools)
         // RAG 知识库：注册 search_knowledge / add_knowledge / list_knowledge 工具
         await Self.registerRAGTools(to: tools)
+        // 技能系统：注册 list/use/save/debug 技能工具（内置 + ~/.harness/skills）
+        let skillRuntime = await Self.makeSkillRuntime(to: tools)
         // 提示词工程层：用户未显式配置系统提示词时，渲染内置 agent 角色模板（模型差异化自动适配）
         // 记忆系统：相关长期记忆注入 {{#context}} 条件块
         let promptContext = await Self.memoryPromptContext(query: prompt)
@@ -191,6 +193,8 @@ struct HeadlessCommand: AsyncParsableCommand {
         }
         // 记忆反馈闭环：蒸馏本轮交换（显式记住/纠正/决策/事实）→ 长期记忆，并落盘
         await Self.processMemoryFeedback(prompt: prompt, result: result)
+        // 技能进化（Hermes 范式）：观测本轮任务工具序列，相似重复任务达阈值自动沉淀为可复用技能
+        await Self.observeSkillEvolution(task: prompt, result: result, registry: skillRuntime.registry)
     } // MCP 服务发现：逐个连接 stdio 服务器，工具自动注册进给定注册表（失败仅提示，不中断）
     private func connectMCPServers(to tools: ToolRegistry) async {
         let configs = MCPDiscovery.loadConfigs()
@@ -469,7 +473,9 @@ struct SkillsCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "skills",
         abstract: "Manage skills (built-in + ~/.harness/skills)",
-        subcommands: [SkillsListCommand.self, SkillsShowCommand.self, SkillsExportCommand.self, SkillsImportCommand.self]
+        subcommands: [SkillsListCommand.self, SkillsShowCommand.self, SkillsExportCommand.self,
+                      SkillsImportCommand.self, SkillsDebugCommand.self, SkillsVersionsCommand.self,
+                      SkillsRestoreCommand.self, SkillsDeleteCommand.self]
     )
 }
 

@@ -47,7 +47,7 @@ struct AppViewModelSkillTests {
     func saveSkill() async {
         let dir = freshDir()
         defer { cleanup(dir) }
-        let vm = AppViewModel()
+        let vm = AppViewModel(skillUserDirectory: dir)
         vm.saveUserSkill(name: "Daily Report", description: "生成日报", tags: "报告, 日报",
                          instructions: "步骤：\n1. 收集数据\n2. 输出报告")
         guard let item = await waitForSkill(vm, name: "daily-report", expectPresent: true) else {
@@ -68,7 +68,7 @@ struct AppViewModelSkillTests {
     func deleteSkill() async throws {
         let dir = freshDir()
         defer { cleanup(dir) }
-        let vm = AppViewModel()
+        let vm = AppViewModel(skillUserDirectory: dir)
         vm.saveUserSkill(name: "temp-skill", description: "待删除", tags: "", instructions: "正文")
         guard await waitForSkill(vm, name: "temp-skill", expectPresent: true) != nil else {
             Issue.record("保存失败")
@@ -99,7 +99,7 @@ struct AppViewModelSkillTests {
     func deleteBuiltInRejected() async {
         let dir = freshDir()
         defer { cleanup(dir) }
-        let vm = AppViewModel()
+        let vm = AppViewModel(skillUserDirectory: dir)
         guard let builtIn = await waitForBuiltIn(vm) else {
             Issue.record("未找到内置技能")
             return
@@ -114,7 +114,7 @@ struct AppViewModelSkillTests {
     func editSkill() async {
         let dir = freshDir()
         defer { cleanup(dir) }
-        let vm = AppViewModel()
+        let vm = AppViewModel(skillUserDirectory: dir)
         vm.saveUserSkill(name: "edit-me", description: "旧描述", tags: "old", instructions: "旧正文")
         guard var item = await waitForSkill(vm, name: "edit-me", expectPresent: true) else {
             Issue.record("保存失败")
@@ -146,7 +146,7 @@ struct AppViewModelSkillTests {
     func editBuiltInRejected() async {
         let dir = freshDir()
         defer { cleanup(dir) }
-        let vm = AppViewModel()
+        let vm = AppViewModel(skillUserDirectory: dir)
         guard let builtIn = await waitForBuiltIn(vm) else {
             Issue.record("未找到内置技能")
             return
@@ -165,7 +165,7 @@ struct AppViewModelSkillTests {
             .appendingPathComponent("import-src-\(UUID().uuidString).skill.md")
         defer { try? FileManager.default.removeItem(at: source) }
         try? "---\nname: imported-skill\ndescription: 导入验证\n---\n导入正文".write(to: source, atomically: true, encoding: .utf8)
-        let vm = AppViewModel()
+        let vm = AppViewModel(skillUserDirectory: dir)
         vm.importSkillFile(at: source)
         guard let item = await waitForSkill(vm, name: "imported-skill", expectPresent: true) else {
             Issue.record("导入后未注册")
@@ -185,7 +185,7 @@ struct AppViewModelSkillTests {
             .appendingPathComponent("import-bad-\(UUID().uuidString).skill.md")
         defer { try? FileManager.default.removeItem(at: source) }
         try? "没有 frontmatter 的内容".write(to: source, atomically: true, encoding: .utf8)
-        let vm = AppViewModel()
+        let vm = AppViewModel(skillUserDirectory: dir)
         vm.importSkillFile(at: source)
         #expect(vm.toastMessage == "不是合法技能文件（需含 name 的 frontmatter）")
         let entries = (try? FileManager.default.contentsOfDirectory(atPath: dir.path)) ?? []
@@ -196,7 +196,7 @@ struct AppViewModelSkillTests {
     func importMissingFile() {
         let dir = freshDir()
         defer { cleanup(dir) }
-        let vm = AppViewModel()
+        let vm = AppViewModel(skillUserDirectory: dir)
         vm.importSkillFile(at: URL(fileURLWithPath: "/nonexistent-path-\(UUID().uuidString).skill.md"))
         #expect(vm.toastMessage == "文件不存在")
     }
@@ -205,7 +205,7 @@ struct AppViewModelSkillTests {
     func editEmptyBodyRejected() async {
         let dir = freshDir()
         defer { cleanup(dir) }
-        let vm = AppViewModel()
+        let vm = AppViewModel(skillUserDirectory: dir)
         vm.saveUserSkill(name: "keep-body", description: "x", tags: "", instructions: "保留正文")
         guard let item = await waitForSkill(vm, name: "keep-body", expectPresent: true) else {
             Issue.record("保存失败")
@@ -221,7 +221,7 @@ struct AppViewModelSkillTests {
     func emptyBodyRejected() {
         let dir = freshDir()
         defer { cleanup(dir) }
-        let vm = AppViewModel()
+        let vm = AppViewModel(skillUserDirectory: dir)
         vm.saveUserSkill(name: "empty-body", description: "x", tags: "", instructions: "   ")
         #expect(vm.toastMessage == "技能正文不能为空")
         let entries = (try? FileManager.default.contentsOfDirectory(atPath: dir.path)) ?? []

@@ -8,13 +8,18 @@ public enum SkillStore {
     public nonisolated(unsafe) static var userSkillsDirectoryOverride: URL?
 
     /// 用户技能目录：~/.harness/skills/<技能名>/SKILL.md
+    /// 解析优先级：测试覆盖 > HARNESS_HOME 环境变量（隔离运行）> 用户主目录
     public static var userSkillsDirectory: URL {
         if let override = userSkillsDirectoryOverride {
             try? FileManager.default.createDirectory(at: override, withIntermediateDirectories: true)
             return override
         }
-        let home = FileManager.default.homeDirectoryForCurrentUser
-        let dir = home.appendingPathComponent(".harness/skills", isDirectory: true)
+        let base: URL = if let envHome = ProcessInfo.processInfo.environment["HARNESS_HOME"], !envHome.isEmpty {
+            URL(fileURLWithPath: (envHome as NSString).expandingTildeInPath)
+        } else {
+            FileManager.default.homeDirectoryForCurrentUser
+        }
+        let dir = base.appendingPathComponent(".harness/skills", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir
     }
@@ -68,7 +73,8 @@ public enum SkillStore {
                      description: frontmatter["description"] ?? "",
                      instructions: body,
                      tags: tags,
-                     source: source)
+                     source: source,
+                     version: Int(frontmatter["version"] ?? "1") ?? 1)
     }
 
     /// 序列化为 SKILL.md 文本（导出/导入用；描述与标签压成单行）
@@ -80,9 +86,41 @@ public enum SkillStore {
         if !skill.tags.isEmpty {
             lines.append("tags: \(skill.tags.map(oneLine).joined(separator: ", "))")
         }
+        if skill.version > 1 {
+            lines.append("version: \(skill.version)")
+        }
         lines.append("---")
         lines.append(skill.instructions)
         return lines.joined(separator: "\n") + "\n"
+    }
+
+    /// 技能目录：<root>/<技能名>
+    public static func skillDirectory(for name: String, root: URL = userSkillsDirectory) -> URL {
+        root.appendingPathComponent(name, isDirectory: true)
+    }
+
+    /// 保存技能到用户目录（<root>/<name>/SKILL.md；已存在则覆盖）
+    @discardableResult
+    public static func save(_ skill: Skill, to root: URL = userSkillsDirectory) throws -> URL {
+        let dir = skillDirectory(for: skill.name, root: root)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let fileURL = dir.appendingPathComponent("SKILL.md")
+        try serialize(skill).write(to: fileURL, atomically: true, encoding: .utf8)
+        return fileURL
+    }
+
+    /// 删除技能目录
+    @discardableResult
+    public static func delete(_ name: String, from root: URL = userSkillsDirectory) -> Bool {
+        guard FileManager.default.fileExists(atPath: skillDirectory(for: name, root: root).path) else {
+            return false
+        }
+        do {
+            try FileManager.default.removeItem(at: skillDirectory(for: name, root: root))
+            return true
+        } catch {
+            return false
+        }
     }
 
     /// 从目录加载全部技能（每个子目录含一个 SKILL.md；无效条目跳过）

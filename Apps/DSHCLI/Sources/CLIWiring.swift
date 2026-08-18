@@ -3,6 +3,7 @@ import Foundation
 import Memory
 import Prompt
 import RAG
+import Skill
 import Tools
 
 /// CLI 工具装配 helpers（从 DSHMain 拆出，控制文件长度）
@@ -40,6 +41,44 @@ extension HeadlessCommand {
         let ragEngine = await SharedRAGEngine.shared.get()
         for tool in KnowledgeTools.makeAll(engine: ragEngine) {
             await tools.register(tool)
+        }
+    }
+
+    /// 技能运行时：加载内置 + 用户技能，注册 4 个技能工具；返回注册表供进化引擎写入
+    struct SkillRuntime: Sendable {
+        let registry: SkillRegistry
+    }
+
+    static func makeSkillRuntime(to tools: ToolRegistry) async -> SkillRuntime {
+        let registry = SkillRegistry()
+        for skill in BuiltInSkills.makeAll() {
+            await registry.register(skill)
+        }
+        for skill in SkillStore.load(from: SkillStore.userSkillsDirectory) {
+            await registry.register(skill)
+        }
+        for tool in SkillTools.makeAll(registry: registry) {
+            await tools.register(tool)
+        }
+        return SkillRuntime(registry: registry)
+    }
+
+    /// 技能进化观测：上报本轮任务（用户原文）+ 按序去重的工具序列；
+    /// 相似任务累计达阈值时自动生成技能并注册进注册表（可被后续 use_skill 复用）
+    static func observeSkillEvolution(task: String, result: AgentResult, registry: SkillRegistry) async {
+        let toolNames = result.steps.flatMap(\.content).compactMap { block -> String? in
+            if case let .toolCall(call) = block {
+                return call.name
+            }
+            return nil
+        }
+        var seen = Set<String>()
+        let deduped = toolNames.filter { seen.insert($0).inserted }
+        let engine = await SharedSkillEvolution.shared.get(registry: registry)
+        await engine.observe(sessionID: "dsh-cli", task: task, toolNames: deduped,
+                             succeeded: result.error == nil)
+        for candidate in await engine.evaluate() {
+            FileHandle.standardError.write(Data("[dsh] 技能自动沉淀：\(candidate.name)（\(candidate.evidenceCount) 次相似任务）\n".utf8))
         }
     }
 }

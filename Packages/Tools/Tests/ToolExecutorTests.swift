@@ -280,19 +280,37 @@ final class ToolExecutorTests: XCTestCase {
     }
 
     func testOnChunkStreamingPassedThrough() async {
-        let chunks = ChunkCollector()
+        let chunks = OrderedChunkCollector()
         let executor = ToolExecutor()
         let registry = ToolRegistry()
         await registry.register(ChunkyStubTool())
         let context = ToolRunContext(signal: CancellationToken(), sessionID: SessionID(), metadata: [:],
                                      onChunk: { chunk in
-                                         Task { await chunks.append(chunk) }
+                                         // 同步收集（锁保护，保持 onChunk 调用顺序）；
+                                         // 用 Task 包装会丢失顺序保证，高负载下乱序 flake
+                                         chunks.append(chunk)
                                      })
         let result = await executor.execute(ToolCall(name: "chunky_tool"), in: registry, context: context)
         XCTAssertNil(result.error)
-        try? await Task.sleep(nanoseconds: 50_000_000)
-        let received = await chunks.all
-        XCTAssertEqual(received, ["块1", "块2", "块3"])
+        XCTAssertEqual(chunks.all, ["块1", "块2", "块3"])
+    }
+}
+
+/// 顺序块收集器：onChunk 是同步回调，按调用序追加（NSLock 保护跨线程可见性）
+final class OrderedChunkCollector: @unchecked Sendable {
+    private let lock = NSLock()
+    private var items: [String] = []
+
+    var all: [String] {
+        lock.lock()
+        defer { lock.unlock() }
+        return items
+    }
+
+    func append(_ s: String) {
+        lock.lock()
+        items.append(s)
+        lock.unlock()
     }
 }
 

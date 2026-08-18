@@ -12,15 +12,30 @@ public struct Skill: Sendable, Hashable, Codable {
     public var instructions: String
     /// 标签（检索用）
     public var tags: [String]
-    /// 来源（内置 / 用户目录路径）
+    /// 来源（内置 / 用户目录路径 / auto）
     public var source: String
+    /// 版本号（更新 +1；版本管理用，旧数据缺失时按 1 解码）
+    public var version: Int
 
-    public init(name: String, description: String, instructions: String, tags: [String] = [], source: String) {
+    public init(name: String, description: String, instructions: String, tags: [String] = [], source: String,
+                version: Int = 1) {
         self.name = name
         self.description = description
         self.instructions = instructions
         self.tags = tags
         self.source = source
+        self.version = version
+    }
+
+    /// Codable 向后兼容：旧数据（无 version 字段）解码为 1
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        name = try c.decode(String.self, forKey: .name)
+        description = try c.decode(String.self, forKey: .description)
+        instructions = try c.decode(String.self, forKey: .instructions)
+        tags = try c.decodeIfPresent([String].self, forKey: .tags) ?? []
+        source = try c.decode(String.self, forKey: .source)
+        version = try c.decodeIfPresent(Int.self, forKey: .version) ?? 1
     }
 
     /// 展示用单行摘要

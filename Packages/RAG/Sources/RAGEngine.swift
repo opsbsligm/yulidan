@@ -194,10 +194,18 @@ public actor SharedRAGEngine {
     public static let shared = SharedRAGEngine()
 
     public static var defaultIndexURL: URL {
-        FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".harness")
+        harnessHomeBase()
             .appendingPathComponent("rag")
             .appendingPathComponent("index.json")
+    }
+
+    /// ~/.harness 基础目录（HARNESS_HOME 环境变量可覆盖，测试/隔离运行用）
+    private static func harnessHomeBase() -> URL {
+        if let envHome = ProcessInfo.processInfo.environment["HARNESS_HOME"], !envHome.isEmpty {
+            return URL(fileURLWithPath: (envHome as NSString).expandingTildeInPath)
+                .appendingPathComponent(".harness")
+        }
+        return FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".harness")
     }
 
     private var engine: RAGEngine?
