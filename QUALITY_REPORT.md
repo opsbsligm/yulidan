@@ -13,7 +13,7 @@
 | SwiftFormat | ✅ 0 改动 | `swiftformat . --config .swiftformat` |
 | SwiftLint | ✅ 0 违规 | `swiftlint lint --strict`（warning 按 error 计） |
 | 编译 | ✅ 通过 | `swift build`（Swift 6.3 / strict concurrency） |
-| 单元测试 | ✅ 282/282 | XCTest 73 + Swift Testing 209（47 suites），0 失败 |
+| 单元测试 | ✅ 305/305 | XCTest 90 + Swift Testing 215（48 suites），0 失败 |
 | 本地镜像备份 | ✅ 每次提交后 | `git push --mirror /Users/liguangming/code/swift-harness-backup.git` |
 | GitHub 推送 | ⏸ 暂缓 | 按用户要求先本地版本控制，未推送远端 |
 
@@ -23,24 +23,24 @@
 |------|---------|--------|------|
 | ServiceContainer | 101 | 94.2%（1658/1760） | ✅ ≥90% |
 | Agent | 35 | 93.8%（709/756） | ✅ ≥90% |
-| Skill | 15 | 96.1%（345/359） | ✅ ≥90% |
+| Skill | 15 | 96.4%（380/394） | ✅ ≥90% |
 | Subagent | 18 | 95.3%（727/763） | ✅ ≥90% |
 | Terminal | 10 | 94.9%（300/316） | ✅ ≥90% |
 | PluginXPC | 8 | 94.3%（466/494） | ✅ ≥90% |
 | Sandbox | 10 | 94.0%（156/166） | ✅ ≥90% |
 | Session | 24 | 93.0%（690/742） | ✅ ≥90% |
 | Tools | 20 | 91.2%（475/521） | ✅ ≥90% |
-| HarnessApp（App 层） | 15 | 8.5%（896/10598） | ⚠️ SwiftUI 视图层无单测；AppViewModel/ViewModel 逻辑已部分覆盖 |
+| HarnessApp（App 层） | 15 | 9.1%（979/10776） | ⚠️ SwiftUI 视图层无单测；AppViewModel/ViewModel 逻辑已部分覆盖 |
 | MCP | 13 | 87.5%（649/742） | ⚠️ stdio 客户端少量分支未覆盖 |
 | Notifications | 5 | 73.4%（91/124） | ⚠️ 授权/重试分支未覆盖 |
-| LLM | 8 | 35.5%（311/876） | ⚠️ 适配器依赖真实 HTTP，集成测试待补 |
+| LLM | 25 | 82.5%（1035/1254） | ⚠️ HTTP 层已有 17 个零网络桩测试；余 SSE 边界/流式错误分支 |
 | HarnessCore | 0 | 66.7%（32/48） | ⚠️ 待补测试 |
 
-**总计: 282 个测试用例（XCTest 73 + Swift Testing 209），全部通过。**
+**总计: 305 个测试用例（XCTest 90 + Swift Testing 215），全部通过。**
 
 > 核心包（ServiceContainer / Agent / Session / Tools / Subagent / Skill / Terminal / Sandbox / PluginXPC）行覆盖全部 ≥90%，满足验收标准。
 
-## 三、rc.2 之后新增能力（34 个提交）
+## 三、rc.2 之后新增能力（41 个提交）
 
 ### 模型与工具
 - LLM 真实适配器：OpenAI / DeepSeek / Anthropic / 本地 Ollama·vLLM（OpenAI 兼容协议）
@@ -63,7 +63,8 @@
 - Agent 工具：list_skills（列技能）/ use_skill（按名加载指令，未找到返回 skill_not_found）
 - 内置技能 ×3：git-commit / code-review / ops-troubleshoot
 - App「技能」页：列表（内置/用户徽章）/ 新建 / 编辑（名称锁定）/ 删除 / 展开正文
-- CLI：dsh skills list / dsh skills show <名称>
+- CLI：dsh skills list / show / export / import
+- App 技能页导入（NSOpenPanel）/ 导出（NSSavePanel），与 CLI 文件格式互通
 
 ### App / 插件
 - macOS 系统通知（生成完成/失败，设置可开关）
@@ -73,6 +74,7 @@
 - Codex 风格 UI 重构 + 远程窗口看门狗 + 碎片化窗口重建兜底
 
 ### 工程
+- LLM HTTP 层桩测试 17 用例（URLProtocol 注入 session，零网络）；修复 Anthropic system 提示词重复发送 bug + stream 回退路径 JSON 崩溃
 - DSH CLI：provider 解析 + 真实对话
 - `tools/rebuild-app.sh` 一键重建 .app 壳
 - HarnessAppTests 测试目标（App 层单测）
@@ -100,8 +102,9 @@
 
 ## 六、改进建议（按优先级）
 
-1. **LLM 适配器 HTTP 层**：补请求构造/错误处理集成测试（当前 35.5%，受真实网络限制）
-2. **HarnessApp 视图层**：XCUITest 或快照测试（当前 6.7%；AppViewModel 32.8% 已部分覆盖）
-3. **Notifications 73.4%**：补授权拒绝/重试分支
-4. **MCP 87.5%**：补 stdio 客户端异常分支
-5. **Spotlight / Shortcuts**：需正式 bundle 签名注册，debug 壳不适用，暂缓
+1. **HarnessApp 视图层**：XCUITest 或快照测试（当前 9.1%；AppViewModel 已部分覆盖）——现为最大短板
+2. ~~**LLM 适配器 HTTP 层**~~：✅ 已解决（2026-08-18）17 个 URLProtocol 零网络桩测试，35.5% → 82.5%
+3. **HarnessCore 66.7%**：32/48，小模块待补测试
+4. **Notifications 73.4%**：补授权拒绝/重试分支
+5. **MCP 87.5%**：补 stdio 客户端异常分支
+6. **Spotlight / Shortcuts**：需正式 bundle 签名注册，debug 壳不适用，暂缓
