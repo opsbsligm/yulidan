@@ -27,4 +27,14 @@ public actor ToolRegistry {
     public func clear() {
         tools.removeAll()
     }
+
+    /// 全部工具名（MCP list_changed 重装配时清理旧工具用）
+    public func names() -> [String] {
+        tools.keys.sorted()
+    }
+
+    /// 按名注销（不存在时静默）
+    public func unregister(named name: String) {
+        tools[name] = nil
+    }
 }

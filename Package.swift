@@ -74,7 +74,7 @@ let package = Package(
 
         .executableTarget(name: "DSHCLI",
                           dependencies: ["HarnessCore", "Agent", "Subagent", "LLM", "Tools", "ServiceContainer", "Session",
-                                         "Skill", "WebUI", "Prompt", .product(name: "ArgumentParser", package: "swift-argument-parser")],
+                                         "Skill", "WebUI", "Prompt", "MCP", .product(name: "ArgumentParser", package: "swift-argument-parser")],
                           path: "Apps/DSHCLI/Sources"),
 
         // 内存/性能探针

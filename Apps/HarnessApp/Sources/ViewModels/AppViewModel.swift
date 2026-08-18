@@ -436,6 +436,16 @@ final class AppViewModel: ObservableObject {
         for tool in await mcpManager.makeTools() {
             await toolRegistry.register(tool)
         }
+        // 服务发现：连接 ~/.harness/mcp/servers.json 中声明的 stdio 服务器，工具自动注册进主 Agent 注册表
+        // （后台进行，不阻塞启动；连接失败不影响其它服务器）
+        let configs = MCPDiscovery.loadConfigs()
+        for config in configs {
+            Task { [weak self] in
+                guard let self else { return }
+                _ = await mcpManager.connectStdio(config, into: toolRegistry)
+                await refreshTools()
+            }
+        }
         await refreshTools()
     }
 

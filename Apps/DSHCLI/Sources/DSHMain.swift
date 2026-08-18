@@ -3,6 +3,7 @@ import ArgumentParser
 import Foundation
 import HarnessCore
 import LLM
+import MCP
 import Prompt
 import ServiceContainer
 import Session
@@ -18,7 +19,7 @@ struct DSH: AsyncParsableCommand {
         abstract: "Swift Harness — macOS Native AI Agent Framework",
         version: "0.1.0",
         subcommands: [WebCommand.self, HeadlessCommand.self, PluginCommand.self, AgentsCommand.self,
-                      SkillsCommand.self]
+                      SkillsCommand.self, MCPCommand.self]
     )
 }
 
@@ -135,6 +136,8 @@ struct HeadlessCommand: AsyncParsableCommand {
         for tool in BuiltinTools.makeAll() {
             await tools.register(tool)
         }
+        // MCP 服务发现：连接 ~/.harness/mcp/servers.json 声明的 stdio 服务器，工具自动注册
+        await connectMCPServers(to: tools)
         // 提示词工程层：用户未显式配置系统提示词时，渲染内置 agent 角色模板（模型差异化自动适配）
         let promptEngine = await SharedPromptEngine.instance.get()
         var systemPrompt = cfg.systemPrompt
@@ -178,6 +181,21 @@ struct HeadlessCommand: AsyncParsableCommand {
         }
         if result.messages.isEmpty {
             print("（Agent 未产生文本回复）")
+        }
+    } // MCP 服务发现：逐个连接 stdio 服务器，工具自动注册进给定注册表（失败仅提示，不中断）
+    private func connectMCPServers(to tools: ToolRegistry) async {
+        let configs = MCPDiscovery.loadConfigs()
+        guard !configs.isEmpty else {
+            return
+        }
+        let manager = MCPServerManager()
+        for config in configs {
+            let descriptor = await manager.connectStdio(config, into: tools)
+            if descriptor.isAvailable {
+                FileHandle.standardError.write(Data("[dsh] MCP 已连接：\(config.name)（\(descriptor.toolCount ?? 0) 个工具）\n".utf8))
+            } else {
+                FileHandle.standardError.write(Data("[dsh] MCP 连接失败：\(config.name)\n".utf8))
+            }
         }
     }
 }
