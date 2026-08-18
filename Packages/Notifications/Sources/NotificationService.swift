@@ -9,23 +9,66 @@ public protocol NotificationService: Sendable {
     func post(title: String, body: String?, identifier: String?)
 }
 
-/// macOS 系统通知实现（UNUserNotificationCenter）
-public final class SystemNotificationService: NotificationService, @unchecked Sendable {
+/// 授权状态抽象（UNNotificationSettings 无法在测试中构造，故抽象为值类型）
+public enum AuthorizationState: Sendable {
+    case authorized // authorized / provisional / ephemeral 均视为可用
+    case notDetermined
+    case denied
+    case other // @unknown default
+}
+
+/// 系统通知中心薄封装（协议化以便测试注入替身；真实实现走 UNUserNotificationCenter）
+public protocol NotificationCenterProtocol: Sendable {
+    func authorizationStatus() async -> AuthorizationState
+    func requestAuthorization(options: UNAuthorizationOptions) async throws -> Bool
+    /// 投递请求（尽力而为，系统 API 的失败不阻塞调用方）
+    func add(_ request: UNNotificationRequest)
+}
+
+public final class SystemNotificationCenter: NotificationCenterProtocol, @unchecked Sendable {
     private let center = UNUserNotificationCenter.current()
 
     public init() {}
 
+    public func authorizationStatus() async -> AuthorizationState {
+        let settings = await center.notificationSettings()
+        switch settings.authorizationStatus {
+        case .authorized, .provisional, .ephemeral:
+            return .authorized
+        case .notDetermined:
+            return .notDetermined
+        case .denied:
+            return .denied
+        @unknown default:
+            return .other
+        }
+    }
+
+    public func requestAuthorization(options: UNAuthorizationOptions) async throws -> Bool {
+        try await center.requestAuthorization(options: options)
+    }
+
+    public func add(_ request: UNNotificationRequest) {
+        try? center.add(request)
+    }
+}
+
+/// macOS 系统通知实现（UNUserNotificationCenter）
+public final class SystemNotificationService: NotificationService, @unchecked Sendable {
+    private let center: any NotificationCenterProtocol
+
+    public init(center: any NotificationCenterProtocol = SystemNotificationCenter()) {
+        self.center = center
+    }
+
     public func requestAuthorization() async -> Bool {
         do {
-            let settings = await center.notificationSettings()
-            switch settings.authorizationStatus {
-            case .authorized, .provisional, .ephemeral:
+            switch await center.authorizationStatus() {
+            case .authorized:
                 return true
             case .notDetermined:
                 return try await center.requestAuthorization(options: [.alert, .sound])
-            case .denied:
-                return false
-            @unknown default:
+            case .denied, .other:
                 return false
             }
         } catch {
@@ -41,7 +84,7 @@ public final class SystemNotificationService: NotificationService, @unchecked Se
         }
         content.sound = .default
         let request = UNNotificationRequest(identifier: identifier ?? UUID().uuidString, content: content, trigger: nil)
-        try? center.add(request)
+        center.add(request)
     }
 }
 

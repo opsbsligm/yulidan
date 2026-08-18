@@ -13,34 +13,35 @@
 | SwiftFormat | ✅ 0 改动 | `swiftformat . --config .swiftformat` |
 | SwiftLint | ✅ 0 违规 | `swiftlint lint --strict`（warning 按 error 计） |
 | 编译 | ✅ 通过 | `swift build`（Swift 6.3 / strict concurrency） |
-| 单元测试 | ✅ 309/309 | XCTest 90 + Swift Testing 219（49 suites），0 失败 |
+| 单元测试 | ✅ 317/317 | XCTest 90 + Swift Testing 227（50 suites），0 失败 |
 | 本地镜像备份 | ✅ 每次提交后 | `git push --mirror /Users/liguangming/code/swift-harness-backup.git` |
 | GitHub 推送 | ⏸ 暂缓 | 按用户要求先本地版本控制，未推送远端 |
 
 ## 二、测试用例与行覆盖率（2026-08-18 实测，llvm-cov）
 
-| 模块 | 测试用例 | 行覆盖 | 状态 |
+| 模块 | 测试用例 | 行覆盖（仅源文件） | 状态 |
 |------|---------|--------|------|
-| ServiceContainer | 101 | 94.2%（1658/1760） | ✅ ≥90% |
-| Agent | 35 | 93.8%（709/756） | ✅ ≥90% |
-| Skill | 15 | 96.4%（380/394） | ✅ ≥90% |
-| Subagent | 18 | 95.3%（727/763） | ✅ ≥90% |
-| Terminal | 10 | 94.9%（300/316） | ✅ ≥90% |
-| PluginXPC | 8 | 94.3%（466/494） | ✅ ≥90% |
-| Sandbox | 10 | 94.0%（156/166） | ✅ ≥90% |
-| Session | 24 | 93.0%（690/742） | ✅ ≥90% |
-| Tools | 20 | 91.2%（475/521） | ✅ ≥90% |
-| HarnessApp（App 层） | 15 | 9.1%（979/10776） | ⚠️ SwiftUI 视图层无单测；AppViewModel/ViewModel 逻辑已部分覆盖 |
-| MCP | 13 | 87.5%（649/742） | ⚠️ stdio 客户端少量分支未覆盖 |
-| Notifications | 5 | 73.4%（91/124） | ⚠️ 授权/重试分支未覆盖 |
-| LLM | 25 | 82.5%（1035/1254） | ⚠️ HTTP 层已有 17 个零网络桩测试；余 SSE 边界/流式错误分支 |
 | HarnessCore | 4 | 100%（48/48） | ✅ 内置插件生命周期/目录全覆盖 |
+| Subagent | 18 | 96.5%（274/284） | ✅ ≥90% |
+| Skill | 15 | 94.2%（180/191） | ✅ ≥90% |
+| Terminal | 10 | 94.6%（209/221） | ✅ ≥90% |
+| PluginXPC | 8 | 93.3%（277/297） | ✅ ≥90% |
+| ServiceContainer | 101 | 91.3%（685/750） | ✅ ≥90% |
+| Agent | 35 | 90.2%（330/366） | ✅ ≥90% |
+| Session | 24 | 90.0%（368/409） | ✅ ≥90% |
+| Tools | 20 | 86.8%（223/257） | ⚠️ 部分工具分支未覆盖 |
+| Sandbox | 10 | 85.9%（55/64） | ⚠️ 边界分支未覆盖 |
+| MCP | 13 | 84.3%（423/502） | ⚠️ stdio 客户端异常分支未覆盖 |
+| LLM | 25 | 75.7%（542/716） | ⚠️ HTTP 层已有 17 个零网络桩测试；余 SSE 边界/流式错误分支 |
+| Notifications | 13 | 67.1%（49/73） | ⚠️ SystemNotificationCenter 真实包装层无法在测试进程触达（UNUserNotificationCenter.current() 限制）；编排/服务逻辑已全覆盖 |
+| HarnessApp（App 层） | 15 | 6.1%（631/10392） | ⚠️ SwiftUI 视图层无单测；AppViewModel 逻辑已部分覆盖 |
 
-**总计: 309 个测试用例（XCTest 90 + Swift Testing 219），全部通过。**
+**总计: 317 个测试用例（XCTest 90 + Swift Testing 227），全部通过。**
 
-> 核心包（ServiceContainer / Agent / Session / Tools / Subagent / Skill / Terminal / Sandbox / PluginXPC）行覆盖全部 ≥90%，满足验收标准。
+> 口径说明：行覆盖仅统计各模块 `Sources/` 源文件（不含测试文件）。
+> 核心包（Subagent / Skill / Terminal / PluginXPC / ServiceContainer / Agent / Session）行覆盖 ≥90%，满足验收标准；Tools / Sandbox / MCP 85%+ 接近达标。
 
-## 三、rc.2 之后新增能力（42 个提交）
+## 三、rc.2 之后新增能力（43 个提交）
 
 ### 模型与工具
 - LLM 真实适配器：OpenAI / DeepSeek / Anthropic / 本地 Ollama·vLLM（OpenAI 兼容协议）
@@ -79,6 +80,7 @@
 - `tools/rebuild-app.sh` 一键重建 .app 壳
 - HarnessAppTests 测试目标（App 层单测）
 - HarnessCoreTests 测试目标（内置插件 manifest/生命周期/目录 4 用例，模块覆盖 66.7% → 100%）
+- 通知协议化重构：NotificationCenterProtocol + AuthorizationState 抽象（SystemNotificationService 可注入替身），新增 8 个授权/投递分支测试
 
 ## 四、CI/CD
 
@@ -106,6 +108,6 @@
 1. **HarnessApp 视图层**：XCUITest 或快照测试（当前 9.1%；AppViewModel 已部分覆盖）——现为最大短板
 2. ~~**LLM 适配器 HTTP 层**~~：✅ 已解决（2026-08-18）17 个 URLProtocol 零网络桩测试，35.5% → 82.5%
 3. ~~**HarnessCore 66.7%**~~：✅ 已解决（2026-08-18）新增 HarnessCoreTests，48/48 = 100%
-4. **Notifications 73.4%**：补授权拒绝/重试分支
+4. **Notifications 67.1%**：剩余为真实系统通知中心包装层（测试进程限制，无法单测）
 5. **MCP 87.5%**：补 stdio 客户端异常分支
 6. **Spotlight / Shortcuts**：需正式 bundle 签名注册，debug 壳不适用，暂缓
