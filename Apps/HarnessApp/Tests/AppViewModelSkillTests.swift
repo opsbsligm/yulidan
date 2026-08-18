@@ -78,7 +78,7 @@ struct AppViewModelSkillTests {
         #expect(FileManager.default.fileExists(atPath: file.path))
         let target = vm.skills.first { $0.name == "temp-skill" }
         try vm.deleteUserSkill(#require(target))
-        await waitForSkill(vm, name: "temp-skill", expectPresent: false)
+        _ = await waitForSkill(vm, name: "temp-skill", expectPresent: false)
         #expect(FileManager.default.fileExists(atPath: file.path) == false)
     }
 

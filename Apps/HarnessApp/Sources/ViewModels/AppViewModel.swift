@@ -3,6 +3,7 @@ import AppKit
 import Foundation
 import HarnessCore
 import LLM
+import Memory
 import Notifications
 import PluginXPC
 import Prompt
@@ -301,6 +302,8 @@ final class AppViewModel: ObservableObject {
     let toolRegistry: ToolRegistry
     let mcpManager: MCPServerManager
     let subagentCoordinator: SubagentCoordinator
+    /// 记忆引擎（registerStartupTools 装配后生效；nil = 未就绪）
+    private var memoryEngine: MemoryEngine?
     /// 子任务工具注册表（仅内置工具，不含 spawn_subagent，防递归派生）
     let subagentToolRegistry: ToolRegistry = .init()
     /// 技能注册表（内置 + ~/.harness/skills 用户目录）
@@ -453,6 +456,13 @@ final class AppViewModel: ObservableObject {
         for tool in KnowledgeTools.makeAll(engine: ragEngine) {
             await toolRegistry.register(tool)
         }
+        // 记忆系统：长期记忆 + 反馈闭环（~/.harness/memory/longterm.json；与 RAG 联动）
+        let memoryEngine = await SharedMemoryEngine.shared.get()
+        await memoryEngine.attachRAG(ragEngine)
+        for tool in MemoryTools.makeAll(engine: memoryEngine) {
+            await toolRegistry.register(tool)
+        }
+        self.memoryEngine = memoryEngine
         await refreshTools()
     }
 
@@ -965,11 +975,8 @@ final class AppViewModel: ObservableObject {
             return LLM.Message(role: m.role == .user ? .user : .assistant,
                                content: [.text(m.content)])
         }
-        // 提示词工程层：用户未配置系统提示词时渲染内置 agent 模板
-        let promptEngine = await SharedPromptEngine.instance.get()
-        let systemPrompt = await cfg.systemPrompt.isEmpty
-            ? (try? promptEngine.renderSystemPrompt(template: PromptEngine.agentTemplate, model: cfg.modelName))
-            : cfg.systemPrompt
+        // 提示词工程层 + 记忆系统：系统提示词（内置模板/用户配置 + 相关长期记忆注入 {{#context}}）
+        let systemPrompt = await buildSystemPrompt(model: cfg.modelName, userConfigured: cfg.systemPrompt)
         let request = LLMRequest(
             model: cfg.modelName,
             messages: history,
@@ -994,6 +1001,8 @@ final class AppViewModel: ObservableObject {
             isGenerating = false
             generationError = nil
             persistSession()
+            // 记忆反馈闭环：蒸馏本轮交换（显式记住/纠正/决策/事实）→ 长期记忆
+            await processMemoryFeedback(userText: lastUserMessage, assistantText: content)
             await notifyGeneration(error: nil)
         } catch is CancellationError {
             isGenerating = false
@@ -1010,6 +1019,33 @@ final class AppViewModel: ObservableObject {
             generationError = desc
             isGenerating = false
             await notifyGeneration(error: desc)
+        }
+    }
+
+    /// 系统提示词：用户显式配置优先；否则渲染内置 agent 模板并注入相关长期记忆
+    private func buildSystemPrompt(model: String, userConfigured: String) async -> String? {
+        if !userConfigured.isEmpty {
+            return userConfigured
+        }
+        let promptEngine = await SharedPromptEngine.instance.get()
+        var promptContext = PromptContext()
+        if let memoryEngine, !lastUserMessage.isEmpty,
+           let section = await memoryEngine.promptSection(query: lastUserMessage) {
+            promptContext.blocks["context"] = section
+        }
+        return try? await promptEngine.renderSystemPrompt(template: PromptEngine.agentTemplate, model: model,
+                                                          context: promptContext)
+    }
+
+    /// 记忆反馈闭环：对本轮交换做启发式蒸馏，命中规则则写入长期记忆并落盘
+    private func processMemoryFeedback(userText: String, assistantText: String) async {
+        guard let memoryEngine else { return }
+        let sessionID = selectedSession?.id.rawValue.uuidString ?? "app"
+        let exchanges = [MemoryExchange(role: .user, text: userText),
+                         MemoryExchange(role: .assistant, text: assistantText)]
+        let stored = await memoryEngine.consolidateSession(sessionID: sessionID, exchanges: exchanges)
+        if stored > 0 {
+            await memoryEngine.save()
         }
     }
 

@@ -4,6 +4,7 @@ import Foundation
 import HarnessCore
 import LLM
 import MCP
+import Memory
 import Prompt
 import RAG
 import ServiceContainer
@@ -128,14 +129,6 @@ struct HeadlessCommand: AsyncParsableCommand {
     @Flag(name: .shortAndLong, help: "Show tool call details")
     var verbose: Bool = false
 
-    /// RAG 知识库工具注册（进程级共享索引 ~/.harness/rag/index.json，与 App 同一份库）
-    private static func registerRAGTools(to tools: ToolRegistry) async {
-        let ragEngine = await SharedRAGEngine.shared.get()
-        for tool in KnowledgeTools.makeAll(engine: ragEngine) {
-            await tools.register(tool)
-        }
-    }
-
     func run() async throws {
         let cfg = try DSHConfig.resolve()
         FileHandle.standardError.write(Data("[dsh] \(cfg.baseURL.absoluteString) / \(cfg.model)\n".utf8))
@@ -150,10 +143,13 @@ struct HeadlessCommand: AsyncParsableCommand {
         // RAG 知识库：注册 search_knowledge / add_knowledge / list_knowledge 工具
         await Self.registerRAGTools(to: tools)
         // 提示词工程层：用户未显式配置系统提示词时，渲染内置 agent 角色模板（模型差异化自动适配）
+        // 记忆系统：相关长期记忆注入 {{#context}} 条件块
+        let promptContext = await Self.memoryPromptContext(query: prompt)
         let promptEngine = await SharedPromptEngine.instance.get()
         var systemPrompt = cfg.systemPrompt
         if systemPrompt == nil {
-            systemPrompt = try? await promptEngine.renderSystemPrompt(template: PromptEngine.agentTemplate, model: cfg.model)
+            systemPrompt = try? await promptEngine.renderSystemPrompt(template: PromptEngine.agentTemplate,
+                                                                      model: cfg.model, context: promptContext)
         }
         let loop = AgentLoop(
             id: AgentID(), sessionID: SessionID(), llm: llm, tools: tools,
@@ -193,6 +189,8 @@ struct HeadlessCommand: AsyncParsableCommand {
         if result.messages.isEmpty {
             print("（Agent 未产生文本回复）")
         }
+        // 记忆反馈闭环：蒸馏本轮交换（显式记住/纠正/决策/事实）→ 长期记忆，并落盘
+        await Self.processMemoryFeedback(prompt: prompt, result: result)
     } // MCP 服务发现：逐个连接 stdio 服务器，工具自动注册进给定注册表（失败仅提示，不中断）
     private func connectMCPServers(to tools: ToolRegistry) async {
         let configs = MCPDiscovery.loadConfigs()
