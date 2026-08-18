@@ -61,13 +61,20 @@ let package = Package(
                     dependencies: ["WebUI", "Session", "LLM", "Agent", "Tools"],
                     path: "Packages/WebUI/Tests"),
 
+        .target(name: "Prompt",
+                dependencies: ["ServiceContainer"],
+                path: "Packages/Prompt/Sources"),
+        .testTarget(name: "PromptTests",
+                    dependencies: ["Prompt", "ServiceContainer"],
+                    path: "Packages/Prompt/Tests"),
+
         .target(name: "HarnessCore",
                 dependencies: ["ServiceContainer", "Session", "LLM", "Tools", "Agent"],
                 path: "Apps/HarnessCore/Sources"),
 
         .executableTarget(name: "DSHCLI",
                           dependencies: ["HarnessCore", "Agent", "Subagent", "LLM", "Tools", "ServiceContainer", "Session",
-                                         "Skill", "WebUI", .product(name: "ArgumentParser", package: "swift-argument-parser")],
+                                         "Skill", "WebUI", "Prompt", .product(name: "ArgumentParser", package: "swift-argument-parser")],
                           path: "Apps/DSHCLI/Sources"),
 
         // 内存/性能探针
@@ -79,7 +86,7 @@ let package = Package(
         .executableTarget(name: "HarnessApp",
                           dependencies: ["HarnessCore", "ServiceContainer", "Session", "LLM", "Tools", "Agent",
                                          "Subagent", "MCP", "Terminal", "Sandbox", "Notifications", "PluginXPC",
-                                         "Skill"],
+                                         "Skill", "Prompt"],
                           path: "Apps/HarnessApp/Sources"),
         .testTarget(name: "HarnessAppTests",
                     dependencies: ["HarnessApp", "Agent", "Subagent", "Session", "LLM", "Tools"],

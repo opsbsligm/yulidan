@@ -3,6 +3,7 @@ import ArgumentParser
 import Foundation
 import HarnessCore
 import LLM
+import Prompt
 import ServiceContainer
 import Session
 import Skill
@@ -134,9 +135,15 @@ struct HeadlessCommand: AsyncParsableCommand {
         for tool in BuiltinTools.makeAll() {
             await tools.register(tool)
         }
+        // 提示词工程层：用户未显式配置系统提示词时，渲染内置 agent 角色模板（模型差异化自动适配）
+        let promptEngine = await SharedPromptEngine.instance.get()
+        var systemPrompt = cfg.systemPrompt
+        if systemPrompt == nil {
+            systemPrompt = try? await promptEngine.renderSystemPrompt(template: PromptEngine.agentTemplate, model: cfg.model)
+        }
         let loop = AgentLoop(
             id: AgentID(), sessionID: SessionID(), llm: llm, tools: tools,
-            model: cfg.model, systemPrompt: cfg.systemPrompt, maxSteps: cfg.maxSteps
+            model: cfg.model, systemPrompt: systemPrompt, maxSteps: cfg.maxSteps
         )
 
         let startTurns = await loop.turnNumber
@@ -228,11 +235,16 @@ struct AgentsRunCommand: AsyncParsableCommand {
         for tool in BuiltinTools.makeAll() {
             await tools.register(tool)
         }
+        let promptEngine = await SharedPromptEngine.instance.get()
+        var systemPrompt = cfg.systemPrompt
+        if systemPrompt == nil {
+            systemPrompt = try? await promptEngine.renderSystemPrompt(template: PromptEngine.subagentTemplate, model: cfg.model)
+        }
         let coordinator = SubagentCoordinator(maxConcurrent: max(1, parallel), onEvent: Self.logEvent)
         for (index, task) in tasks.enumerated() {
             let agent = AgentLoop(
                 sessionID: SessionID(), llm: llm, tools: tools,
-                model: cfg.model, systemPrompt: cfg.systemPrompt, maxSteps: cfg.maxSteps
+                model: cfg.model, systemPrompt: systemPrompt, maxSteps: cfg.maxSteps
             )
             let name = "task\(index + 1): \(String(task.prefix(16)))"
             _ = await coordinator.spawn(agent: agent, spec: .init(name: name, task: task, timeout: timeout))

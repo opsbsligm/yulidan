@@ -241,7 +241,7 @@ public struct TerminalRunner: Sendable {
     }
 
     /// @unchecked Sendable 盒子：把 Process/Pipe 传给 @Sendable 闭包
-    private final class RunBox {
+    private final class RunBox: @unchecked Sendable {
         let process: Process
         let outPipe: Pipe
         let errPipe: Pipe

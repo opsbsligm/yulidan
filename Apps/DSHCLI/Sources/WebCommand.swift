@@ -2,6 +2,7 @@ import Agent
 import ArgumentParser
 import Foundation
 import LLM
+import Prompt
 import Tools
 import WebUI
 
@@ -30,11 +31,16 @@ struct WebCommand: AsyncParsableCommand {
         FileHandle.standardError.write(Data("[dsh] Web UI: \(cfg.baseURL.absoluteString) / \(cfg.model)\n".utf8))
 
         let llm = ProviderFactory.make(cfg)
+        let promptEngine = await SharedPromptEngine.instance.get()
+        var systemPrompt = cfg.systemPrompt
+        if systemPrompt == nil {
+            systemPrompt = try? await promptEngine.renderSystemPrompt(template: PromptEngine.agentTemplate, model: cfg.model)
+        }
         let app = WebUIApp(config: WebUIApp.Config(
             llm: llm,
             toolFactory: { BuiltinTools.makeAll() },
             model: cfg.model,
-            systemPrompt: cfg.systemPrompt,
+            systemPrompt: systemPrompt,
             maxSteps: cfg.maxSteps
         ))
         guard port >= 1, port <= 65535 else {

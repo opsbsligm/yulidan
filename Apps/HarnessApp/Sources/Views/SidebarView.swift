@@ -117,7 +117,7 @@ struct SidebarView: View {
                         .font(.system(size: 11))
                         .foregroundStyle(HarnessTheme.textTertiary)
                     TextField("搜索对话", text: $searchText)
-                        .onChange(of: searchText) { newValue in
+                        .onChange(of: searchText) { _, newValue in
                             onSearch(newValue)
                         }
                         .font(.system(size: 12))

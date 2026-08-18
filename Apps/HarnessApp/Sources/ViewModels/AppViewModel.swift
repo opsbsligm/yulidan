@@ -5,6 +5,7 @@ import HarnessCore
 import LLM
 import Notifications
 import PluginXPC
+import Prompt
 import Sandbox
 
 // 技术债：本文件/类超过长度阈值，计划拆分为 会话管理 / 生成流程 / 设置 三个 ViewModel（见 docs/CODE_REVIEW.md）
@@ -388,11 +389,17 @@ final class AppViewModel: ObservableObject {
         for tool in BuiltinTools.makeAll(sandbox: Self.makeSandboxFromSettings()) {
             await subagentToolRegistry.register(tool)
         }
+        // 提示词工程层：子 Agent 角色模板（模型差异化适配；失败回退原文案）
+        let promptEngine = await SharedPromptEngine.instance.get()
+        let subagentPrompt = await (try? promptEngine.renderSystemPrompt(
+            template: PromptEngine.subagentTemplate, model: llmConfig.modelName
+        ))
+            ?? "你是子任务执行 Agent：直接完成给定任务，输出简洁，不要反问。"
         let tool = SpawnSubagentTool(
             coordinator: subagentCoordinator,
             subTools: subagentToolRegistry,
             model: llmConfig.modelName,
-            systemPrompt: "你是子任务执行 Agent：直接完成给定任务，输出简洁，不要反问。",
+            systemPrompt: subagentPrompt,
             makeLLM: { [weak self] in
                 await MainActor.run {
                     guard let self, self.hasAPIKey else { return nil }
@@ -941,10 +948,15 @@ final class AppViewModel: ObservableObject {
             return LLM.Message(role: m.role == .user ? .user : .assistant,
                                content: [.text(m.content)])
         }
+        // 提示词工程层：用户未配置系统提示词时渲染内置 agent 模板
+        let promptEngine = await SharedPromptEngine.instance.get()
+        let systemPrompt = await cfg.systemPrompt.isEmpty
+            ? (try? promptEngine.renderSystemPrompt(template: PromptEngine.agentTemplate, model: cfg.modelName))
+            : cfg.systemPrompt
         let request = LLMRequest(
             model: cfg.modelName,
             messages: history,
-            systemPrompt: cfg.systemPrompt.isEmpty ? nil : cfg.systemPrompt,
+            systemPrompt: systemPrompt,
             maxTokens: cfg.maxTokens
         )
         let provider = makeProvider(cfg, key: key)
@@ -1127,7 +1139,7 @@ final class AppViewModel: ObservableObject {
         Task {
             await notificationCenter.setEnabled(enabled)
             if enabled {
-                await notificationCenter.ensureAuthorization()
+                _ = await notificationCenter.ensureAuthorization()
             }
         }
     }
@@ -1238,14 +1250,22 @@ final class AppViewModel: ObservableObject {
         }
         let key = KeychainStorage.getAPIKey(forProvider: llmConfig.providerRaw) ?? ""
         let provider = makeProvider(llmConfig, key: key)
-        let agent = AgentLoop(
-            sessionID: SessionID(),
-            llm: provider,
-            tools: subagentToolRegistry,
-            model: llmConfig.modelName,
-            systemPrompt: "你是子任务执行 Agent：直接完成给定任务，输出简洁结果，不要反问。"
-        )
+        let model = llmConfig.modelName
+        let tools = subagentToolRegistry
         Task {
+            // 提示词工程层：子 Agent 角色模板（模型差异化适配；失败回退原文案）
+            let promptEngine = await SharedPromptEngine.instance.get()
+            let subagentPrompt = await (try? promptEngine.renderSystemPrompt(
+                template: PromptEngine.subagentTemplate, model: model
+            ))
+                ?? "你是子任务执行 Agent：直接完成给定任务，输出简洁结果，不要反问。"
+            let agent = AgentLoop(
+                sessionID: SessionID(),
+                llm: provider,
+                tools: tools,
+                model: model,
+                systemPrompt: subagentPrompt
+            )
             let id = await subagentCoordinator.spawn(agent: agent, spec: SubagentSpec(name: name, task: task, timeout: timeout))
             showToast("已派生子任务：\(name)")
             let state = await subagentCoordinator.waitFor(id)

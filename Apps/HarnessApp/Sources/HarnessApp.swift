@@ -35,8 +35,8 @@ extension AppDelegate {
     /// 远程排障：HARNESS_DEBUG=1 时把窗口状态写 /tmp/harness-debug.log
     static let debugEnabled = ProcessInfo.processInfo.environment["HARNESS_DEBUG"] == "1"
     /// 重建窗口预算：窗口服务器持续碎片化时防止无限重建刷屏（最多 2 次，间隔 ≥30s）
-    static let recreateBudget = OSAllocatedUnfairLock<Int>(initialState: 2)
-    static let lastRecreate = OSAllocatedUnfairLock<Date?>(initialState: nil)
+    nonisolated static let recreateBudget = OSAllocatedUnfairLock<Int>(initialState: 2)
+    nonisolated static let lastRecreate = OSAllocatedUnfairLock<Date?>(initialState: nil)
 
     enum RecreateState {
         /// 有预算且距上次重建 ≥30s 才允许；成功放行时消耗预算
@@ -76,6 +76,7 @@ extension AppDelegate {
     }
 }
 
+@MainActor
 class AppDelegate: NSObject, NSApplicationDelegate {
     private var window: NSWindow?
     /// 长生命周期 hosting：重建窗口时复用，避免 AppViewModel（会话状态）丢失
@@ -151,57 +152,65 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     /// 不一致则钉回目标屏（面积最大的屏 = 用户主屏）并强制重映射，保证窗口始终可见
     private var frameWatchdog: Timer?
 
+    /// 帧监视器连续异常计数（主线程 Timer 回调使用）
+    private var frameMismatch = OSAllocatedUnfairLock<Int>(initialState: 0)
+
     private func startFrameWatchdog(for window: NSWindow) {
-        let mismatch = OSAllocatedUnfairLock<Int>(initialState: 0)
         frameWatchdog = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak window] _ in
             guard let window else { return }
-            if window.isMiniaturized {
-                window.deminiaturize(nil)
-                return
+            // Timer 挂在主 run loop：回调在主线程执行
+            MainActor.assumeIsolated {
+                self.watchdogTick(window: window)
             }
-            guard let target = NSScreen.screens.max(by: {
-                $0.frame.width * $0.frame.height < $1.frame.width * $1.frame.height
-            }) else { return }
-
-            // 应用侧认为的 frame 已经在目标屏可见区 → 还需和窗口服务器实际边界对账
-            let appSideOK = window.screen == target && target.visibleFrame.intersects(window.frame)
-            let serverOK = Self.cgWindowBounds(windowNumber: window.windowNumber).map { cg in
-                let expected = Self.appKitToCG(window.frame)
-                return abs(cg.width - expected.width) <= 64 && abs(cg.height - expected.height) <= 64
-            } ?? false
-
-            if appSideOK, serverOK {
-                mismatch.withLock { $0 = 0 }
-                return
-            }
-            let screenDesc = String(describing: window.screen?.frame)
-            let state = "win#\(window.windowNumber) frame=\(window.frame) appOK=\(appSideOK) srvOK=\(serverOK) scr=\(screenDesc) tgt=\(target.frame)"
-            AppDelegate.debugLog("watchdog mismatch " + state)
-            let n = mismatch.withLock { count in
-                count += 1
-                return count
-            }
-            // 连续 2 次异常才重映射，避免瞬时抖动导致闪烁
-            guard n >= 2 else { return }
-            // 连续 4 次仍异常（重映射已失效，窗口被压成碎片）→ 重建窗口
-            if n >= 4 {
-                mismatch.withLock { $0 = 0 }
-                let now = Date()
-                let budgetOK = AppDelegate.RecreateState.allow(now: now)
-                AppDelegate.debugLog("watchdog recreate-check budgetOK=\(budgetOK)")
-                if budgetOK, let delegate = appDelegateInstance {
-                    MainActor.assumeIsolated {
-                        delegate.recreateWindow(target: target)
-                    }
-                }
-                return
-            }
-            // 不清零：让计数持续累积，重映射无效时升级到现场重建
-            window.orderOut(nil)
-            window.setFrame(target.visibleFrame, display: true)
-            window.makeKeyAndOrderFront(nil)
-            AppDelegate.debugLog("watchdog REMAPPED to \(target.visibleFrame) -> win#\(window.windowNumber) frame=\(window.frame)")
         }
+    }
+
+    @MainActor
+    private func watchdogTick(window: NSWindow) {
+        if window.isMiniaturized {
+            window.deminiaturize(nil)
+            return
+        }
+        guard let target = NSScreen.screens.max(by: {
+            $0.frame.width * $0.frame.height < $1.frame.width * $1.frame.height
+        }) else { return }
+
+        // 应用侧认为的 frame 已经在目标屏可见区 → 还需和窗口服务器实际边界对账
+        let appSideOK = window.screen == target && target.visibleFrame.intersects(window.frame)
+        let serverOK = Self.cgWindowBounds(windowNumber: window.windowNumber).map { cg in
+            let expected = Self.appKitToCG(window.frame)
+            return abs(cg.width - expected.width) <= 64 && abs(cg.height - expected.height) <= 64
+        } ?? false
+
+        if appSideOK, serverOK {
+            frameMismatch.withLock { $0 = 0 }
+            return
+        }
+        let screenDesc = String(describing: window.screen?.frame)
+        let state = "win#\(window.windowNumber) frame=\(window.frame) appOK=\(appSideOK) srvOK=\(serverOK) scr=\(screenDesc) tgt=\(target.frame)"
+        AppDelegate.debugLog("watchdog mismatch " + state)
+        let n = frameMismatch.withLock { count in
+            count += 1
+            return count
+        }
+        // 连续 2 次异常才重映射，避免瞬时抖动导致闪烁
+        guard n >= 2 else { return }
+        // 连续 4 次仍异常（重映射已失效，窗口被压成碎片）→ 重建窗口
+        if n >= 4 {
+            frameMismatch.withLock { $0 = 0 }
+            let now = Date()
+            let budgetOK = AppDelegate.RecreateState.allow(now: now)
+            AppDelegate.debugLog("watchdog recreate-check budgetOK=\(budgetOK)")
+            if budgetOK, let delegate = appDelegateInstance {
+                delegate.recreateWindow(target: target)
+            }
+            return
+        }
+        // 不清零：让计数持续累积，重映射无效时升级到现场重建
+        window.orderOut(nil)
+        window.setFrame(target.visibleFrame, display: true)
+        window.makeKeyAndOrderFront(nil)
+        AppDelegate.debugLog("watchdog REMAPPED to \(target.visibleFrame) -> win#\(window.windowNumber) frame=\(window.frame)")
     }
 
     /// AppKit frame（左下原点）→ CG 全局边界（左上原点）
@@ -266,6 +275,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
 @main
 struct HarnessApp {
+    @MainActor
     static func main() {
         let app = NSApplication.shared
         let delegate = AppDelegate()
