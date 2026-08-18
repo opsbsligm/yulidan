@@ -136,5 +136,8 @@ let package = Package(
         .testTarget(name: "TerminalTests",
                     dependencies: ["Terminal"],
                     path: "Packages/Terminal/Tests"),
+        .testTarget(name: "HarnessCoreTests",
+                    dependencies: ["HarnessCore"],
+                    path: "Apps/HarnessCore/Tests"),
     ]
 )
