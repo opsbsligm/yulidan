@@ -483,11 +483,6 @@ public actor StdioMCPClient: MCPClient {
         cont.resume(returning: json)
     }
 
-    private func dictResultNil(_ value: Any) -> Bool {
-        // JSON null → NSNull
-        value is NSNull
-    }
-
     private func appendStderr(_ chunk: String) {
         stderrLog += chunk
         if stderrLog.count > config.maxStderrBytes {

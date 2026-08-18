@@ -13,7 +13,7 @@
 | SwiftFormat | ✅ 0 改动 | `swiftformat . --config .swiftformat` |
 | SwiftLint | ✅ 0 违规 | `swiftlint lint --strict`（warning 按 error 计） |
 | 编译 | ✅ 通过 | `swift build`（Swift 6.3 / strict concurrency） |
-| 单元测试 | ✅ 344/344 | XCTest 116 + Swift Testing 228（50 suites），0 失败 |
+| 单元测试 | ✅ 348/348 | XCTest 120 + Swift Testing 228（50 suites），0 失败 |
 | 本地镜像备份 | ✅ 每次提交后 | `git push --mirror /Users/liguangming/code/swift-harness-backup.git` |
 | GitHub 推送 | ⏸ 暂缓 | 按用户要求先本地版本控制，未推送远端 |
 
@@ -31,17 +31,17 @@
 | Session | 24 | 90.0%（368/409） | ✅ ≥90% |
 | Tools | 32 | 98.4%（253/257） | ✅ ≥90%；工具参数/边界/错误分支全覆盖 |
 | Sandbox | 15 | 98.4%（63/64） | ✅ ≥90%；余 1 行为根目录死代码分支 |
-| MCP | 13 | 84.3%（423/502） | ⚠️ stdio 客户端异常分支未覆盖 |
+| MCP | 17 | 94.0%（468/498） | ✅ ≥90%；stdio 异常分支（协议违规/null result/坏客户端跳过）已覆盖 |
 | LLM | 35 | 93.6%（670/716） | ✅ ≥90%；27 个零网络 HTTP 桩测试（complete/stream/checkConnection/错误分支） |
 | Notifications | 13 | 67.1%（49/73） | ⚠️ SystemNotificationCenter 真实包装层无法在测试进程触达（UNUserNotificationCenter.current() 限制）；编排/服务逻辑已全覆盖 |
 | HarnessApp（App 层） | 15 | 6.1%（631/10392） | ⚠️ SwiftUI 视图层无单测；AppViewModel 逻辑已部分覆盖 |
 
-**总计: 344 个测试用例（XCTest 116 + Swift Testing 228），全部通过。**
+**总计: 348 个测试用例（XCTest 120 + Swift Testing 228），全部通过。**
 
 > 口径说明：行覆盖仅统计各模块 `Sources/` 源文件（不含测试文件）。
-> 核心包（Subagent / Skill / LLM / Sandbox / Tools / Terminal / PluginXPC / ServiceContainer / Agent / Session）行覆盖 ≥90%，满足验收标准；MCP 84.3% 接近达标。
+> 核心包（Subagent / Skill / LLM / Sandbox / Tools / MCP / Terminal / PluginXPC / ServiceContainer / Agent / Session）行覆盖全部 ≥90%，满足验收标准。
 
-## 三、rc.2 之后新增能力（46 个提交）
+## 三、rc.2 之后新增能力（47 个提交）
 
 ### 模型与工具
 - LLM 真实适配器：OpenAI / DeepSeek / Anthropic / 本地 Ollama·vLLM（OpenAI 兼容协议）
@@ -84,6 +84,7 @@
 - LLM 适配器补测 10 用例（DeepSeek/Local stream、四家 checkConnection、缺 Key、流式错误传播、适配器元数据）：LLM 75.7% → 93.6%
 - PathSandbox 补测 5 用例（错误描述/空路径回退/空白裁剪/错误载荷/根相等分支）：Sandbox 85.9% → 98.4%
 - 内置工具补测 11 用例（缺参/超大文件/非 UTF-8/写入失败/目录不存在/非目录/权限拒绝/sizeStr/exec 启动失败）+ ToolPipeline post 处理器用例：Tools 86.8% → 98.4%，ToolPipeline 100%
+- MCP 补测 5 用例（错误描述全集/取消上下文/坏客户端跳过/listTools 缓存/怪癖服务器：垃圾行·无 result 响应·null result·stderr 诊断）+ 删除死代码：MCP 84.3% → 94.0%
 
 ## 四、CI/CD
 

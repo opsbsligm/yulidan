@@ -92,6 +92,40 @@ final class MCPTests: XCTestCase {
         XCTAssertTrue(remaining.isEmpty)
         XCTAssertTrue(remainingTools.isEmpty)
     }
+
+    func testMCPErrorDescriptions() {
+        XCTAssertTrue(MCPError.unknownTool("t").description.contains("t"))
+        XCTAssertTrue(MCPError.unknownClient("c").description.contains("c"))
+        XCTAssertTrue(MCPError.serverFailed("r").description.contains("r"))
+        XCTAssertTrue(MCPError.serverError(code: 42, message: "m").description.contains("42"))
+        XCTAssertTrue(MCPError.requestTimeout("10s 未响应").description.contains("10s"))
+        XCTAssertTrue(MCPError.protocolViolation("p").description.contains("p"))
+        XCTAssertEqual(MCPError.transportClosed.description, "MCP 传输已断开")
+        XCTAssertTrue(MCPError.launchFailed("l").description.contains("l"))
+    }
+
+    func testAdapterCancelledContextReturnsCancelled() async throws {
+        let client = await makeClient()
+        let tool = MCPToolAdapter(client: client, spec: MCPToolSpec(name: "greet", description: "问候"))
+        let signal = CancellationToken()
+        signal.cancel()
+        let res = try await tool.execute(["name": "A"],
+                                         context: ToolRunContext(signal: signal, sessionID: SessionID(), metadata: [:]))
+        XCTAssertEqual(res.error?.code, "cancelled")
+    }
+
+    func testMakeToolsSkipsFailingClient() async {
+        let manager = MCPServerManager()
+        let good = await makeClient()
+        await manager.register(good)
+        let bad = StdioMCPClient(name: "bad",
+                                 configuration: StdioMCPConfiguration(command: "/nonexistent-mcp-\(UUID().uuidString)", arguments: []))
+        await manager.register(bad)
+        // 坏客户端 listTools 失败被跳过，不影响好客户端
+        let tools = await manager.makeTools()
+        XCTAssertEqual(tools.map(\.name).sorted(), ["mcp_mock_boom", "mcp_mock_greet"])
+        await manager.unregister(name: "bad")
+    }
 }
 
 // MARK: - StdioMCPClient（真实子进程 + NDJSON JSON-RPC 2.0）
@@ -272,6 +306,93 @@ final class StdioMCPClientTests: XCTestCase {
         try await Task.sleep(nanoseconds: 1_000_000_000)
         let echo = try await client.callTool(name: "echo", arguments: ["text": "again"])
         XCTAssertEqual(echo, "echo: again")
+        await client.stop()
+    }
+}
+
+// MARK: - 怪癖服务器（stderr / 垃圾行 / 无 result 响应 / null result）
+
+/// 内嵌怪癖 MCP 服务器（python3，stdio NDJSON）
+private let quirkyMCPServerSource = #"""
+import json, sys
+
+
+def main():
+    sys.stderr.write("quirky boot\n")
+    sys.stderr.flush()
+    while True:
+        line = sys.stdin.readline()
+        if not line:
+            break
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            msg = json.loads(line)
+        except Exception:
+            continue
+        mid = msg.get("id")
+        method = msg.get("method")
+        if method == "initialize":
+            init_result = {"protocolVersion": "2024-11-05", "capabilities": {"tools": {}},
+                           "serverInfo": {"name": "quirky", "version": "0.0.1"}}
+            sys.stdout.write(json.dumps({"jsonrpc": "2.0", "id": mid, "result": init_result}) + "\n")
+            sys.stdout.flush()
+        elif method == "tools/list":
+            tools = [
+                {"name": "ghost", "description": "responds without result", "inputSchema": {"type": "object"}},
+                {"name": "nulltool", "description": "null result", "inputSchema": {"type": "object"}},
+            ]
+            sys.stdout.write(json.dumps({"jsonrpc": "2.0", "id": mid, "result": {"tools": tools}}) + "\n")
+            sys.stdout.write("garbage line not json\n")
+            sys.stdout.flush()
+        elif method == "tools/call":
+            name = (msg.get("params") or {}).get("name")
+            if name == "ghost":
+                sys.stdout.write(json.dumps({"jsonrpc": "2.0", "id": mid}) + "\n")
+                sys.stdout.flush()
+            elif name == "nulltool":
+                sys.stdout.write(json.dumps({"jsonrpc": "2.0", "id": mid, "result": None}) + "\n")
+                sys.stdout.flush()
+
+
+main()
+"""#
+
+final class QuirkyMCPServerTests: XCTestCase {
+    func testQuirks() async throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("harness-mcp-quirky-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer {
+            try? FileManager.default.removeItem(at: dir)
+        }
+        let script = dir.appendingPathComponent("quirky_server.py").path
+        try quirkyMCPServerSource.write(toFile: script, atomically: true, encoding: .utf8)
+        let config = StdioMCPConfiguration(command: "/usr/bin/env",
+                                           arguments: ["python3", script],
+                                           requestTimeout: 10,
+                                           startupTimeout: 10)
+        let client = StdioMCPClient(name: "quirky", configuration: config)
+        // 垃圾行被忽略，tools/list 正常
+        let tools = try await client.listTools()
+        XCTAssertEqual(tools.map(\.name).sorted(), ["ghost", "nulltool"])
+        // 无 result 的响应 → protocolViolation
+        do {
+            _ = try await client.callTool(name: "ghost", arguments: [:])
+            XCTFail("应当抛出 protocolViolation")
+        } catch let MCPError.protocolViolation(reason) {
+            XCTAssertFalse(reason.isEmpty)
+        } catch {
+            XCTFail("错误类型不符：\(error)")
+        }
+        // null result → 空文本
+        let out = try await client.callTool(name: "nulltool", arguments: [:])
+        XCTAssertEqual(out, "")
+        // stderr 诊断
+        try await Task.sleep(nanoseconds: 300_000_000)
+        let stderr = await client.recentStderr
+        XCTAssertTrue(stderr.contains("quirky boot"))
         await client.stop()
     }
 }
