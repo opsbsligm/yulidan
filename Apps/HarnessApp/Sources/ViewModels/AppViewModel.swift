@@ -12,6 +12,7 @@ import Sandbox
 import MCP
 import ServiceContainer
 import Session
+import Skill
 import Subagent
 import SwiftUI
 import Terminal
@@ -294,6 +295,8 @@ final class AppViewModel: ObservableObject {
     let subagentCoordinator: SubagentCoordinator
     /// 子任务工具注册表（仅内置工具，不含 spawn_subagent，防递归派生）
     let subagentToolRegistry: ToolRegistry = .init()
+    /// 技能注册表（内置 + ~/.harness/skills 用户目录）
+    let skillRegistry: SkillRegistry = .init()
 
     /// 多 Agent（默认值 = 磁盘历史，重启后终态子任务仍可见）
     @Published var subagents: [SubagentDisplayItem] = AppViewModel.loadSubagentHistoryItems()
@@ -327,30 +330,8 @@ final class AppViewModel: ObservableObject {
         // 先占位（init 两阶段初始化限制），onEvent 由 registerSubagentRuntime 后置赋值
         subagentCoordinator = SubagentCoordinator(maxConcurrent: 4)
 
-        // 注册真实内置工具（按设置注入文件沙箱）+ MCP 演示服务器（内存客户端，处理器为真实能力）
-        Task {
-            for tool in BuiltinTools.makeAll(sandbox: Self.makeSandboxFromSettings()) {
-                await self.toolRegistry.register(tool)
-            }
-            let demo = MockMCPClient(name: "local")
-            await demo.addTool(MCPToolSpec(name: "system_info", description: "获取系统信息（OS 版本 / 架构 / 负载）", inputSchema: "{}")) { _ in
-                let runner = TerminalRunner()
-                guard let r = try? await runner.run("sw_vers -productVersion; uname -m; uptime", signal: nil) else {
-                    throw MCPError.serverFailed("系统命令执行失败")
-                }
-                return r.combinedOutput
-            }
-            await demo.addTool(MCPToolSpec(name: "current_time", description: "获取当前本地时间", inputSchema: "{}")) { _ in
-                let fmt = DateFormatter()
-                fmt.dateFormat = "yyyy-MM-dd HH:mm:ss zzz"
-                return fmt.string(from: Date())
-            }
-            await self.mcpManager.register(demo, descriptor: MCPServer(name: "local", transport: "in-memory"))
-            for tool in await self.mcpManager.makeTools() {
-                await self.toolRegistry.register(tool)
-            }
-            await self.refreshTools()
-        }
+        // 启动工具：内置工具（沙箱）+ MCP 演示服务器 + 技能系统
+        Task { await self.registerStartupTools() }
 
         // 安装真实内置插件
         Task {
@@ -416,6 +397,44 @@ final class AppViewModel: ObservableObject {
         )
         await toolRegistry.register(tool)
         await refreshTools()
+    }
+
+    /// 启动工具装配：内置工具（按设置注入文件沙箱）+ MCP 演示服务器（内存客户端）+ 技能系统
+    private func registerStartupTools() async {
+        for tool in BuiltinTools.makeAll(sandbox: Self.makeSandboxFromSettings()) {
+            await toolRegistry.register(tool)
+        }
+        await registerSkillRuntime()
+        let demo = MockMCPClient(name: "local")
+        await demo.addTool(MCPToolSpec(name: "system_info", description: "获取系统信息（OS 版本 / 架构 / 负载）", inputSchema: "{}")) { _ in
+            let runner = TerminalRunner()
+            guard let r = try? await runner.run("sw_vers -productVersion; uname -m; uptime", signal: nil) else {
+                throw MCPError.serverFailed("系统命令执行失败")
+            }
+            return r.combinedOutput
+        }
+        await demo.addTool(MCPToolSpec(name: "current_time", description: "获取当前本地时间", inputSchema: "{}")) { _ in
+            let fmt = DateFormatter()
+            fmt.dateFormat = "yyyy-MM-dd HH:mm:ss zzz"
+            return fmt.string(from: Date())
+        }
+        await mcpManager.register(demo, descriptor: MCPServer(name: "local", transport: "in-memory"))
+        for tool in await mcpManager.makeTools() {
+            await toolRegistry.register(tool)
+        }
+        await refreshTools()
+    }
+
+    /// 技能系统：加载内置技能 + 用户目录技能，注册 list_skills / use_skill 工具
+    private func registerSkillRuntime() async {
+        for skill in BuiltInSkills.makeAll() {
+            await skillRegistry.register(skill)
+        }
+        for skill in SkillStore.load(from: SkillStore.userSkillsDirectory) {
+            await skillRegistry.register(skill)
+        }
+        await toolRegistry.register(ListSkillsTool(registry: skillRegistry))
+        await toolRegistry.register(UseSkillTool(registry: skillRegistry))
     }
 
     deinit {

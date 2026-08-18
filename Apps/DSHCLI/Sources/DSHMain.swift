@@ -5,6 +5,7 @@ import HarnessCore
 import LLM
 import ServiceContainer
 import Session
+import Skill
 import Subagent
 import Tools
 
@@ -14,7 +15,8 @@ struct DSH: AsyncParsableCommand {
         commandName: "dsh",
         abstract: "Swift Harness — macOS Native AI Agent Framework",
         version: "0.1.0",
-        subcommands: [WebCommand.self, HeadlessCommand.self, PluginCommand.self, AgentsCommand.self]
+        subcommands: [WebCommand.self, HeadlessCommand.self, PluginCommand.self, AgentsCommand.self,
+                      SkillsCommand.self]
     )
 }
 
@@ -436,5 +438,64 @@ struct ListCommand: AsyncParsableCommand {
                 print("  • \(r.manifest.name) v\(r.manifest.version)（\(r.manifest.id)）— 来源：\(r.source)")
             }
         }
+    }
+}
+
+// MARK: - skills（技能系统：内置 + ~/.harness/skills）
+
+struct SkillsCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "skills",
+        abstract: "Manage skills (built-in + ~/.harness/skills)",
+        subcommands: [SkillsListCommand.self, SkillsShowCommand.self]
+    )
+}
+
+struct SkillsListCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "list",
+        abstract: "List all skills"
+    )
+
+    func run() async throws {
+        var skills = BuiltInSkills.makeAll()
+        let userSkills = SkillStore.load(from: SkillStore.userSkillsDirectory)
+        // 用户目录同名技能覆盖内置
+        var byName: [String: Skill] = [:]
+        for skill in skills + userSkills {
+            byName[skill.name] = skill
+        }
+        let all = byName.values.sorted { $0.name < $1.name }
+        guard !all.isEmpty else {
+            print("（无可用技能）")
+            return
+        }
+        print("\(all.count) 个技能：")
+        for skill in all {
+            print("  • \(skill.summary)（来源：\(skill.source)）")
+        }
+        print("\n用法：dsh skills show <名称> 查看完整指令")
+    }
+}
+
+struct SkillsShowCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "show",
+        abstract: "Show a skill's full instructions"
+    )
+
+    @Argument(help: "Skill name")
+    var name: String
+
+    func run() async throws {
+        var byName: [String: Skill] = [:]
+        for skill in BuiltInSkills.makeAll() + SkillStore.load(from: SkillStore.userSkillsDirectory) {
+            byName[skill.name] = skill
+        }
+        guard let skill = byName[name] else {
+            throw ExitCode(1)
+        }
+        print("【\(skill.name)】\(skill.description)（来源：\(skill.source)）\n")
+        print(skill.instructions)
     }
 }

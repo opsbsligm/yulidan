@@ -229,6 +229,7 @@ public enum BuiltinTools {
         switch name {
         case "read_file", "write_file", "list_files": return ("filesystem", "文件")
         case "exec_command": return ("terminal", "终端")
+        case "use_skill", "list_skills": return ("skills", "技能")
         default: return ("general", "通用")
         }
     }

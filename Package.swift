@@ -59,7 +59,7 @@ let package = Package(
 
         .executableTarget(name: "DSHCLI",
                           dependencies: ["HarnessCore", "Agent", "Subagent", "LLM", "Tools", "ServiceContainer", "Session",
-                                         .product(name: "ArgumentParser", package: "swift-argument-parser")],
+                                         "Skill", .product(name: "ArgumentParser", package: "swift-argument-parser")],
                           path: "Apps/DSHCLI/Sources"),
 
         // 内存/性能探针
@@ -70,7 +70,8 @@ let package = Package(
         // macOS App
         .executableTarget(name: "HarnessApp",
                           dependencies: ["HarnessCore", "ServiceContainer", "Session", "LLM", "Tools", "Agent",
-                                         "Subagent", "MCP", "Terminal", "Sandbox", "Notifications", "PluginXPC"],
+                                         "Subagent", "MCP", "Terminal", "Sandbox", "Notifications", "PluginXPC",
+                                         "Skill"],
                           path: "Apps/HarnessApp/Sources"),
         .testTarget(name: "HarnessAppTests",
                     dependencies: ["HarnessApp", "Agent", "Subagent", "Session", "LLM", "Tools"],
@@ -108,6 +109,9 @@ let package = Package(
         .target(name: "Skill",
                 dependencies: ["ServiceContainer", "Tools"],
                 path: "Packages/Skill/Sources"),
+        .testTarget(name: "SkillTests",
+                    dependencies: ["Skill", "Tools", "Session"],
+                    path: "Packages/Skill/Tests"),
         .target(name: "MCP",
                 dependencies: ["ServiceContainer", "Tools"],
                 path: "Packages/MCP/Sources"),
