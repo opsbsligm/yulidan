@@ -13,7 +13,7 @@
 | SwiftFormat | ✅ 0 改动 | `swiftformat . --config .swiftformat` |
 | SwiftLint | ✅ 0 违规 | `swiftlint lint --strict`（warning 按 error 计） |
 | 编译 | ✅ 通过 | `swift build`（Swift 6.3 / strict concurrency） |
-| 单元测试 | ✅ 305/305 | XCTest 90 + Swift Testing 215（48 suites），0 失败 |
+| 单元测试 | ✅ 309/309 | XCTest 90 + Swift Testing 219（49 suites），0 失败 |
 | 本地镜像备份 | ✅ 每次提交后 | `git push --mirror /Users/liguangming/code/swift-harness-backup.git` |
 | GitHub 推送 | ⏸ 暂缓 | 按用户要求先本地版本控制，未推送远端 |
 
@@ -34,13 +34,13 @@
 | MCP | 13 | 87.5%（649/742） | ⚠️ stdio 客户端少量分支未覆盖 |
 | Notifications | 5 | 73.4%（91/124） | ⚠️ 授权/重试分支未覆盖 |
 | LLM | 25 | 82.5%（1035/1254） | ⚠️ HTTP 层已有 17 个零网络桩测试；余 SSE 边界/流式错误分支 |
-| HarnessCore | 0 | 66.7%（32/48） | ⚠️ 待补测试 |
+| HarnessCore | 4 | 100%（48/48） | ✅ 内置插件生命周期/目录全覆盖 |
 
-**总计: 305 个测试用例（XCTest 90 + Swift Testing 215），全部通过。**
+**总计: 309 个测试用例（XCTest 90 + Swift Testing 219），全部通过。**
 
 > 核心包（ServiceContainer / Agent / Session / Tools / Subagent / Skill / Terminal / Sandbox / PluginXPC）行覆盖全部 ≥90%，满足验收标准。
 
-## 三、rc.2 之后新增能力（41 个提交）
+## 三、rc.2 之后新增能力（42 个提交）
 
 ### 模型与工具
 - LLM 真实适配器：OpenAI / DeepSeek / Anthropic / 本地 Ollama·vLLM（OpenAI 兼容协议）
@@ -78,6 +78,7 @@
 - DSH CLI：provider 解析 + 真实对话
 - `tools/rebuild-app.sh` 一键重建 .app 壳
 - HarnessAppTests 测试目标（App 层单测）
+- HarnessCoreTests 测试目标（内置插件 manifest/生命周期/目录 4 用例，模块覆盖 66.7% → 100%）
 
 ## 四、CI/CD
 
@@ -104,7 +105,7 @@
 
 1. **HarnessApp 视图层**：XCUITest 或快照测试（当前 9.1%；AppViewModel 已部分覆盖）——现为最大短板
 2. ~~**LLM 适配器 HTTP 层**~~：✅ 已解决（2026-08-18）17 个 URLProtocol 零网络桩测试，35.5% → 82.5%
-3. **HarnessCore 66.7%**：32/48，小模块待补测试
+3. ~~**HarnessCore 66.7%**~~：✅ 已解决（2026-08-18）新增 HarnessCoreTests，48/48 = 100%
 4. **Notifications 73.4%**：补授权拒绝/重试分支
 5. **MCP 87.5%**：补 stdio 客户端异常分支
 6. **Spotlight / Shortcuts**：需正式 bundle 签名注册，debug 壳不适用，暂缓
