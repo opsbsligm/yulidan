@@ -31,6 +31,8 @@ public struct UseSkillTool: Tool, Sendable {
     {"type":"object","properties":{"name":{"type":"string","description":"技能名称（list_skills 中列出）"}},"required":["name"]}
     """
 
+    public let requiredParameters = ["name"]
+
     private let registry: SkillRegistry
 
     public init(registry: SkillRegistry) {

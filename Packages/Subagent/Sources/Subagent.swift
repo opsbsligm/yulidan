@@ -440,6 +440,7 @@ public struct SpawnSubagentTool: Tool, Sendable {
      "name":{"type":"string","description":"子任务名称（展示用）"},
      "timeout":{"type":"number","description":"超时秒数，默认 120"}},"required":["task"]}
     """
+    public let requiredParameters = ["task"]
 
     private let coordinator: SubagentCoordinator
     private let subTools: ToolRegistry

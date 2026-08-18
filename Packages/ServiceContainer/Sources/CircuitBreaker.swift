@@ -31,8 +31,10 @@ public actor CircuitBreaker {
         switch state {
         case .closed:
             do {
+                let result = try await operation()
+                // 成功才清零失败计数（修复：原先在调用前清零导致计数永远到不了阈值、无法熔断）
                 failureCount = 0
-                return try await operation()
+                return result
             } catch {
                 failureCount += 1
                 if failureCount >= failureThreshold {

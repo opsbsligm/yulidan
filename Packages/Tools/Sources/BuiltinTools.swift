@@ -30,6 +30,7 @@ public struct ReadFileTool: Tool {
     public let name = "read_file"
     public let description = "读取文件内容（默认限制 200KB）"
     public let parameterSchema = "{\"path\": \"文件绝对路径\"}"
+    public let requiredParameters = ["path"]
 
     public func execute(_ args: [String: String], context _: ToolRunContext) async throws -> ToolResult {
         guard let path = args["path"]?.trimmingCharacters(in: .whitespaces), !path.isEmpty else {
@@ -77,6 +78,7 @@ public struct WriteFileTool: Tool {
     public let name = "write_file"
     public let description = "写入文件内容（目录不存在时自动创建）"
     public let parameterSchema = "{\"path\": \"文件绝对路径\", \"content\": \"要写入的内容\"}"
+    public let requiredParameters = ["path"]
 
     public func execute(_ args: [String: String], context _: ToolRunContext) async throws -> ToolResult {
         guard let path = args["path"]?.trimmingCharacters(in: .whitespaces), !path.isEmpty else {
@@ -182,6 +184,7 @@ public struct ExecCommandTool: Tool {
     public let name = "exec_command"
     public let description = "在系统 shell 中执行命令并返回输出（⚠️ 具备真实执行能力，请谨慎）"
     public let parameterSchema = "{\"cmd\": \"要执行的 shell 命令\", \"timeout\": \"超时秒数，默认 30\"}"
+    public let requiredParameters = ["cmd"]
 
     public func execute(_ args: [String: String], context: ToolRunContext) async throws -> ToolResult {
         guard let cmd = args["cmd"]?.trimmingCharacters(in: .whitespaces), !cmd.isEmpty else {
@@ -218,8 +221,9 @@ public struct ExecCommandTool: Tool {
 /// - 文本超过 `max_chars` 截断（默认 20000 字符）。
 public struct WebFetchTool: Tool {
     public let name = "web_fetch"
-    public let description = "抓取 http/https 网页并返回文本内容（超限截断）"
+    public let description = "抓取 http/https 网页并返回文本内容（超限截断；分块流式下载并上报进度）"
     public let parameterSchema = "{\"url\": \"网页地址\", \"max_chars\": \"最多返回字符数，默认 20000\"}"
+    public let requiredParameters = ["url"]
 
     private let session: URLSession
     private let maxBytes: Int
@@ -231,7 +235,14 @@ public struct WebFetchTool: Tool {
         self.timeout = timeout
     }
 
-    public func execute(_ args: [String: String], context _: ToolRunContext) async throws -> ToolResult {
+    enum FetchError: Error {
+        case badResponse
+        case http(Int)
+        case tooLarge
+        case failed(String)
+    }
+
+    public func execute(_ args: [String: String], context: ToolRunContext) async throws -> ToolResult {
         guard let raw = args["url"]?.trimmingCharacters(in: .whitespaces), !raw.isEmpty else {
             return ToolResult(content: [.text("错误：缺少参数 url")],
                               error: ToolError(name: name, code: "missing_arg", message: "缺少 url 参数"))
@@ -246,9 +257,24 @@ public struct WebFetchTool: Tool {
         request.timeoutInterval = timeout
         request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Harness/0.1",
                          forHTTPHeaderField: "User-Agent")
-        let (data, response): (Data, URLResponse)
+        let (data, status): (Data, Int)
         do {
-            (data, response) = try await session.data(for: request)
+            (data, status) = try await download(request, onChunk: context.onChunk)
+        } catch let error as FetchError {
+            switch error {
+            case .badResponse:
+                return ToolResult(content: [.text("❌ 无法解析 HTTP 响应")],
+                                  error: ToolError(name: name, code: "fetch_failed", message: "无法解析响应"))
+            case let .http(code):
+                return ToolResult(content: [.text("❌ HTTP \(code)")],
+                                  error: ToolError(name: name, code: "http_error", message: "HTTP \(code)"))
+            case .tooLarge:
+                return ToolResult(content: [.text("内容过大（>\(maxBytes) 字节），超过 \(maxBytes) 字节限制，拒绝抓取。")],
+                                  error: ToolError(name: name, code: "too_large", message: "内容超过字节上限"))
+            case let .failed(message):
+                return ToolResult(content: [.text("❌ 抓取失败：\(message)")],
+                                  error: ToolError(name: name, code: "fetch_failed", message: message))
+            }
         } catch {
             var hint = ""
             if let urlError = error as? URLError, urlError.code == .timedOut {
@@ -258,29 +284,49 @@ public struct WebFetchTool: Tool {
             return ToolResult(content: [.text("❌ 抓取失败：\(msg)")],
                               error: ToolError(name: name, code: "fetch_failed", message: msg))
         }
-        guard let http = response as? HTTPURLResponse else {
-            return ToolResult(content: [.text("❌ 无法解析 HTTP 响应")],
-                              error: ToolError(name: name, code: "fetch_failed", message: "无法解析响应"))
-        }
-        guard (200 ..< 300).contains(http.statusCode) else {
-            return ToolResult(content: [.text("❌ HTTP \(http.statusCode)")],
-                              error: ToolError(name: name, code: "http_error", message: "HTTP \(http.statusCode)"))
-        }
-        guard data.count <= maxBytes else {
-            return ToolResult(content: [.text("内容过大（\(data.count) 字节），超过 \(maxBytes) 字节限制，拒绝抓取。")],
-                              error: ToolError(name: name, code: "too_large", message: "内容超过字节上限"))
-        }
         // UTF-8 优先，失败回退 ISO-8859-1（任意字节可解码，保内容不丢失）
         let text = String(data: data, encoding: .utf8) ?? String(data: data, encoding: .isoLatin1) ?? ""
         let maxChars = Int(args["max_chars"] ?? "") ?? 20000
         let truncated = text.count > maxChars
         let shown = String(text.prefix(maxChars))
-        return ToolResult(content: [.text("✅ 已抓取 \(url.absoluteString)（\(data.count) 字节，HTTP \(http.statusCode)）\n\n\(shown)")],
+        return ToolResult(content: [.text("✅ 已抓取 \(url.absoluteString)（\(data.count) 字节，HTTP \(status)）\n\n\(shown)")],
                           error: nil,
                           meta: ["url": url.absoluteString,
                                  "bytes": "\(data.count)",
-                                 "status": "\(http.statusCode)",
+                                 "status": "\(status)",
                                  "truncated": String(truncated)])
+    }
+
+    /// 分块流式下载：每 64KB 上报一次进度；累计超过字节上限立即中止
+    private func download(_ request: URLRequest,
+                          onChunk: (@Sendable (String) -> Void)?) async throws -> (Data, Int) {
+        let (bytes, response) = try await session.bytes(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw FetchError.badResponse
+        }
+        guard (200 ..< 300).contains(http.statusCode) else {
+            throw FetchError.http(http.statusCode)
+        }
+        var data = Data()
+        var lastReportedKB = 0
+        do {
+            for try await byte in bytes {
+                data.append(byte)
+                if data.count > maxBytes {
+                    throw FetchError.tooLarge
+                }
+                let kb = data.count / 1024
+                if kb >= lastReportedKB + 64 {
+                    lastReportedKB = kb
+                    onChunk?("已下载 \(kb) KB")
+                }
+            }
+        } catch let error as FetchError {
+            throw error
+        } catch {
+            throw FetchError.failed(error.localizedDescription)
+        }
+        return (data, http.statusCode)
     }
 }
 

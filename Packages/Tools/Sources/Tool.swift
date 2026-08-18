@@ -8,6 +8,10 @@ public protocol Tool: Sendable {
     var description: String { get }
     var parameterSchema: String { get }
     var schema: ToolSchema { get }
+    /// 必填参数名（执行器在调用前统一预校验；缺失 → invalid_args）
+    var requiredParameters: [String] { get }
+    /// 输出二次校验：true 时结果正文必须可解析为 JSON（否则 output_invalid）
+    var validatesJSONOutput: Bool { get }
     func execute(_ args: [String: String], context: ToolRunContext) async throws -> ToolResult
 }
 
@@ -15,17 +19,29 @@ public extension Tool {
     var schema: ToolSchema {
         ToolSchema(name: name, description: description, parameters: parameterSchema)
     }
+
+    var requiredParameters: [String] {
+        []
+    }
+
+    var validatesJSONOutput: Bool {
+        false
+    }
 }
 
 public struct ToolRunContext: @unchecked Sendable {
     public let signal: CancellationToken
     public let sessionID: SessionID
     public let metadata: [String: String]
+    /// 流式进度回调（可选）：长耗时工具按块上报下载/执行进度
+    public let onChunk: (@Sendable (String) -> Void)?
 
-    public init(signal: CancellationToken, sessionID: SessionID, metadata: [String: String]) {
+    public init(signal: CancellationToken, sessionID: SessionID, metadata: [String: String],
+                onChunk: (@Sendable (String) -> Void)? = nil) {
         self.signal = signal
         self.sessionID = sessionID
         self.metadata = metadata
+        self.onChunk = onChunk
     }
 }
 

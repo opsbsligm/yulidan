@@ -375,8 +375,24 @@ struct CircuitBreakerTests {
                 #expect(Bool(false), "Wrong error")
             }
         }
-        #expect(await breaker.state == .closed) // bug: failureCount resets each call
-        #expect(await breaker.failureCount == 1) // reset on each call
+        #expect(await breaker.state == .open)
+        #expect(await breaker.failureCount == 3)
+    }
+
+    @Test("Success resets accumulated failures (does not open)")
+    func successResetsFailureCount() async throws {
+        let breaker = CircuitBreaker(failureThreshold: 3, successThreshold: 2, resetTimeout: 60)
+        for _ in 0 ..< 2 {
+            do {
+                _ = try await breaker.call { () -> Int in throw CBTestError.fail }
+            } catch {
+                // expected
+            }
+        }
+        #expect(await breaker.failureCount == 2)
+        _ = try await breaker.call { 1 }
+        #expect(await breaker.failureCount == 0)
+        #expect(await breaker.state == .closed)
     }
 
     @Test("Throws when open")

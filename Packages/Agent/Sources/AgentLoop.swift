@@ -42,6 +42,8 @@ public actor AgentLoop {
     private let maxSteps: Int
     /// 上下文保留上限：每轮 turn 结束后裁剪到最近 N 条（防长会话内存无界增长）
     private let maxHistoryMessages: Int
+    /// 工具执行器（参数校验/超时熔断/输出二次校验统一链路）
+    private let executor: ToolExecutor
 
     /// 对话上下文（LLM 侧消息）
     private var history: [LLM.Message] = []
@@ -62,7 +64,8 @@ public actor AgentLoop {
         model: String,
         systemPrompt: String? = nil,
         maxSteps: Int = 8,
-        maxHistoryMessages: Int = 200
+        maxHistoryMessages: Int = 200,
+        executor: ToolExecutor? = nil
     ) {
         self.id = id
         self.sessionID = sessionID
@@ -72,6 +75,7 @@ public actor AgentLoop {
         self.systemPrompt = systemPrompt
         self.maxSteps = maxSteps
         self.maxHistoryMessages = max(4, maxHistoryMessages)
+        self.executor = executor ?? ToolExecutor()
         inbox = Inbox()
     }
 
@@ -203,7 +207,7 @@ public actor AgentLoop {
 
                 // 执行全部工具调用并把结果回填上下文
                 for call in calls {
-                    let result = await executeToolCall(call)
+                    let result = await executeToolCall(call, turn: turn)
                     await turn.recordToolResult(result)
                     history.append(Self.toolResultMessage(callID: call.id, result: result))
                 }
@@ -247,27 +251,38 @@ public actor AgentLoop {
         )
     }
 
-    private func executeToolCall(_ call: LLM.ToolCallBlock) async -> ToolResult {
-        guard let tool = await tools.tool(named: call.name) else {
-            let notFound = ToolResult(
-                content: [.text("工具不存在：\(call.name)")],
-                error: ToolError(name: call.name, code: "unknown_tool", message: "工具不存在：\(call.name)")
-            )
-            allToolResults.append(notFound)
-            return notFound
-        }
-        let context = ToolRunContext(signal: CancellationToken(), sessionID: sessionID, metadata: [String: String]())
-        do {
-            let result = try await tool.execute(Self.parseArguments(call.arguments), context: context)
-            allToolResults.append(result)
-            return result
-        } catch {
-            let failed = ToolResult(
-                content: [.text("工具执行失败：\(error.localizedDescription)")],
-                error: ToolError(name: call.name, code: "exec_failed", message: error.localizedDescription)
-            )
-            allToolResults.append(failed)
-            return failed
+    private func executeToolCall(_ call: LLM.ToolCallBlock, turn: Turn) async -> ToolResult {
+        // 统一执行链路：查找 → 参数校验 → 熔断 → 超时 → 执行 → 输出二次校验
+        let indexer = ChunkIndexer()
+        let context = ToolRunContext(
+            signal: CancellationToken(),
+            sessionID: sessionID,
+            metadata: [String: String](),
+            onChunk: { [turn] chunk in
+                Task {
+                    await turn.receiveChunk(LLM.StreamChunk(
+                        type: "tool_progress",
+                        data: Data(chunk.utf8),
+                        index: indexer.next()
+                    ))
+                }
+            }
+        )
+        let toolCall = ToolCall(id: call.id, name: call.name, arguments: Self.parseArguments(call.arguments))
+        let result = await executor.execute(toolCall, in: tools, context: context)
+        allToolResults.append(result)
+        return result
+    }
+
+    /// 工具流式进度块序号（跨 chunk 递增；ToolRunContext.onChunk 为同步回调，用锁保证原子）
+    private final class ChunkIndexer: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value = 0
+        func next() -> Int {
+            lock.withLock {
+                defer { value += 1 }
+                return value
+            }
         }
     }
 
