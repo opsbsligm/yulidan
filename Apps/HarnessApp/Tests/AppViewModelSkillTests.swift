@@ -110,6 +110,69 @@ struct AppViewModelSkillTests {
         #expect(vm.skills.contains { $0.name == builtIn.name })
     }
 
+    @Test("editUserSkill：重写文件 + 注册表更新")
+    func editSkill() async {
+        let dir = freshDir()
+        defer { cleanup(dir) }
+        let vm = AppViewModel()
+        vm.saveUserSkill(name: "edit-me", description: "旧描述", tags: "old", instructions: "旧正文")
+        guard var item = await waitForSkill(vm, name: "edit-me", expectPresent: true) else {
+            Issue.record("保存失败")
+            return
+        }
+        #expect(item.description == "旧描述")
+        vm.editUserSkill(item, description: "新描述", tags: "new, tag", instructions: "新正文内容")
+        // 轮询等注册表刷新
+        let deadline = Date().addingTimeInterval(3)
+        while Date() < deadline {
+            await vm.refreshSkills()
+            if let updated = vm.skills.first(where: { $0.name == "edit-me" }), updated.description == "新描述" {
+                item = updated
+                break
+            }
+            try? await Task.sleep(for: .milliseconds(50))
+        }
+        #expect(item.description == "新描述")
+        #expect(item.tags == ["new", "tag"])
+        #expect(item.instructions == "新正文内容")
+        // 磁盘回读验证
+        let text = (try? String(contentsOf: dir.appendingPathComponent("edit-me/SKILL.md"), encoding: .utf8)) ?? ""
+        let parsed = SkillStore.parse(text, source: "test")
+        #expect(parsed?.description == "新描述")
+        #expect(parsed?.instructions == "新正文内容")
+    }
+
+    @Test("内置技能不可编辑（toast 且内容不变）")
+    func editBuiltInRejected() async {
+        let dir = freshDir()
+        defer { cleanup(dir) }
+        let vm = AppViewModel()
+        guard let builtIn = await waitForBuiltIn(vm) else {
+            Issue.record("未找到内置技能")
+            return
+        }
+        vm.editUserSkill(builtIn, description: "篡改", tags: "", instructions: "篡改正文")
+        #expect(vm.toastMessage == "内置技能不可编辑")
+        await vm.refreshSkills()
+        #expect(vm.skills.first(where: { $0.name == builtIn.name })?.description == builtIn.description)
+    }
+
+    @Test("编辑时空正文被拦截（文件不变）")
+    func editEmptyBodyRejected() async {
+        let dir = freshDir()
+        defer { cleanup(dir) }
+        let vm = AppViewModel()
+        vm.saveUserSkill(name: "keep-body", description: "x", tags: "", instructions: "保留正文")
+        guard let item = await waitForSkill(vm, name: "keep-body", expectPresent: true) else {
+            Issue.record("保存失败")
+            return
+        }
+        vm.editUserSkill(item, description: "x", tags: "", instructions: "   ")
+        #expect(vm.toastMessage == "技能正文不能为空")
+        let text = (try? String(contentsOf: dir.appendingPathComponent("keep-body/SKILL.md"), encoding: .utf8)) ?? ""
+        #expect(text.contains("保留正文"))
+    }
+
     @Test("空正文被 toast 拦截且不写文件")
     func emptyBodyRejected() {
         let dir = freshDir()

@@ -15,6 +15,8 @@ struct SkillView: View {
     @State private var newInstructions = ""
     // 卡片展开（查看正文）
     @State private var expandedID: String?
+    // 正在编辑的技能（非 nil = 编辑模式）
+    @State private var editingSkill: Skill?
 
     var builtInCount: Int {
         viewModel.skills.filter { $0.source == "builtin" }.count
@@ -41,10 +43,20 @@ struct SkillView: View {
                         .foregroundStyle(HarnessTheme.textSecondary)
                 }
                 Spacer()
+                if let editing = editingSkill {
+                    Label("编辑中：\(editing.name)", systemImage: "pencil")
+                        .font(.system(size: 12))
+                        .foregroundStyle(HarnessTheme.accent)
+                }
                 Button {
-                    showForm.toggle()
+                    if editingSkill != nil {
+                        cancelEdit()
+                    } else {
+                        showForm.toggle()
+                    }
                 } label: {
-                    Label(showForm ? "收起" : "新建技能", systemImage: showForm ? "chevron.up" : "plus")
+                    Label(editingSkill != nil ? "取消编辑" : (showForm ? "收起" : "新建技能"),
+                          systemImage: editingSkill != nil ? "xmark" : (showForm ? "chevron.up" : "plus"))
                 }
                 .font(.system(size: 12))
                 .buttonStyle(.bordered)
@@ -61,6 +73,8 @@ struct SkillView: View {
                     ForEach(viewModel.skills) { skill in
                         SkillCard(skill: skill, expanded: expandedID == skill.id) {
                             expandedID = expandedID == skill.id ? nil : skill.id
+                        } onEdit: {
+                            startEditing(skill)
                         } onDelete: {
                             viewModel.deleteUserSkill(skill)
                         }
@@ -85,6 +99,7 @@ struct SkillView: View {
                 TextField("名称（如 daily-report，空格自动转中划线）", text: $newName)
                     .font(.system(size: 13))
                     .textFieldStyle(.roundedBorder)
+                    .disabled(editingSkill != nil)
                 TextField("标签（逗号分隔）", text: $newTags)
                     .font(.system(size: 13))
                     .textFieldStyle(.roundedBorder)
@@ -99,7 +114,7 @@ struct SkillView: View {
                 .scrollContentBackground(.hidden)
                 .overlay(RoundedRectangle(cornerRadius: 6).stroke(HarnessTheme.border, lineWidth: 0.5))
             HStack {
-                Text("保存到 ~/.harness/skills/<名称>/SKILL.md")
+                Text(formHint)
                     .font(.system(size: 11))
                     .foregroundStyle(HarnessTheme.textSecondary)
                 Spacer()
@@ -116,13 +131,40 @@ struct SkillView: View {
         }
     }
 
+    /// 表单底部提示（新建 vs 编辑）
+    private var formHint: String {
+        if let editing = editingSkill {
+            return "将重写 ~/.harness/skills/\(editing.name)/SKILL.md（名称不可改）"
+        }
+        return "保存到 ~/.harness/skills/<名称>/SKILL.md"
+    }
+
     private func save() {
-        viewModel.saveUserSkill(name: newName, description: newDescription, tags: newTags, instructions: newInstructions)
+        if let editing = editingSkill {
+            viewModel.editUserSkill(editing, description: newDescription, tags: newTags, instructions: newInstructions)
+        } else {
+            viewModel.saveUserSkill(name: newName, description: newDescription, tags: newTags, instructions: newInstructions)
+        }
+        cancelEdit()
+    }
+
+    private func cancelEdit() {
+        editingSkill = nil
+        showForm = false
         newName = ""
         newDescription = ""
         newTags = ""
         newInstructions = ""
-        showForm = false
+    }
+
+    private func startEditing(_ skill: Skill) {
+        editingSkill = skill
+        showForm = true
+        newName = skill.name
+        newDescription = skill.description
+        newTags = skill.tags.joined(separator: ", ")
+        newInstructions = skill.instructions
+        expandedID = nil
     }
 }
 
@@ -132,6 +174,7 @@ private struct SkillCard: View {
     let skill: Skill
     let expanded: Bool
     let onToggle: () -> Void
+    let onEdit: () -> Void
     let onDelete: () -> Void
 
     var isBuiltIn: Bool {
@@ -164,6 +207,15 @@ private struct SkillCard: View {
                 .buttonStyle(.plain)
                 .foregroundStyle(HarnessTheme.textSecondary)
                 if !isBuiltIn {
+                    Button {
+                        onEdit()
+                    } label: {
+                        Image(systemName: "pencil")
+                            .font(.system(size: 11))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(HarnessTheme.accent)
+                    .help("编辑用户技能")
                     Button {
                         onDelete()
                     } label: {

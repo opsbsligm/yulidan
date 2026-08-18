@@ -450,30 +450,76 @@ final class AppViewModel: ObservableObject {
             showToast("技能名称需包含字母、数字、中文或中划线")
             return
         }
+        guard let file = writeSkillFile(slug: slug,
+                                        desc: description.trimmingCharacters(in: .whitespacesAndNewlines),
+                                        tags: tagList(from: tags),
+                                        body: instructions.trimmingCharacters(in: .whitespacesAndNewlines)) else {
+            return
+        }
+        let skill = Skill(name: slug,
+                          description: description.trimmingCharacters(in: .whitespacesAndNewlines),
+                          instructions: instructions.trimmingCharacters(in: .whitespacesAndNewlines),
+                          tags: tagList(from: tags), source: file.path)
+        Task {
+            await skillRegistry.register(skill)
+            await self.refreshSkills()
+            self.showToast("技能已保存：\(slug)")
+        }
+    }
+
+    /// 编辑用户技能（名称不可改，重写 SKILL.md 并重新注册；内置技能不可编辑）
+    func editUserSkill(_ skill: Skill, description: String, tags: String, instructions: String) {
+        guard skill.source != "builtin" else {
+            showToast("内置技能不可编辑")
+            return
+        }
         let desc = description.trimmingCharacters(in: .whitespacesAndNewlines)
         let body = instructions.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !body.isEmpty else {
             showToast("技能正文不能为空")
             return
         }
-        let tagList = tags.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
-        let dir = SkillStore.userSkillsDirectory.appendingPathComponent(slug, isDirectory: true)
+        let file = URL(fileURLWithPath: skill.source)
+        let dir = file.deletingLastPathComponent()
         guard (try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)) != nil else {
-            showToast("技能目录创建失败")
+            showToast("技能目录不存在")
             return
         }
-        let file = dir.appendingPathComponent("SKILL.md")
-        let text = "---\nname: \(slug)\ndescription: \(desc)\ntags: \(tagList.joined(separator: ", "))\n---\n\(body)\n"
+        let text = "---\nname: \(skill.name)\ndescription: \(desc)\ntags: \(tagList(from: tags).joined(separator: ", "))\n---\n\(body)\n"
         guard (try? text.write(to: file, atomically: true, encoding: .utf8)) != nil else {
             showToast("SKILL.md 写入失败")
             return
         }
-        let skill = Skill(name: slug, description: desc, instructions: body, tags: tagList, source: file.path)
+        let updated = Skill(name: skill.name, description: desc, instructions: body, tags: tagList(from: tags), source: file.path)
         Task {
-            await skillRegistry.register(skill)
+            await skillRegistry.register(updated)
             await self.refreshSkills()
-            self.showToast("技能已保存：\(slug)")
+            self.showToast("技能已更新：\(skill.name)")
         }
+    }
+
+    /// 写 SKILL.md（frontmatter + 正文）；失败走 toast 并返回 nil
+    private func writeSkillFile(slug: String, desc: String, tags: [String], body: String) -> URL? {
+        guard !body.isEmpty else {
+            showToast("技能正文不能为空")
+            return nil
+        }
+        let dir = SkillStore.userSkillsDirectory.appendingPathComponent(slug, isDirectory: true)
+        guard (try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)) != nil else {
+            showToast("技能目录创建失败")
+            return nil
+        }
+        let file = dir.appendingPathComponent("SKILL.md")
+        let text = "---\nname: \(slug)\ndescription: \(desc)\ntags: \(tags.joined(separator: ", "))\n---\n\(body)\n"
+        guard (try? text.write(to: file, atomically: true, encoding: .utf8)) != nil else {
+            showToast("SKILL.md 写入失败")
+            return nil
+        }
+        return file
+    }
+
+    private func tagList(from raw: String) -> [String] {
+        raw.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
     }
 
     /// 删除用户技能（内置技能不可删）
