@@ -105,20 +105,23 @@ struct AppViewModelSubagentTests {
             .appendingPathComponent("harness-app-test-\(UUID().uuidString).json")
     }
 
-    /// 轮询 refresh 直到目标子任务满足条件（默认到终态）
+    /// 轮询 refresh 直到目标子任务满足条件（terminal=false 时等到 .running，避免首帧 pending 竞态）
     private func waitFor(_ vm: AppViewModel, id: String, terminal: Bool = true,
                          timeout: TimeInterval = 6) async -> SubagentDisplayItem? {
         let deadline = Date().addingTimeInterval(timeout)
+        var last: SubagentDisplayItem?
         while Date() < deadline {
             await vm.refreshSubagents()
             if let item = vm.subagents.first(where: { $0.id == id }) {
-                if !terminal || item.phase.isTerminal {
+                last = item
+                let satisfied = terminal ? item.phase.isTerminal : (item.phase == .running)
+                if satisfied {
                     return item
                 }
             }
             try? await Task.sleep(for: .milliseconds(50))
         }
-        return nil
+        return last
     }
 
     @Test("refreshSubagents：新终态写入历史文件并合并进列表")

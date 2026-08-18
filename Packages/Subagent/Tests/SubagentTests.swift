@@ -406,3 +406,62 @@ struct SubagentHistoryStoreTests {
         try? FileManager.default.removeItem(at: url)
     }
 }
+
+// MARK: - spawn_subagent 工具（主 Agent 委派子任务）
+
+final class SpawnSubagentToolTests: XCTestCase {
+    private func makeTool(llm: (any LLMProvider)?,
+                          coordinator: SubagentCoordinator) -> SpawnSubagentTool {
+        SpawnSubagentTool(
+            coordinator: coordinator,
+            subTools: ToolRegistry(),
+            model: "mock-model",
+            makeLLM: { llm }
+        )
+    }
+
+    private func context() -> ToolRunContext {
+        ToolRunContext(signal: CancellationToken(), sessionID: SessionID(), metadata: [:])
+    }
+
+    func testSuccessReturnsSubagentText() async throws {
+        let llm = ScriptedTextLLM(responses: [
+            LLMResponse(model: "mock-model", content: [.text("答案是 42")], finishReason: .stop),
+        ])
+        let coordinator = SubagentCoordinator(maxConcurrent: 2)
+        let tool = makeTool(llm: llm, coordinator: coordinator)
+        let result = try await tool.execute(["task": "计算答案"], context: context())
+        XCTAssertNil(result.error)
+        let text = result.content.compactMap { block -> String? in
+            if case let .text(s) = block {
+                return s
+            }
+            return nil
+        }.joined()
+        XCTAssertTrue(text.contains("答案是 42"))
+    }
+
+    func testMissingTaskReturnsInvalidArgs() async throws {
+        let coordinator = SubagentCoordinator(maxConcurrent: 2)
+        let tool = makeTool(llm: nil, coordinator: coordinator)
+        let result = try await tool.execute(["name": "空任务"], context: context())
+        XCTAssertEqual(result.error?.code, "invalid_args")
+    }
+
+    func testSlowLLMTimesOut() async throws {
+        let llm = ScriptedTextLLM(responses: [
+            LLMResponse(model: "mock-model", content: [.text("永远不会到达")], finishReason: .stop),
+        ], delay: 3)
+        let coordinator = SubagentCoordinator(maxConcurrent: 2)
+        let tool = makeTool(llm: llm, coordinator: coordinator)
+        let result = try await tool.execute(["task": "慢任务", "timeout": "0.4"], context: context())
+        XCTAssertEqual(result.error?.code, SubagentPhase.timedOut.rawValue)
+    }
+
+    func testNoLLMReturnsError() async throws {
+        let coordinator = SubagentCoordinator(maxConcurrent: 2)
+        let tool = makeTool(llm: nil, coordinator: coordinator)
+        let result = try await tool.execute(["task": "随便任务"], context: context())
+        XCTAssertEqual(result.error?.code, "no_llm")
+    }
+}

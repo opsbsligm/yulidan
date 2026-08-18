@@ -1,7 +1,9 @@
 import Agent
 import Foundation
+import LLM
 import ServiceContainer
 import Session
+import Tools
 
 // MARK: - 标识
 
@@ -114,7 +116,8 @@ public enum SubagentEvent: Sendable {
 public actor SubagentCoordinator {
     public let maxConcurrent: Int
 
-    private let onEvent: (@Sendable (SubagentEvent) -> Void)?
+    /// 生命周期事件回调（init 可传入，也可在宿主成员就绪后赋值）
+    public nonisolated(unsafe) var onEvent: (@Sendable (SubagentEvent) -> Void)?
 
     private var states: [SubagentID: SubagentState] = [:]
     private var agents: [SubagentID: any Agent] = [:]
@@ -323,5 +326,85 @@ public enum SubagentHistoryStore {
         let trimmed = Array(items.prefix(cap))
         guard let data = try? JSONEncoder().encode(trimmed) else { return }
         try? data.write(to: url, options: .atomic)
+    }
+}
+
+// MARK: - spawn_subagent 工具（主 Agent 委派子任务）
+
+/// 子任务 LLM 工厂（宿主提供；App 用当前模型配置，无 Key 时返回 nil）
+public typealias SubagentLLMFactory = @Sendable () async -> (any LLMProvider)?
+
+/// spawn_subagent 工具：主 Agent 可委派子任务并等待其结果
+///
+/// 子 Agent 使用独立 AgentLoop 与子工具注册表（不含本工具，防止递归派生）。
+/// 超时/失败返回错误结果（不 throw），让主 Agent 自行降级决策。
+public struct SpawnSubagentTool: Tool, Sendable {
+    public let name = "spawn_subagent"
+    public let description = "委派一个子任务给子 Agent 执行并等待结果（独立上下文、共享内置工具，可并行使用多次）"
+    public let parameterSchema = """
+    {"type":"object","properties":{"task":{"type":"string","description":"子任务完整描述"},
+     "name":{"type":"string","description":"子任务名称（展示用）"},
+     "timeout":{"type":"number","description":"超时秒数，默认 120"}},"required":["task"]}
+    """
+
+    private let coordinator: SubagentCoordinator
+    private let subTools: ToolRegistry
+    private let model: String
+    private let systemPrompt: String?
+    private let maxSteps: Int
+    private let makeLLM: SubagentLLMFactory
+
+    public init(
+        coordinator: SubagentCoordinator,
+        subTools: ToolRegistry,
+        model: String,
+        systemPrompt: String? = nil,
+        maxSteps: Int = 8,
+        makeLLM: @escaping SubagentLLMFactory
+    ) {
+        self.coordinator = coordinator
+        self.subTools = subTools
+        self.model = model
+        self.systemPrompt = systemPrompt
+        self.maxSteps = maxSteps
+        self.makeLLM = makeLLM
+    }
+
+    public func execute(_ args: [String: String], context: ToolRunContext) async throws -> ToolResult {
+        let task = (args["task"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !task.isEmpty else {
+            return ToolResult(content: [.text("缺少必填参数 task")],
+                              error: ToolError(name: name, code: "invalid_args", message: "缺少必填参数 task"))
+        }
+        let rawName = args["name"]?.trimmingCharacters(in: .whitespaces) ?? ""
+        let name = rawName.isEmpty ? "子任务" : rawName
+        let timeout = args["timeout"].flatMap(Double.init) ?? 120
+        guard let llm = await makeLLM() else {
+            return ToolResult(content: [.text("模型未配置（缺 API Key），无法派生子任务")],
+                              error: ToolError(name: name, code: "no_llm", message: "模型未配置"))
+        }
+        let agent = AgentLoop(
+            sessionID: context.sessionID, llm: llm, tools: subTools,
+            model: model, systemPrompt: systemPrompt, maxSteps: maxSteps
+        )
+        let id = await coordinator.spawn(agent: agent, spec: SubagentSpec(name: name, task: task, timeout: timeout))
+        let state = await coordinator.waitFor(id)
+        switch state.phase {
+        case .succeeded:
+            var text = ""
+            if let blocks = state.result?.messages.first?.content {
+                text = blocks.compactMap { block -> String? in
+                    if case let .text(s) = block {
+                        return s
+                    }
+                    return nil
+                }.joined()
+            }
+            return ToolResult(content: [.text(text.isEmpty ? "子任务完成（无文本输出）" : text)])
+        default:
+            let detail = state.error ?? "未知错误"
+            return ToolResult(content: [.text("子任务\(state.phase.rawValue)：\(detail)")],
+                              error: ToolError(name: name, code: state.phase.rawValue, message: detail))
+        }
     }
 }

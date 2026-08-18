@@ -291,7 +291,9 @@ final class AppViewModel: ObservableObject {
     @Published var isolatedPluginIDs: Set<String> = []
     let toolRegistry: ToolRegistry
     let mcpManager: MCPServerManager
-    var subagentCoordinator: SubagentCoordinator
+    let subagentCoordinator: SubagentCoordinator
+    /// 子任务工具注册表（仅内置工具，不含 spawn_subagent，防递归派生）
+    let subagentToolRegistry: ToolRegistry = .init()
 
     /// 多 Agent（默认值 = 磁盘历史，重启后终态子任务仍可见）
     @Published var subagents: [SubagentDisplayItem] = AppViewModel.loadSubagentHistoryItems()
@@ -322,7 +324,7 @@ final class AppViewModel: ObservableObject {
         llmConfig = LLMConfig.load()
         sessionDB = try? SessionDB()
         sessionTitles = Self.loadTitles()
-        // 先占位（init 两阶段初始化限制），末尾替换为带事件回调的实例
+        // 先占位（init 两阶段初始化限制），onEvent 由 registerSubagentRuntime 后置赋值
         subagentCoordinator = SubagentCoordinator(maxConcurrent: 4)
 
         // 注册真实内置工具（按设置注入文件沙箱）+ MCP 演示服务器（内存客户端，处理器为真实能力）
@@ -370,10 +372,8 @@ final class AppViewModel: ObservableObject {
         // 监听模型配置变更（设置页保存后同步）
         registerConfigObserver()
 
-        // 子任务协调器（生命周期事件跳主线程刷新列表）
-        subagentCoordinator = SubagentCoordinator(maxConcurrent: 4) { [weak self] _ in
-            Task { @MainActor [weak self] in await self?.refreshSubagents() }
-        }
+        // 子任务运行时：生命周期事件回调 + spawn_subagent 工具注册
+        registerSubagentRuntime()
     }
 
     private func registerConfigObserver() {
@@ -385,6 +385,37 @@ final class AppViewModel: ObservableObject {
                 self.llmConfig = LLMConfig.load()
             }
         }
+    }
+
+    /// 子任务运行时：协调器生命周期事件跳主线程刷新列表 + 注册 spawn_subagent 工具
+    private func registerSubagentRuntime() {
+        subagentCoordinator.onEvent = { [weak self] _ in
+            Task { @MainActor [weak self] in await self?.refreshSubagents() }
+        }
+        Task { [weak self] in await self?.registerSubagentTool() }
+    }
+
+    /// 构建并注册 spawn_subagent：子 Agent 用独立子工具注册表（仅内置工具、不含本工具，防递归）
+    private func registerSubagentTool() async {
+        for tool in BuiltinTools.makeAll(sandbox: Self.makeSandboxFromSettings()) {
+            await subagentToolRegistry.register(tool)
+        }
+        let tool = SpawnSubagentTool(
+            coordinator: subagentCoordinator,
+            subTools: subagentToolRegistry,
+            model: llmConfig.modelName,
+            systemPrompt: "你是子任务执行 Agent：直接完成给定任务，输出简洁，不要反问。",
+            makeLLM: { [weak self] in
+                await MainActor.run {
+                    guard let self, self.hasAPIKey else { return nil }
+                    let cfg = self.llmConfig
+                    let key = KeychainStorage.getAPIKey(forProvider: cfg.providerRaw) ?? ""
+                    return self.makeProvider(cfg, key: key)
+                }
+            }
+        )
+        await toolRegistry.register(tool)
+        await refreshTools()
     }
 
     deinit {
@@ -1003,7 +1034,7 @@ final class AppViewModel: ObservableObject {
         let agent = AgentLoop(
             sessionID: SessionID(),
             llm: provider,
-            tools: toolRegistry,
+            tools: subagentToolRegistry,
             model: llmConfig.modelName,
             systemPrompt: "你是子任务执行 Agent：直接完成给定任务，输出简洁结果，不要反问。"
         )

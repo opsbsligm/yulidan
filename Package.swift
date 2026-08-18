@@ -115,7 +115,7 @@ let package = Package(
                     dependencies: ["MCP", "ServiceContainer", "Tools", "Session"],
                     path: "Packages/MCP/Tests"),
         .target(name: "Subagent",
-                dependencies: ["ServiceContainer", "Agent", "Session"],
+                dependencies: ["ServiceContainer", "Agent", "Session", "LLM", "Tools"],
                 path: "Packages/Subagent/Sources"),
         .testTarget(name: "SubagentTests",
                     dependencies: ["Subagent", "Agent", "LLM", "Tools", "Session"],
