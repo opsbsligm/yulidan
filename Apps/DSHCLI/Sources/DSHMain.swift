@@ -447,7 +447,7 @@ struct SkillsCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "skills",
         abstract: "Manage skills (built-in + ~/.harness/skills)",
-        subcommands: [SkillsListCommand.self, SkillsShowCommand.self]
+        subcommands: [SkillsListCommand.self, SkillsShowCommand.self, SkillsExportCommand.self, SkillsImportCommand.self]
     )
 }
 
@@ -458,14 +458,7 @@ struct SkillsListCommand: AsyncParsableCommand {
     )
 
     func run() async throws {
-        var skills = BuiltInSkills.makeAll()
-        let userSkills = SkillStore.load(from: SkillStore.userSkillsDirectory)
-        // 用户目录同名技能覆盖内置
-        var byName: [String: Skill] = [:]
-        for skill in skills + userSkills {
-            byName[skill.name] = skill
-        }
-        let all = byName.values.sorted { $0.name < $1.name }
+        let all = SkillsCLI.allSkills()
         guard !all.isEmpty else {
             print("（无可用技能）")
             return
@@ -488,14 +481,92 @@ struct SkillsShowCommand: AsyncParsableCommand {
     var name: String
 
     func run() async throws {
-        var byName: [String: Skill] = [:]
-        for skill in BuiltInSkills.makeAll() + SkillStore.load(from: SkillStore.userSkillsDirectory) {
-            byName[skill.name] = skill
-        }
-        guard let skill = byName[name] else {
+        guard let skill = SkillsCLI.allSkills().first(where: { $0.name == name }) else {
+            print("技能不存在：\(name)（可用：dsh skills list）")
             throw ExitCode(1)
         }
         print("【\(skill.name)】\(skill.description)（来源：\(skill.source)）\n")
         print(skill.instructions)
+    }
+}
+
+// MARK: - skills 公共逻辑 + 导入导出
+
+enum SkillsCLI {
+    /// 内置 + 用户目录技能（同名时用户覆盖内置），按名称排序
+    static func allSkills() -> [Skill] {
+        var byName: [String: Skill] = [:]
+        for skill in BuiltInSkills.makeAll() + SkillStore.load(from: SkillStore.userSkillsDirectory) {
+            byName[skill.name] = skill
+        }
+        return byName.values.sorted { $0.name < $1.name }
+    }
+}
+
+struct SkillsExportCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "export",
+        abstract: "Export a skill to a SKILL.md file"
+    )
+
+    @Argument(help: "Skill name")
+    var name: String
+
+    @Option(name: .shortAndLong, help: "Output path (default ./<name>.skill.md)")
+    var out: String?
+
+    func run() async throws {
+        guard let skill = SkillsCLI.allSkills().first(where: { $0.name == name }) else {
+            print("技能不存在：\(name)（可用：dsh skills list）")
+            throw ExitCode(1)
+        }
+        let target = URL(fileURLWithPath: ((out ?? "./\(name).skill.md") as NSString).expandingTildeInPath)
+        do {
+            try SkillStore.serialize(skill).write(to: target, atomically: true, encoding: .utf8)
+        } catch {
+            print("写入失败：\(target.path)（\(error.localizedDescription)）")
+            throw ExitCode(1)
+        }
+        print("✅ 已导出 \(skill.name)（来源：\(skill.source)）→ \(target.path)")
+    }
+}
+
+struct SkillsImportCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "import",
+        abstract: "Import a SKILL.md file (or skill directory) into ~/.harness/skills"
+    )
+
+    @Argument(help: "SKILL.md path or skill directory")
+    var path: String
+
+    func run() async throws {
+        let fm = FileManager.default
+        var isDir: ObjCBool = false
+        let sourceURL = URL(fileURLWithPath: (path as NSString).expandingTildeInPath)
+        guard fm.fileExists(atPath: sourceURL.path, isDirectory: &isDir) else {
+            print("路径不存在：\(path)")
+            throw ExitCode(1)
+        }
+        let fileURL = isDir.boolValue ? sourceURL.appendingPathComponent("SKILL.md") : sourceURL
+        guard let text = try? String(contentsOf: fileURL, encoding: .utf8) else {
+            print("无法读取 \(fileURL.lastPathComponent)")
+            throw ExitCode(1)
+        }
+        guard let skill = SkillStore.parse(text, source: fileURL.path) else {
+            print("❌ 不是合法的技能文件（需要 --- frontmatter --- 且含 name 字段）：\(fileURL.path)")
+            throw ExitCode(1)
+        }
+        let target = SkillStore.userSkillsDirectory.appendingPathComponent(skill.name, isDirectory: true)
+            .appendingPathComponent("SKILL.md")
+        let existed = fm.fileExists(atPath: target.path)
+        do {
+            try fm.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try text.write(to: target, atomically: true, encoding: .utf8)
+        } catch {
+            print("写入失败：\(target.path)（\(error.localizedDescription)）")
+            throw ExitCode(1)
+        }
+        print("✅ 已导入 \(skill.name)（\(existed ? "覆盖" : "新增")）→ \(target.path)")
     }
 }

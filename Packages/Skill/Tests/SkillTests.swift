@@ -55,6 +55,37 @@ struct SkillParseTests {
     }
 }
 
+// MARK: - serialize（导出/导入往返）
+
+@Suite("SkillStore.serialize 往返")
+struct SkillSerializeTests {
+    @Test("serialize 再 parse 保持 name/description/tags/正文")
+    func roundTrip() {
+        let skill = Skill(name: "round-trip", description: "往返验证", instructions: "第一行\n第二行",
+                          tags: ["a", "b"], source: "test")
+        let parsed = SkillStore.parse(SkillStore.serialize(skill), source: "test")
+        #expect(parsed?.name == "round-trip")
+        #expect(parsed?.description == "往返验证")
+        #expect(parsed?.tags == ["a", "b"])
+        #expect(parsed?.instructions == "第一行\n第二行")
+    }
+
+    @Test("多行描述被压成单行（frontmatter 行解析约束）")
+    func multilineDescriptionFlattened() {
+        let skill = Skill(name: "multi-line", description: "第一行\n第二行", instructions: "正文",
+                          tags: [], source: "test")
+        let parsed = SkillStore.parse(SkillStore.serialize(skill), source: "test")
+        #expect(parsed?.description == "第一行 第二行")
+    }
+
+    @Test("无 tags 时不输出 tags 行")
+    func noTagsLine() {
+        let skill = Skill(name: "no-tags", description: "d", instructions: "b", tags: [], source: "test")
+        #expect(SkillStore.serialize(skill).contains("tags:") == false)
+        #expect(SkillStore.parse(SkillStore.serialize(skill), source: "t")?.tags.isEmpty == true)
+    }
+}
+
 // MARK: - 目录加载
 
 final class SkillStoreLoadTests: XCTestCase {

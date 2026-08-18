@@ -71,6 +71,20 @@ public enum SkillStore {
                      source: source)
     }
 
+    /// 序列化为 SKILL.md 文本（导出/导入用；描述与标签压成单行）
+    public static func serialize(_ skill: Skill) -> String {
+        func oneLine(_ value: String) -> String {
+            value.replacingOccurrences(of: "\n", with: " ").trimmingCharacters(in: .whitespaces)
+        }
+        var lines = ["---", "name: \(oneLine(skill.name))", "description: \(oneLine(skill.description))"]
+        if !skill.tags.isEmpty {
+            lines.append("tags: \(skill.tags.map(oneLine).joined(separator: ", "))")
+        }
+        lines.append("---")
+        lines.append(skill.instructions)
+        return lines.joined(separator: "\n") + "\n"
+    }
+
     /// 从目录加载全部技能（每个子目录含一个 SKILL.md；无效条目跳过）
     /// - Returns: 按 name 排序的技能列表
     public static func load(from directory: URL) -> [Skill] {
