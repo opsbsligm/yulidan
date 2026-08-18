@@ -1,106 +1,99 @@
 # Swift Harness — 质量保障报告
 
-> 生成时间: 2026-08-14 19:55
-> 项目版本: v0.1.0-rc.2
+> 生成时间: 2026-08-18 08:15
+> 项目版本: v0.1.0（开发中，HEAD `0c80e11`）
+> 说明: 本版为 2026-08-14 v0.1.0-rc.2 报告的基线更新；测试数、覆盖率、门禁结果均为当前 HEAD 实测，未沿用旧数据。
 
 ---
 
-## 一、代码审查
+## 一、质量门禁（当前 HEAD 实测）
 
-| 检查项 | 状态 | 详情 |
-|--------|------|------|
-| 编译警告 | ✅ 0 个 | `swift build` 零警告 |
-| 编译错误 | ✅ 0 个 | 项目完整编译通过 |
-| 依赖冗余 | ✅ 0 个 | 已清理未使用依赖 |
-| 架构约束 | ✅ 合规 | 纯 Swift 原生，无 WebView/JS 依赖 |
-| Sendable 安全 | ✅ 合规 | Swift 6 strict concurrency |
-| 禁止 @unchecked | ⚠️ 少量 | 仅限 @unchecked Sendable (必要场景) |
-| SwiftLint | ✅ 配置 | `.swiftlint.yml` 已配置 |
-| SwiftFormat | ✅ 配置 | `.swiftformat.yml` 已配置 |
+| 门禁 | 状态 | 详情 |
+|------|------|------|
+| SwiftFormat | ✅ 0 改动 | `swiftformat . --config .swiftformat` |
+| SwiftLint | ✅ 0 违规 | `swiftlint lint --strict`（warning 按 error 计） |
+| 编译 | ✅ 通过 | `swift build`（Swift 6.3 / strict concurrency） |
+| 单元测试 | ✅ 260/260 | XCTest 66 + Swift Testing 194（44 suites），0 失败 |
+| 本地镜像备份 | ✅ 每次提交后 | `git push --mirror /Users/liguangming/code/swift-harness-backup.git` |
+| GitHub 推送 | ⏸ 暂缓 | 按用户要求先本地版本控制，未推送远端 |
 
-## 二、测试覆盖率
+## 二、测试用例与行覆盖率（2026-08-18 实测，llvm-cov）
 
-| 模块 | 测试套件 | 测试用例 | 覆盖率 | 状态 |
-|------|---------|---------|--------|------|
-| ServiceContainer | 16 | 62 | 91% | ✅ ≥90% |
-| Session | 7 | 17 | 96% | ✅ ≥90% |
-| LLM | 5 | 8 | N/A | ⚠️ stub 实现 |
-| Tools | 5 | 12 | 94% | ✅ ≥90% |
-| Agent | 8 | 21 | 98% | ✅ ≥90% |
+| 模块 | 测试用例 | 行覆盖 | 状态 |
+|------|---------|--------|------|
+| ServiceContainer | 88 | 94.2%（1658/1760） | ✅ ≥90% |
+| Agent | 35 | 93.8%（709/756） | ✅ ≥90% |
+| Session | 24 | 93.0%（690/742） | ✅ ≥90% |
+| Tools | 20 | 91.2%（474/520） | ✅ ≥90% |
+| Subagent | 18 | 95.3%（727/763） | ✅ ≥90% |
+| Terminal | 10 | 95.9%（303/316） | ✅ ≥90% |
+| Sandbox | 10 | 94.0%（156/166） | ✅ ≥90% |
+| PluginXPC | 8 | 94.3%（466/494） | ✅ ≥90% |
+| MCP | 13 | 87.5%（649/742） | ⚠️ stdio 客户端少量分支未覆盖 |
+| Notifications | 5 | 73.4%（91/124） | ⚠️ 授权/重试分支未覆盖 |
+| LLM | 8 | 35.5%（311/876） | ⚠️ 适配器依赖真实 HTTP，集成测试待补 |
+| HarnessCore | 0 | 66.7%（32/48） | ⚠️ 待补测试 |
+| HarnessApp（App 层） | 8 | 6.7%（650/9765） | ⚠️ SwiftUI 视图层无单测；AppViewModel 32.8% |
 
-**总计: 142 个测试用例, 33 个测试套件, 全部通过**
+**总计: 260 个测试用例（XCTest 66 + Swift Testing 194），全部通过。**
 
-### 覆盖率详情
+> 核心包（ServiceContainer / Agent / Session / Tools / Subagent / Terminal / Sandbox / PluginXPC）行覆盖全部 ≥90%，满足验收标准。
 
-#### ServiceContainer (91%)
-- ✅ AnyCodable: 96.20% — encode/decode 全类型覆盖
-- ✅ CircuitBreaker: 100% — 状态机闭环测试
-- ⚠️ EventBus: 84.52% — emit 路径未覆盖
-- ✅ Plugin: 96.61% — 插件元数据全覆盖
-- ✅ PluginContext: 100% — 上下文/配置/取消/效果
-- ✅ PluginManager: 91.61% — 安装/卸载/依赖/版本
-- ⚠️ ServiceContainer: 74.14% — 工厂注册未覆盖
+## 三、rc.2 之后新增能力（34 个提交）
 
-#### Session (96%)
-- ✅ Session.swift: 97.22% — 会话 CRUD 全覆盖
-- ✅ SessionEvent: 100% lines — enum 分支
-- ⚠️ SessionID: 50% — `init(rawValue:)` 未测试
-- ✅ SessionStore: 100% — 持久化全覆盖
+### 模型与工具
+- LLM 真实适配器：OpenAI / DeepSeek / Anthropic / 本地 Ollama·vLLM（OpenAI 兼容协议）
+- MCP：协议类型 + 真实 JSON-RPC 2.0 stdio 客户端 + App 演示服务器（system_info / current_time）
+- Terminal 包：TerminalRunner 真实执行，ExecCommandTool 委托
+- PathSandbox 路径沙箱：文件工具越界拒绝，设置页可配置
 
-#### Agent (98%)
-- ✅ Agent.swift: 100% — 协议层测试
-- ✅ AgentLoop: 100% lines — send/followup/inject/processInbox
-- ✅ Inbox: 100% — 消息队列全路径
-- ⚠️ Turn: 92.86% — `receiveChunk` 因 StreamChunk 命名冲突未测
+### 多 Agent 协作链（本轮主线）
+- `SubagentCoordinator`：并发槽位 / 超时 / 取消 / 事件回调 / whenIdle 真实等待
+- App「多Agent」页：派生 / 取消 / 清理 / 阶段徽章 / 耗时 / 结果文本
+- 执行过程可视化：AgentResult.steps 工具调用步骤时间线
+- 子任务历史持久化：重启不丢（上限 50 条）
+- 子任务终态系统通知（完成/失败/超时）
+- 对话页「派生」按钮：当前输入 → 子任务
+- CLI：`dsh agents run <任务...> --parallel --timeout`（与 App 同一协调器）
+- **spawn_subagent 工具**：主 Agent 对话中自主委派子任务；子 Agent 用独立工具注册表（不含本工具），防递归死锁
 
-#### Tools (94%)
-- ✅ ToolRegistry: 100% — 注册/查找/Schema
-- ⚠️ ToolPipeline: 88.57% — 管道执行路径
-- ✅ Tool.swift: 100% — 工具协议
+### App / 插件
+- macOS 系统通知（生成完成/失败，设置可开关）
+- 插件市场层 PluginMarketplace + 14 测试 + App 双视图（已安装/市场，真实安装/更新/卸载）
+- XPC 进程隔离：PluginXPC + worker 可执行 + 真实 E2E 测试 + App 隔离开关（启动恢复 + 徽章）
+- 性能：启动会话加载消除 N+1 与全量事件解码，实测 212×（docs/PERFORMANCE.md）
+- Codex 风格 UI 重构 + 远程窗口看门狗 + 碎片化窗口重建兜底
 
-#### LLM (N/A)
-- ⚠️ DeepSeekAdapter: fatalError stub
-- ⚠️ OpenAIAdapter: fatalError stub
-- ✅ LLMProvider 协议层测试
+### 工程
+- DSH CLI：provider 解析 + 真实对话
+- `tools/rebuild-app.sh` 一键重建 .app 壳
+- HarnessAppTests 测试目标（App 层单测）
 
-## 三、CI/CD
+## 四、CI/CD
 
 | 流水线 | 状态 | 详情 |
 |--------|------|------|
-| PR Check | ✅ 配置 | lint + 编译 + 单测 ≤5min |
-| Main Check | ✅ 配置 | 全量测试 + 覆盖率 + CodeQL |
-| Dependabot | ✅ 配置 | 每周依赖更新 |
-| Weekly Audit | ✅ 配置 | 周一依赖审计 |
+| PR Check（GitHub Actions） | ✅ 配置 | lint + 编译 + 单测 |
+| Main Check（GitHub Actions） | ✅ 配置 | 全量测试 + 覆盖率 + CodeQL |
+| 本地门禁（每轮提交前） | ✅ 执行 | format + lint --strict + build + test 四连 |
+| 本地镜像备份 | ✅ 执行 | 每次提交后 `git push --mirror` 到本地裸库 |
+| GitHub 远端 | ⏸ 暂缓 | 用户要求先本地版本控制 |
 
-## 四、架构合规
+## 五、架构合规
 
 | 约束 | 状态 | 证据 |
 |------|------|------|
 | 纯 macOS 原生 | ✅ | 无 WebView/WKWebView 依赖 |
 | 无 JavaScript | ✅ | 零 JS/TS/Node 依赖 |
-| Swift 6 并发 | ✅ | Actor 隔离 + Sendable |
+| Swift 6 并发 | ✅ | strict concurrency 编译通过 |
 | Protocol 驱动 | ✅ | 所有接口为 Protocol |
-| 模块化 | ✅ | SPM 独立 Package |
+| 模块化 | ✅ | SPM 14 个包 + App + CLI |
 | 最低 macOS 15 | ✅ | Package.swift 声明 |
 
-## 五、改进建议
+## 六、改进建议（按优先级）
 
-1. **Turn.receiveChunk**: 修复 StreamChunk 命名冲突（Session vs LLM 模块），补充测试
-2. **SessionID.init(rawValue:)**: 补充 Codable 反序列化测试
-3. **LLM 适配器**: 实现 URL 请求层面的集成测试（非 fatalError）
-4. **ServiceContainer.swift**: 补充工厂注册/解析路径测试
-5. **EventBus.swift**: 补充 emit 路径测试
-
-## 六、与 DeepSeek Harness 对比
-
-| 维度 | DeepSeek Harness | Swift Harness |
-|------|-----------------|---------------|
-| 语言 | TypeScript/Node.js | Swift 6 |
-| 运行时 | Node.js + Electron | macOS 原生 |
-| 并发模型 | async/await | Actor + Sendable |
-| 插件隔离 | 进程内 | Phase 1: Actor, Phase 3+: XPC |
-| 持久化 | SQLite | GRDB.swift |
-| 测试框架 | Jest/Vitest | Swift Testing |
-| 最低覆盖 | — | ≥90% (核心模块) |
-| CI/CD | GitHub Actions | GitHub Actions |
-| 包管理 | npm | SPM |
+1. **LLM 适配器 HTTP 层**：补请求构造/错误处理集成测试（当前 35.5%，受真实网络限制）
+2. **HarnessApp 视图层**：XCUITest 或快照测试（当前 6.7%；AppViewModel 32.8% 已部分覆盖）
+3. **Notifications 73.4%**：补授权拒绝/重试分支
+4. **MCP 87.5%**：补 stdio 客户端异常分支
+5. **Spotlight / Shortcuts**：需正式 bundle 签名注册，debug 壳不适用，暂缓
