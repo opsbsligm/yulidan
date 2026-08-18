@@ -5,6 +5,7 @@ import HarnessCore
 import LLM
 import MCP
 import Prompt
+import RAG
 import ServiceContainer
 import Session
 import Skill
@@ -127,6 +128,14 @@ struct HeadlessCommand: AsyncParsableCommand {
     @Flag(name: .shortAndLong, help: "Show tool call details")
     var verbose: Bool = false
 
+    /// RAG 知识库工具注册（进程级共享索引 ~/.harness/rag/index.json，与 App 同一份库）
+    private static func registerRAGTools(to tools: ToolRegistry) async {
+        let ragEngine = await SharedRAGEngine.shared.get()
+        for tool in KnowledgeTools.makeAll(engine: ragEngine) {
+            await tools.register(tool)
+        }
+    }
+
     func run() async throws {
         let cfg = try DSHConfig.resolve()
         FileHandle.standardError.write(Data("[dsh] \(cfg.baseURL.absoluteString) / \(cfg.model)\n".utf8))
@@ -138,6 +147,8 @@ struct HeadlessCommand: AsyncParsableCommand {
         }
         // MCP 服务发现：连接 ~/.harness/mcp/servers.json 声明的 stdio 服务器，工具自动注册
         await connectMCPServers(to: tools)
+        // RAG 知识库：注册 search_knowledge / add_knowledge / list_knowledge 工具
+        await Self.registerRAGTools(to: tools)
         // 提示词工程层：用户未显式配置系统提示词时，渲染内置 agent 角色模板（模型差异化自动适配）
         let promptEngine = await SharedPromptEngine.instance.get()
         var systemPrompt = cfg.systemPrompt

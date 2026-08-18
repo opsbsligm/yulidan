@@ -68,13 +68,20 @@ let package = Package(
                     dependencies: ["Prompt", "ServiceContainer"],
                     path: "Packages/Prompt/Tests"),
 
+        .target(name: "RAG",
+                dependencies: ["ServiceContainer", "Tools"],
+                path: "Packages/RAG/Sources"),
+        .testTarget(name: "RAGTests",
+                    dependencies: ["RAG", "ServiceContainer", "Tools", "Session"],
+                    path: "Packages/RAG/Tests"),
+
         .target(name: "HarnessCore",
                 dependencies: ["ServiceContainer", "Session", "LLM", "Tools", "Agent"],
                 path: "Apps/HarnessCore/Sources"),
 
         .executableTarget(name: "DSHCLI",
                           dependencies: ["HarnessCore", "Agent", "Subagent", "LLM", "Tools", "ServiceContainer", "Session",
-                                         "Skill", "WebUI", "Prompt", "MCP", .product(name: "ArgumentParser", package: "swift-argument-parser")],
+                                         "Skill", "WebUI", "Prompt", "MCP", "RAG", .product(name: "ArgumentParser", package: "swift-argument-parser")],
                           path: "Apps/DSHCLI/Sources"),
 
         // 内存/性能探针
@@ -86,7 +93,7 @@ let package = Package(
         .executableTarget(name: "HarnessApp",
                           dependencies: ["HarnessCore", "ServiceContainer", "Session", "LLM", "Tools", "Agent",
                                          "Subagent", "MCP", "Terminal", "Sandbox", "Notifications", "PluginXPC",
-                                         "Skill", "Prompt"],
+                                         "Skill", "Prompt", "RAG"],
                           path: "Apps/HarnessApp/Sources"),
         .testTarget(name: "HarnessAppTests",
                     dependencies: ["HarnessApp", "Agent", "Subagent", "Session", "LLM", "Tools"],

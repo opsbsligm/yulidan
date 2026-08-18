@@ -6,6 +6,7 @@ import LLM
 import Notifications
 import PluginXPC
 import Prompt
+import RAG
 import Sandbox
 
 // 技术债：本文件/类超过长度阈值，计划拆分为 会话管理 / 生成流程 / 设置 三个 ViewModel（见 docs/CODE_REVIEW.md）
@@ -445,6 +446,12 @@ final class AppViewModel: ObservableObject {
                 _ = await mcpManager.connectStdio(config, into: toolRegistry)
                 await refreshTools()
             }
+        }
+        // RAG 知识库：注册 search_knowledge / add_knowledge / list_knowledge 工具
+        // （进程级共享索引 ~/.harness/rag/index.json，与 CLI 同一份库）
+        let ragEngine = await SharedRAGEngine.shared.get()
+        for tool in KnowledgeTools.makeAll(engine: ragEngine) {
+            await toolRegistry.register(tool)
         }
         await refreshTools()
     }
