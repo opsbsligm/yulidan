@@ -101,4 +101,43 @@ final class PathSandboxTests: XCTestCase {
             }
         }
     }
+
+    func testErrorDescriptions() {
+        let outside = PathSandboxError.outsideSandbox(attempted: "/tmp/evil", allowedRoots: ["/a", "/b"])
+        XCTAssertTrue(outside.description.contains("/tmp/evil"))
+        XCTAssertTrue(outside.description.contains("/a, /b"))
+        XCTAssertEqual(PathSandboxError.emptyPath.description, "路径不能为空")
+    }
+
+    func testResolveEmptyPathFallsBackToCurrentDirectory() {
+        let resolved = sandbox.resolve("")
+        let cwd = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        XCTAssertEqual(resolved, cwd)
+        // 纯空白同样按当前目录处理
+        XCTAssertEqual(sandbox.resolve("   "), cwd)
+    }
+
+    func testResolveTrimsWhitespace() throws {
+        let file = try write("t.txt")
+        XCTAssertEqual(sandbox.resolve("  " + file.path + "  "), file)
+    }
+
+    func testAssertAllowedOutsideCarriesAttemptedAndRoots() {
+        let missingOutside = base.deletingLastPathComponent()
+            .appendingPathComponent("no-such-dir-\(UUID().uuidString)")
+            .appendingPathComponent("deep.txt").path
+        XCTAssertThrowsError(try sandbox.assertAllowed(missingOutside)) {
+            guard let err = $0 as? PathSandboxError, case let PathSandboxError.outsideSandbox(attempted, roots) = err else {
+                return XCTFail("应为 outsideSandbox，实际：\($0)")
+            }
+            XCTAssertEqual(attempted, missingOutside)
+            XCTAssertEqual(roots, [base.path])
+        }
+    }
+
+    func testRootPathItselfIsAllowed() {
+        // url.path == root.path 相等分支
+        XCTAssertTrue(sandbox.isAllowed(base.path))
+        XCTAssertNoThrow(try sandbox.assertAllowed(base.path))
+    }
 }

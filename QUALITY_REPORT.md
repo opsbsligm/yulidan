@@ -13,7 +13,7 @@
 | SwiftFormat | ✅ 0 改动 | `swiftformat . --config .swiftformat` |
 | SwiftLint | ✅ 0 违规 | `swiftlint lint --strict`（warning 按 error 计） |
 | 编译 | ✅ 通过 | `swift build`（Swift 6.3 / strict concurrency） |
-| 单元测试 | ✅ 327/327 | XCTest 100 + Swift Testing 227（50 suites），0 失败 |
+| 单元测试 | ✅ 332/332 | XCTest 105 + Swift Testing 227（50 suites），0 失败 |
 | 本地镜像备份 | ✅ 每次提交后 | `git push --mirror /Users/liguangming/code/swift-harness-backup.git` |
 | GitHub 推送 | ⏸ 暂缓 | 按用户要求先本地版本控制，未推送远端 |
 
@@ -30,18 +30,18 @@
 | Agent | 35 | 90.2%（330/366） | ✅ ≥90% |
 | Session | 24 | 90.0%（368/409） | ✅ ≥90% |
 | Tools | 20 | 86.8%（223/257） | ⚠️ 部分工具分支未覆盖 |
-| Sandbox | 10 | 85.9%（55/64） | ⚠️ 边界分支未覆盖 |
+| Sandbox | 15 | 98.4%（63/64） | ✅ ≥90%；余 1 行为根目录死代码分支 |
 | MCP | 13 | 84.3%（423/502） | ⚠️ stdio 客户端异常分支未覆盖 |
 | LLM | 35 | 93.6%（670/716） | ✅ ≥90%；27 个零网络 HTTP 桩测试（complete/stream/checkConnection/错误分支） |
 | Notifications | 13 | 67.1%（49/73） | ⚠️ SystemNotificationCenter 真实包装层无法在测试进程触达（UNUserNotificationCenter.current() 限制）；编排/服务逻辑已全覆盖 |
 | HarnessApp（App 层） | 15 | 6.1%（631/10392） | ⚠️ SwiftUI 视图层无单测；AppViewModel 逻辑已部分覆盖 |
 
-**总计: 327 个测试用例（XCTest 100 + Swift Testing 227），全部通过。**
+**总计: 332 个测试用例（XCTest 105 + Swift Testing 227），全部通过。**
 
 > 口径说明：行覆盖仅统计各模块 `Sources/` 源文件（不含测试文件）。
-> 核心包（Subagent / Skill / LLM / Terminal / PluginXPC / ServiceContainer / Agent / Session）行覆盖 ≥90%，满足验收标准；Tools / Sandbox / MCP 85%+ 接近达标。
+> 核心包（Subagent / Skill / LLM / Sandbox / Terminal / PluginXPC / ServiceContainer / Agent / Session）行覆盖 ≥90%，满足验收标准；Tools / MCP 85%+ 接近达标。
 
-## 三、rc.2 之后新增能力（44 个提交）
+## 三、rc.2 之后新增能力（45 个提交）
 
 ### 模型与工具
 - LLM 真实适配器：OpenAI / DeepSeek / Anthropic / 本地 Ollama·vLLM（OpenAI 兼容协议）
@@ -82,6 +82,7 @@
 - HarnessCoreTests 测试目标（内置插件 manifest/生命周期/目录 4 用例，模块覆盖 66.7% → 100%）
 - 通知协议化重构：NotificationCenterProtocol + AuthorizationState 抽象（SystemNotificationService 可注入替身），新增 8 个授权/投递分支测试
 - LLM 适配器补测 10 用例（DeepSeek/Local stream、四家 checkConnection、缺 Key、流式错误传播、适配器元数据）：LLM 75.7% → 93.6%
+- PathSandbox 补测 5 用例（错误描述/空路径回退/空白裁剪/错误载荷/根相等分支）：Sandbox 85.9% → 98.4%
 
 ## 四、CI/CD
 
