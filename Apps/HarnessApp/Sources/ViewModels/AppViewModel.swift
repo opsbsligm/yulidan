@@ -287,8 +287,10 @@ final class AppViewModel: ObservableObject {
     @Published var marketplaceEntries: [MarketplaceDisplayItem] = []
     @Published var tools: [ToolDisplayItem] = []
 
-    // 基础设施（真实组件）
+    /// 基础设施（真实组件）
     let sessionDB: SessionDB?
+    /// 测试钩子：指定会话数据库路径（nil = 默认 ~/Library/Application Support/Harness/sessions.sqlite）
+    static var sessionDBURLOverride: URL?
     let pluginManager: PluginManager
     let marketplace: PluginMarketplace
     let notificationCenter: NotificationCoordinator
@@ -330,7 +332,7 @@ final class AppViewModel: ObservableObject {
             sources: [LocalBuiltInMarketplaceSource()]
         )
         llmConfig = LLMConfig.load()
-        sessionDB = try? SessionDB()
+        sessionDB = try? SessionDB(dbURL: Self.sessionDBURLOverride)
         sessionTitles = Self.loadTitles()
         // 先占位（init 两阶段初始化限制），onEvent 由 registerSubagentRuntime 后置赋值
         subagentCoordinator = SubagentCoordinator(maxConcurrent: 4)
