@@ -102,6 +102,30 @@ struct ToolPipelineTests {
         let result = try await pipeline.execute(ToolCall(name: "mock", arguments: [:]))
         #expect(result.content.count == 1)
     }
+
+    @Test("Post-execute handler receives result")
+    func postHandler() async throws {
+        let registry = ToolRegistry()
+        let pipeline = ToolPipeline(registry: registry)
+        await pipeline.addPreExecuteHandler { _ in true }
+        final class Box: @unchecked Sendable {
+            var seen: [String] = []
+        }
+        let box = Box()
+        await pipeline.addPostExecuteHandler { result in
+            box.seen.append(result.content.first.flatMap { block -> String? in
+                if case let .text(t) = block {
+                    return t
+                }
+                return nil
+            } ?? "")
+        }
+        let tool = MockTool()
+        tool.executeResult = ToolResult(content: [.text("done")])
+        await registry.register(tool)
+        _ = try await pipeline.execute(ToolCall(name: "mock", arguments: [:]))
+        #expect(box.seen == ["done"])
+    }
 }
 
 @Suite("ToolCall Tests")
