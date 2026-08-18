@@ -40,6 +40,8 @@ public actor AgentLoop {
     private let model: String
     private let systemPrompt: String?
     private let maxSteps: Int
+    /// 上下文保留上限：每轮 turn 结束后裁剪到最近 N 条（防长会话内存无界增长）
+    private let maxHistoryMessages: Int
 
     /// 对话上下文（LLM 侧消息）
     private var history: [LLM.Message] = []
@@ -59,7 +61,8 @@ public actor AgentLoop {
         tools: ToolRegistry,
         model: String,
         systemPrompt: String? = nil,
-        maxSteps: Int = 8
+        maxSteps: Int = 8,
+        maxHistoryMessages: Int = 200
     ) {
         self.id = id
         self.sessionID = sessionID
@@ -68,6 +71,7 @@ public actor AgentLoop {
         self.model = model
         self.systemPrompt = systemPrompt
         self.maxSteps = maxSteps
+        self.maxHistoryMessages = max(4, maxHistoryMessages)
         inbox = Inbox()
     }
 
@@ -193,6 +197,7 @@ public actor AgentLoop {
                                                totalTokens: $0.totalTokens)
                         }
                     )
+                    trimHistory()
                     return AgentResult(status: .idle, messages: [assistant], steps: stepMessages)
                 }
 
@@ -206,11 +211,24 @@ public actor AgentLoop {
             // 达到步数上限
             let error = AgentError.stepLimitExceeded(maxSteps)
             await turn.fail(with: error)
+            trimHistory()
             return AgentResult(status: .idle, error: error.localizedDescription, steps: stepMessages)
         } catch {
             await turn.fail(with: error)
             return AgentResult(status: .idle, error: error.localizedDescription, steps: stepMessages)
         }
+    }
+
+    /// 裁剪上下文到最近 maxHistoryMessages 条（保留工具调用/结果的配对完整性：
+    /// 不留下“无主”的 tool 结果消息在队首）
+    private func trimHistory() {
+        guard history.count > maxHistoryMessages else { return }
+        var keep = history.suffix(maxHistoryMessages)
+        // 队首若为 tool 结果（其 assistant 调用已被裁掉），继续丢弃直到安全边界
+        while let first = keep.first, first.role == .tool {
+            keep = keep.dropFirst()
+        }
+        history = Array(keep)
     }
 
     /// 构造当前步的助手消息（含工具调用块，供执行过程展示）

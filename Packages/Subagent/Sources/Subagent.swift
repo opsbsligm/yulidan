@@ -29,11 +29,18 @@ public struct SubagentSpec: Sendable {
     public var task: String
     /// 单任务超时（秒）：到点后取消子 Agent 并标记 timedOut
     public var timeout: TimeInterval
+    /// 结构化入参（键值对，随任务文本一起下发给子 Agent）
+    public var context: [String: String]
+    /// 父任务标识（多 Agent 树展示用；nil = 顶层任务）
+    public var parentID: SubagentID?
 
-    public init(name: String, task: String, timeout: TimeInterval = 120) {
+    public init(name: String, task: String, timeout: TimeInterval = 120,
+                context: [String: String] = [:], parentID: SubagentID? = nil) {
         self.name = name
         self.task = task
         self.timeout = timeout
+        self.context = context
+        self.parentID = parentID
     }
 }
 
@@ -78,6 +85,8 @@ public struct SubagentState: Sendable {
     public var startedAt: Date?
     public var finishedAt: Date?
     public var timeout: TimeInterval
+    /// 父任务标识（nil = 顶层任务）
+    public var parentID: SubagentID?
 
     /// 执行耗时（仅终态有值）
     public var elapsed: TimeInterval? {
@@ -85,11 +94,13 @@ public struct SubagentState: Sendable {
         return finishedAt.timeIntervalSince(startedAt)
     }
 
-    public init(id: SubagentID, name: String, phase: SubagentPhase = .pending, timeout: TimeInterval = 0) {
+    public init(id: SubagentID, name: String, phase: SubagentPhase = .pending, timeout: TimeInterval = 0,
+                parentID: SubagentID? = nil) {
         self.id = id
         self.name = name
         self.phase = phase
         self.timeout = timeout
+        self.parentID = parentID
     }
 }
 
@@ -98,6 +109,8 @@ public enum SubagentEvent: Sendable {
     case spawned(id: SubagentID, name: String)
     case started(id: SubagentID)
     case finished(id: SubagentID, state: SubagentState)
+    /// 终态条目超过宽限期，内存已回收（历史持久化不受影响）
+    case reclaimed(id: SubagentID)
 }
 
 // MARK: - 协调器
@@ -119,7 +132,11 @@ public actor SubagentCoordinator {
     /// 生命周期事件回调（init 可传入，也可在宿主成员就绪后赋值）
     public nonisolated(unsafe) var onEvent: (@Sendable (SubagentEvent) -> Void)?
 
+    /// 完成回调（终态落定时触发；与 onEvent 独立，供通知/统计直挂）
+    public nonisolated(unsafe) var onFinished: (@Sendable (SubagentState) -> Void)?
+
     private var states: [SubagentID: SubagentState] = [:]
+    private var reaperTask: Task<Void, Never>?
     private var agents: [SubagentID: any Agent] = [:]
     private var tasks: [SubagentID: Task<Void, Never>] = [:]
     private var runningCount = 0
@@ -143,7 +160,7 @@ public actor SubagentCoordinator {
     @discardableResult
     public func spawn(agent: some Agent, spec: SubagentSpec) -> SubagentID {
         let id = SubagentID()
-        states[id] = SubagentState(id: id, name: spec.name, timeout: spec.timeout)
+        states[id] = SubagentState(id: id, name: spec.name, timeout: spec.timeout, parentID: spec.parentID)
         agents[id] = agent
         onEvent?(.spawned(id: id, name: spec.name))
         tasks[id] = Task { [weak self] in
@@ -188,11 +205,80 @@ public actor SubagentCoordinator {
     public func removeFinished() -> Int {
         let finishedIDs = states.filter(\.value.phase.isTerminal).map(\.key)
         for id in finishedIDs {
-            states[id] = nil
-            agents[id] = nil
-            tasks[id] = nil
+            release(id)
         }
         return finishedIDs.count
+    }
+
+    /// 运行概览（监控/调试用）
+    public func counts() -> (running: Int, queued: Int, finished: Int) {
+        var running = 0
+        var queued = 0
+        var finished = 0
+        for state in states.values {
+            switch state.phase {
+            case .running: running += 1
+            case .pending: queued += 1
+            default: finished += 1
+            }
+        }
+        return (running, queued, finished)
+    }
+
+    /// 启动自动回收：终态条目保留 gracePeriod 后释放内存（防僵尸 Agent 残留）
+    ///
+    /// 回收仅释放协调器内引用（AgentLoop 随之析构）；磁盘历史不受影响。
+    public func startAutoReclaim(interval: Duration = .seconds(60), gracePeriod: TimeInterval = 600) {
+        guard reaperTask == nil else { return }
+        reaperTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: interval)
+                guard let self else { return }
+                await reap(gracePeriod: gracePeriod)
+            }
+        }
+    }
+
+    /// 停止自动回收
+    public func stopAutoReclaim() {
+        reaperTask?.cancel()
+        reaperTask = nil
+    }
+
+    /// 立即回收一次超过宽限期的终态条目；返回回收数量
+    @discardableResult
+    public func reap(gracePeriod: TimeInterval) -> Int {
+        let cutoff = Date().addingTimeInterval(-gracePeriod)
+        let expired = states.filter { state in
+            state.value.phase.isTerminal && (state.value.finishedAt ?? Date()) < cutoff
+        }.map(\.key)
+        for id in expired {
+            release(id)
+            onEvent?(.reclaimed(id: id))
+        }
+        return expired.count
+    }
+
+    /// 停止协调器：取消全部未终态子任务、等待落定并清空（宿主退出时调用，保证无僵尸 Agent）
+    public func shutdown() async {
+        stopAutoReclaim()
+        for (id, state) in states where !state.phase.isTerminal {
+            _ = cancelRequested.insert(id)
+            if state.phase == .running {
+                await agents[id]?.cancel(keepInbox: true)
+            }
+        }
+        _ = await waitForAll()
+        removeFinished()
+    }
+
+    // MARK: 内部
+
+    /// 释放单个条目（状态/Agent/任务引用一并解除，AgentLoop 随之可析构）
+    private func release(_ id: SubagentID) {
+        states[id] = nil
+        agents[id] = nil
+        tasks[id] = nil
     }
 
     // MARK: 内部
@@ -214,7 +300,7 @@ public actor SubagentCoordinator {
         }
         defer { deadline.cancel() }
 
-        await agent.send(UserMessage(content: [.text(spec.task)]), target: .nextTurn, wakeup: true)
+        await agent.send(UserMessage(content: [.text(Self.taskMessage(spec))]), target: .nextTurn, wakeup: true)
         let result = await agent.whenIdle()
         finalize(id, result: result)
     }
@@ -264,6 +350,14 @@ public actor SubagentCoordinator {
             }
         }
         onEvent?(.finished(id: id, state: state))
+        onFinished?(state)
+    }
+
+    /// 任务消息 = 任务文本 + 结构化入参（如有）
+    private static func taskMessage(_ spec: SubagentSpec) -> String {
+        guard !spec.context.isEmpty else { return spec.task }
+        let lines = spec.context.sorted { $0.key < $1.key }.map { "- \($0.key): \($0.value)" }
+        return spec.task + "\n\n【输入参数】\n" + lines.joined(separator: "\n")
     }
 
     private func acquireSlot() async {

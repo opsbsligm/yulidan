@@ -264,6 +264,8 @@ struct AgentsRunCommand: AsyncParsableCommand {
             FileHandle.standardError.write(Data("[agents] 启动：\(id.rawValue.uuidString.prefix(8))\n".utf8))
         case let .finished(_, state):
             FileHandle.standardError.write(Data("[agents] 结束：\(state.name) → \(state.phase.rawValue)（\(String(format: "%.1f", state.elapsed ?? 0))s）\n".utf8))
+        case let .reclaimed(id):
+            FileHandle.standardError.write(Data("[agents] 回收：\(id.rawValue.uuidString.prefix(8))\n".utf8))
         }
     }
 

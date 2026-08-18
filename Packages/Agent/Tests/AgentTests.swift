@@ -305,7 +305,7 @@ struct AgentLoopTurnTests {
         #expect(result.error == nil)
         #expect(result.messages.count == 1)
         #expect(result.steps.count == 1)
-        #expect(await llm.callCount == 1)
+        #expect(llm.callCount == 1)
     }
 
     @Test("工具调用循环：真实执行 exec_command 后回填并继续")
@@ -327,7 +327,7 @@ struct AgentLoopTurnTests {
             finalText = t
         }
         #expect(finalText == "执行完毕")
-        #expect(await llm.callCount == 2)
+        #expect(llm.callCount == 2)
         #expect(result.steps.count == 2)
         let toolResults = await loop.allToolResults
         #expect(toolResults.count == 1)
@@ -373,7 +373,7 @@ struct AgentLoopTurnTests {
         let result = await awaitTurnResult(loop)
         #expect(result.error != nil)
         #expect(result.error?.contains("超过上限") == true)
-        #expect(await llm.callCount == 3)
+        #expect(llm.callCount == 3)
         #expect(result.steps.count == 3)
     }
 
@@ -480,5 +480,74 @@ struct AgentLoopWhenIdleTests {
         let result = await loop.whenIdle()
         #expect(result.status == .idle)
         #expect(result.messages.isEmpty)
+    }
+}
+
+// MARK: - AgentLoop 上下文裁剪（maxHistoryMessages）
+
+/// 记录单次 LLM 请求的消息数峰值（验证历史裁剪有界）
+actor RequestSizeRecorder {
+    private(set) var maxMessages = 0
+    func record(_ count: Int) {
+        maxMessages = Swift.max(maxMessages, count)
+    }
+}
+
+final class CountingLLM: LLMProvider, @unchecked Sendable {
+    let id = "counting-llm"
+    let supportedModels = ["mock-model"]
+    private let recorder: RequestSizeRecorder
+
+    init(recorder: RequestSizeRecorder) {
+        self.recorder = recorder
+    }
+
+    func request(_ request: LLMRequest) async throws -> LLMResponse {
+        await recorder.record(request.messages.count)
+        return textResponse("ok")
+    }
+
+    func stream(_: LLMRequest) async throws -> AsyncThrowingStream<LLM.StreamChunk, Error> {
+        AsyncThrowingStream { continuation in
+            continuation.finish()
+        }
+    }
+}
+
+@Suite("AgentLoop 上下文裁剪（maxHistoryMessages）")
+struct AgentLoopHistoryTrimTests {
+    @Test("30 轮对话：请求消息数有界，不随轮次无界增长")
+    func trimmingKeepsBounded() async {
+        let recorder = RequestSizeRecorder()
+        let llm = CountingLLM(recorder: recorder)
+        let loop = AgentLoop(id: AgentID(), sessionID: SessionID(), llm: llm,
+                             tools: ToolRegistry(), model: "mock-model",
+                             maxSteps: 8, maxHistoryMessages: 10)
+        for i in 0 ..< 30 {
+            await loop.send(UserMessage(content: [.text("消息 \(i)")]), target: .nextTurn, wakeup: true)
+            // send 与 whenIdle 均为 actor 隔离：入箱后 whenIdle 必然挂起等待本 turn
+            _ = await loop.whenIdle()
+        }
+        #expect(await loop.turnNumber == 30)
+        #expect(await loop.currentStatus == .idle)
+        let maxMsgs = await recorder.maxMessages
+        // 上限 10：每轮 +1 user 后请求，峰值 = 上限 + 1
+        #expect(maxMsgs <= 12, "请求消息数应受上限约束（实际峰值 \(maxMsgs)）")
+        #expect(maxMsgs >= 10, "首轮裁剪前应累积到接近上限（实际峰值 \(maxMsgs)）")
+    }
+
+    @Test("上限最小值钳制：maxHistoryMessages < 4 时按 4 生效")
+    func minimumClampedToFour() async {
+        let recorder = RequestSizeRecorder()
+        let llm = CountingLLM(recorder: recorder)
+        let loop = AgentLoop(id: AgentID(), sessionID: SessionID(), llm: llm,
+                             tools: ToolRegistry(), model: "mock-model",
+                             maxSteps: 8, maxHistoryMessages: 1)
+        for i in 0 ..< 20 {
+            await loop.send(UserMessage(content: [.text("消息 \(i)")]), target: .nextTurn, wakeup: true)
+            _ = await loop.whenIdle()
+        }
+        let maxMsgs = await recorder.maxMessages
+        #expect(maxMsgs <= 6, "钳制到 4 后峰值应为 4+1（实际峰值 \(maxMsgs)）")
     }
 }
