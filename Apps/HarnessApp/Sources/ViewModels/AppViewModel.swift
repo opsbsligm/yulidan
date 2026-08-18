@@ -297,6 +297,7 @@ final class AppViewModel: ObservableObject {
     let subagentToolRegistry: ToolRegistry = .init()
     /// 技能注册表（内置 + ~/.harness/skills 用户目录）
     let skillRegistry: SkillRegistry = .init()
+    @Published var skills: [Skill] = []
 
     /// 多 Agent（默认值 = 磁盘历史，重启后终态子任务仍可见）
     @Published var subagents: [SubagentDisplayItem] = AppViewModel.loadSubagentHistoryItems()
@@ -435,6 +436,66 @@ final class AppViewModel: ObservableObject {
         }
         await toolRegistry.register(ListSkillsTool(registry: skillRegistry))
         await toolRegistry.register(UseSkillTool(registry: skillRegistry))
+        await refreshSkills()
+    }
+
+    func refreshSkills() async {
+        skills = await skillRegistry.all()
+    }
+
+    /// 保存用户技能到 ~/.harness/skills/<slug>/SKILL.md 并注册
+    func saveUserSkill(name: String, description: String, tags: String, instructions: String) {
+        let slug = Self.skillSlug(name)
+        guard !slug.isEmpty else {
+            showToast("技能名称需包含字母、数字、中文或中划线")
+            return
+        }
+        let desc = description.trimmingCharacters(in: .whitespacesAndNewlines)
+        let body = instructions.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !body.isEmpty else {
+            showToast("技能正文不能为空")
+            return
+        }
+        let tagList = tags.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        let dir = SkillStore.userSkillsDirectory.appendingPathComponent(slug, isDirectory: true)
+        guard (try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)) != nil else {
+            showToast("技能目录创建失败")
+            return
+        }
+        let file = dir.appendingPathComponent("SKILL.md")
+        let text = "---\nname: \(slug)\ndescription: \(desc)\ntags: \(tagList.joined(separator: ", "))\n---\n\(body)\n"
+        guard (try? text.write(to: file, atomically: true, encoding: .utf8)) != nil else {
+            showToast("SKILL.md 写入失败")
+            return
+        }
+        let skill = Skill(name: slug, description: desc, instructions: body, tags: tagList, source: file.path)
+        Task {
+            await skillRegistry.register(skill)
+            await self.refreshSkills()
+            self.showToast("技能已保存：\(slug)")
+        }
+    }
+
+    /// 删除用户技能（内置技能不可删）
+    func deleteUserSkill(_ skill: Skill) {
+        guard skill.source != "builtin" else {
+            showToast("内置技能不可删除")
+            return
+        }
+        let dir = URL(fileURLWithPath: skill.source).deletingLastPathComponent()
+        _ = try? FileManager.default.removeItem(at: dir)
+        Task {
+            await skillRegistry.remove(skill.name)
+            await self.refreshSkills()
+            self.showToast("已删除技能：\(skill.name)")
+        }
+    }
+
+    /// 技能名 slug 化（小写，仅保留字母/数字/中文/中划线/下划线）
+    private static func skillSlug(_ raw: String) -> String {
+        raw.lowercased()
+            .replacingOccurrences(of: " ", with: "-")
+            .filter { $0.isLetter || $0.isNumber || $0 == "-" || $0 == "_" }
     }
 
     deinit {

@@ -54,6 +54,8 @@ struct ContentView: View {
             SubagentView(viewModel: viewModel)
         case .plugins:
             PluginListView(viewModel: viewModel)
+        case .skills:
+            SkillView(viewModel: viewModel)
         case .tools:
             ToolListView(
                 tools: $viewModel.tools,
@@ -70,7 +72,7 @@ struct ContentView: View {
 // MARK: - 应用标签
 
 enum AppTab: CaseIterable, Identifiable {
-    case chat, agents, plugins, tools, settings
+    case chat, agents, plugins, skills, tools, settings
 
     var id: String {
         title
@@ -81,6 +83,7 @@ enum AppTab: CaseIterable, Identifiable {
         case .chat: "对话"
         case .agents: "多Agent"
         case .plugins: "插件"
+        case .skills: "技能"
         case .tools: "工具"
         case .settings: "设置"
         }
@@ -91,6 +94,7 @@ enum AppTab: CaseIterable, Identifiable {
         case .chat: "bubble.left.and.bubble.right"
         case .agents: "person.3"
         case .plugins: "puzzlepiece.extension"
+        case .skills: "book"
         case .tools: "wrench.and.screwdriver"
         case .settings: "gear"
         }

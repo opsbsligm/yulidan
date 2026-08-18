@@ -4,8 +4,15 @@ import Foundation
 
 /// 技能文件存储：目录扫描 + frontmatter 解析
 public enum SkillStore {
+    /// 测试钩子：覆盖用户技能目录
+    public nonisolated(unsafe) static var userSkillsDirectoryOverride: URL?
+
     /// 用户技能目录：~/.harness/skills/<技能名>/SKILL.md
     public static var userSkillsDirectory: URL {
+        if let override = userSkillsDirectoryOverride {
+            try? FileManager.default.createDirectory(at: override, withIntermediateDirectories: true)
+            return override
+        }
         let home = FileManager.default.homeDirectoryForCurrentUser
         let dir = home.appendingPathComponent(".harness/skills", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)

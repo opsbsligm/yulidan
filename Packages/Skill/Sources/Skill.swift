@@ -29,3 +29,9 @@ public struct Skill: Sendable, Hashable, Codable {
         return "\(name) — \(description)\(tags)"
     }
 }
+
+extension Skill: Identifiable {
+    public var id: String {
+        name
+    }
+}
