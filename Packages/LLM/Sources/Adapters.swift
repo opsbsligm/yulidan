@@ -8,14 +8,17 @@ public struct OpenAIAdapter: LLMProvider {
 
     private let apiKey: String
     private let baseURL: URL
+    private let session: URLSession
 
-    public init(apiKey: String, baseURL: URL = URL(string: "https://api.openai.com/v1")!) {
+    public init(apiKey: String, baseURL: URL = URL(string: "https://api.openai.com/v1")!,
+                session: URLSession = .shared) {
         self.apiKey = apiKey
         self.baseURL = baseURL
+        self.session = session
     }
 
     public func request(_ request: LLMRequest) async throws -> LLMResponse {
-        let (content, usage) = try await OpenAICompatChat(apiKey: apiKey, baseURL: baseURL)
+        let (content, usage) = try await OpenAICompatChat(apiKey: apiKey, baseURL: baseURL, session: session)
             .complete(model: request.model, messages: request.messages,
                       systemPrompt: request.systemPrompt, maxTokens: request.maxTokens,
                       temperature: request.temperature)
@@ -29,7 +32,7 @@ public struct OpenAIAdapter: LLMProvider {
             let task = Task {
                 do {
                     var index = 0
-                    for try await chunk in OpenAICompatChat(apiKey: apiKey, baseURL: baseURL)
+                    for try await chunk in OpenAICompatChat(apiKey: apiKey, baseURL: baseURL, session: session)
                         .stream(model: request.model, messages: request.messages,
                                 systemPrompt: request.systemPrompt, maxTokens: request.maxTokens,
                                 temperature: request.temperature) {
@@ -46,7 +49,7 @@ public struct OpenAIAdapter: LLMProvider {
     }
 
     public func checkConnection() async throws -> String {
-        try await OpenAICompatChat(apiKey: apiKey, baseURL: baseURL).checkConnection()
+        try await OpenAICompatChat(apiKey: apiKey, baseURL: baseURL, session: session).checkConnection()
     }
 }
 
@@ -58,14 +61,17 @@ public struct DeepSeekAdapter: LLMProvider {
 
     private let apiKey: String
     private let baseURL: URL
+    private let session: URLSession
 
-    public init(apiKey: String, baseURL: URL = URL(string: "https://api.deepseek.com/v1")!) {
+    public init(apiKey: String, baseURL: URL = URL(string: "https://api.deepseek.com/v1")!,
+                session: URLSession = .shared) {
         self.apiKey = apiKey
         self.baseURL = baseURL
+        self.session = session
     }
 
     public func request(_ request: LLMRequest) async throws -> LLMResponse {
-        let (content, usage) = try await OpenAICompatChat(apiKey: apiKey, baseURL: baseURL)
+        let (content, usage) = try await OpenAICompatChat(apiKey: apiKey, baseURL: baseURL, session: session)
             .complete(model: request.model, messages: request.messages,
                       systemPrompt: request.systemPrompt, maxTokens: request.maxTokens,
                       temperature: request.temperature)
@@ -79,7 +85,7 @@ public struct DeepSeekAdapter: LLMProvider {
             let task = Task {
                 do {
                     var index = 0
-                    for try await chunk in OpenAICompatChat(apiKey: apiKey, baseURL: baseURL)
+                    for try await chunk in OpenAICompatChat(apiKey: apiKey, baseURL: baseURL, session: session)
                         .stream(model: request.model, messages: request.messages,
                                 systemPrompt: request.systemPrompt, maxTokens: request.maxTokens,
                                 temperature: request.temperature) {
@@ -96,7 +102,7 @@ public struct DeepSeekAdapter: LLMProvider {
     }
 
     public func checkConnection() async throws -> String {
-        try await OpenAICompatChat(apiKey: apiKey, baseURL: baseURL).checkConnection()
+        try await OpenAICompatChat(apiKey: apiKey, baseURL: baseURL, session: session).checkConnection()
     }
 }
 
@@ -108,15 +114,19 @@ public struct LocalAdapter: LLMProvider {
 
     private let apiKey: String
     private let baseURL: URL
+    private let session: URLSession
 
     /// 默认指向 Ollama 的 OpenAI 兼容端点
-    public init(apiKey: String = "ollama", baseURL: URL = URL(string: "http://localhost:11434/v1")!) {
+    public init(apiKey: String = "ollama",
+                baseURL: URL = URL(string: "http://localhost:11434/v1")!,
+                session: URLSession = .shared) {
         self.apiKey = apiKey
         self.baseURL = baseURL
+        self.session = session
     }
 
     public func request(_ request: LLMRequest) async throws -> LLMResponse {
-        let (content, usage) = try await OpenAICompatChat(apiKey: apiKey, baseURL: baseURL)
+        let (content, usage) = try await OpenAICompatChat(apiKey: apiKey, baseURL: baseURL, session: session)
             .complete(model: request.model, messages: request.messages,
                       systemPrompt: request.systemPrompt, maxTokens: request.maxTokens,
                       temperature: request.temperature)
@@ -130,7 +140,7 @@ public struct LocalAdapter: LLMProvider {
             let task = Task {
                 do {
                     var index = 0
-                    for try await chunk in OpenAICompatChat(apiKey: apiKey, baseURL: baseURL)
+                    for try await chunk in OpenAICompatChat(apiKey: apiKey, baseURL: baseURL, session: session)
                         .stream(model: request.model, messages: request.messages,
                                 systemPrompt: request.systemPrompt, maxTokens: request.maxTokens,
                                 temperature: request.temperature) {
@@ -148,7 +158,7 @@ public struct LocalAdapter: LLMProvider {
 
     /// 本地服务无需 Key，直接探测端点
     public func checkConnection() async throws -> String {
-        try await OpenAICompatChat(apiKey: apiKey, baseURL: baseURL).checkConnection()
+        try await OpenAICompatChat(apiKey: apiKey, baseURL: baseURL, session: session).checkConnection()
     }
 }
 
@@ -160,10 +170,13 @@ public struct AnthropicAdapter: LLMProvider {
 
     private let apiKey: String
     private let baseURL: URL
+    private let session: URLSession
 
-    public init(apiKey: String, baseURL: URL = URL(string: "https://api.anthropic.com/v1")!) {
+    public init(apiKey: String, baseURL: URL = URL(string: "https://api.anthropic.com/v1")!,
+                session: URLSession = .shared) {
         self.apiKey = apiKey
         self.baseURL = baseURL
+        self.session = session
     }
 
     private func buildMessages(_ messages: [Message], systemPrompt: String?) -> (system: String?, msgs: [AnthMsg]) {
@@ -187,9 +200,6 @@ public struct AnthropicAdapter: LLMProvider {
                 out.append(AnthMsg(role: m.role == .system ? "user" : m.role.rawValue, content: text))
             }
         }
-        if let s = system {
-            out.insert(AnthMsg(role: "user", content: s), at: 0)
-        }
         return (system, out)
     }
 
@@ -210,7 +220,7 @@ public struct AnthropicAdapter: LLMProvider {
                                messages: msgs)
         req.httpBody = try JSONEncoder().encode(body)
 
-        let (data, response) = try await URLSession.shared.data(for: req)
+        let (data, response) = try await session.data(for: req)
         guard let http = response as? HTTPURLResponse else {
             throw LLMError.networkError("无法解析 HTTP 响应")
         }
@@ -239,10 +249,16 @@ public struct AnthropicAdapter: LLMProvider {
     public func stream(_ request: LLMRequest) async throws -> AsyncThrowingStream<StreamChunk, Error> {
         // Anthropic 流式协议较复杂，当前版本回退为非流式，将完整响应作为单个块返回
         let response = try await self.request(request)
+        let text = response.content.compactMap { block -> String? in
+            if case let .text(t) = block {
+                return t
+            }
+            return nil
+        }.joined()
         let summary: [String: Any] = [
             "id": response.id,
             "model": response.model,
-            "content": response.content,
+            "content": text,
             "finish_reason": response.finishReason.rawValue,
         ]
         let payload = (try? JSONSerialization.data(withJSONObject: summary)) ?? Data()

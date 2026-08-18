@@ -100,7 +100,7 @@ public struct OpenAICompatChat: Sendable {
     }
 
     /// 解析单行 SSE 文本为增量内容；非 data: 行 / [DONE] / 解析失败返回 nil
-    static func sseDeltaText(from line: String) -> String? {
+    public static func sseDeltaText(from line: String) -> String? {
         guard line.hasPrefix("data:") else { return nil }
         let payload = line.dropFirst(5).trimmingCharacters(in: .whitespaces)
         guard payload != "[DONE]",
