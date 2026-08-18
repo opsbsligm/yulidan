@@ -6,6 +6,7 @@ let package = Package(
     platforms: [.macOS(.v15)],
     products: [
         .library(name: "HarnessCore", targets: ["HarnessCore"]),
+        .library(name: "WebUI", targets: ["WebUI"]),
         .executable(name: "dsh", targets: ["DSHCLI"]),
         .executable(name: "HarnessApp", targets: ["HarnessApp"]),
         .executable(name: "MemProbe", targets: ["MemProbe"]),
@@ -53,13 +54,20 @@ let package = Package(
                     dependencies: ["Agent", "Session", "LLM", "Tools"],
                     path: "Packages/Agent/Tests"),
 
+        .target(name: "WebUI",
+                dependencies: ["ServiceContainer", "Session", "LLM", "Agent", "Tools"],
+                path: "Packages/WebUI/Sources"),
+        .testTarget(name: "WebUITests",
+                    dependencies: ["WebUI", "Session", "LLM", "Agent", "Tools"],
+                    path: "Packages/WebUI/Tests"),
+
         .target(name: "HarnessCore",
                 dependencies: ["ServiceContainer", "Session", "LLM", "Tools", "Agent"],
                 path: "Apps/HarnessCore/Sources"),
 
         .executableTarget(name: "DSHCLI",
                           dependencies: ["HarnessCore", "Agent", "Subagent", "LLM", "Tools", "ServiceContainer", "Session",
-                                         "Skill", .product(name: "ArgumentParser", package: "swift-argument-parser")],
+                                         "Skill", "WebUI", .product(name: "ArgumentParser", package: "swift-argument-parser")],
                           path: "Apps/DSHCLI/Sources"),
 
         // 内存/性能探针

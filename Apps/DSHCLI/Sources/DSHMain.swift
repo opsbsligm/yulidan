@@ -8,6 +8,7 @@ import Session
 import Skill
 import Subagent
 import Tools
+import WebUI
 
 @main
 struct DSH: AsyncParsableCommand {
@@ -272,26 +273,6 @@ struct AgentsRunCommand: AsyncParsableCommand {
             }
         }
         return failed
-    }
-}
-
-// MARK: - web（Phase 3 路线图，未实现）
-
-struct WebCommand: AsyncParsableCommand {
-    static let configuration = CommandConfiguration(
-        commandName: "web",
-        abstract: "Start the web UI（未实现：Phase 3 路线图，当前请直接使用 GUI 应用 HarnessApp）"
-    )
-
-    @Flag(name: .shortAndLong, help: "Run in headless mode")
-    var headless: Bool = false
-
-    @Option(name: .shortAndLong, help: "Port to listen on")
-    var port: Int = 3080
-
-    func run() async throws {
-        print("Web UI 尚未实现（Phase 3 路线图：本地 HTTP 服务器 + 浏览器会话界面）。")
-        print("当前请使用 GUI 应用：HarnessApp（.build/arm64-apple-macosx/debug/HarnessApp.app）。")
     }
 }
 
