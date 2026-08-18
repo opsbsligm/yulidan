@@ -242,3 +242,112 @@ final class BuiltinToolsSandboxTests: XCTestCase {
         XCTAssertEqual(res.error?.code, "outside_sandbox")
     }
 }
+
+// MARK: - web_fetch（零网络 URLProtocol 桩）
+
+/// 零网络 HTTP 桩：按 handler 返回预设响应，记录最后一次请求
+private final class StubWebURLProtocol: URLProtocol {
+    nonisolated(unsafe) static var handler: ((URLRequest) -> (status: Int, body: String))?
+    nonisolated(unsafe) static var lastRequest: URLRequest?
+
+    override static func canInit(with _: URLRequest) -> Bool {
+        true
+    }
+
+    override static func canonicalRequest(for request: URLRequest) -> URLRequest {
+        request
+    }
+
+    override func startLoading() {
+        Self.lastRequest = request
+        let canned = Self.handler?(request) ?? (status: 599, body: "stub 未配置")
+        guard let response = HTTPURLResponse(url: request.url!, statusCode: canned.status,
+                                             httpVersion: "HTTP/1.1",
+                                             headerFields: ["Content-Type": "text/plain; charset=utf-8"]) else {
+            client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse))
+            return
+        }
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: Data(canned.body.utf8))
+        client?.urlProtocolDidFinishLoading(self)
+    }
+
+    override func stopLoading() {}
+}
+
+private func makeStubSession() -> URLSession {
+    let config = URLSessionConfiguration.ephemeral
+    config.protocolClasses = [StubWebURLProtocol.self]
+    return URLSession(configuration: config)
+}
+
+final class WebFetchToolTests: XCTestCase {
+    private func tool(maxBytes: Int = 512_000) -> WebFetchTool {
+        WebFetchTool(session: makeStubSession(), maxBytes: maxBytes, timeout: 5)
+    }
+
+    private func context() -> ToolRunContext {
+        ToolRunContext(signal: CancellationToken(), sessionID: SessionID(), metadata: [:])
+    }
+
+    private func text(_ r: ToolResult) -> String {
+        r.content.compactMap { block -> String? in
+            if case let .text(t) = block {
+                return t
+            }
+            return nil
+        }.joined()
+    }
+
+    override func tearDown() {
+        StubWebURLProtocol.handler = nil
+        super.tearDown()
+    }
+
+    func testMissingUrlArg() async throws {
+        let res = try await tool().execute([:], context: context())
+        XCTAssertEqual(res.error?.code, "missing_arg")
+    }
+
+    func testUnsupportedSchemeRejected() async throws {
+        let res = try await tool().execute(["url": "ftp://example.com/x"], context: context())
+        XCTAssertEqual(res.error?.code, "bad_url")
+        let res2 = try await tool().execute(["url": "file:///etc/hosts"], context: context())
+        XCTAssertEqual(res2.error?.code, "bad_url")
+    }
+
+    func testSuccessReturnsTextAndMeta() async throws {
+        StubWebURLProtocol.handler = { _ in (200, "你好，Harness") }
+        let res = try await tool().execute(["url": "https://stub.local/page"], context: context())
+        XCTAssertNil(res.error)
+        XCTAssertTrue(text(res).contains("你好，Harness"))
+        XCTAssertEqual(res.meta?["status"], "200")
+        XCTAssertEqual(res.meta?["truncated"], "false")
+        // 请求头校验：GET + User-Agent
+        let req = StubWebURLProtocol.lastRequest
+        XCTAssertEqual(req?.httpMethod, "GET")
+        let ua = req?.value(forHTTPHeaderField: "User-Agent") ?? ""
+        XCTAssertFalse(ua.isEmpty)
+    }
+
+    func testHttpErrorReturnsCode() async throws {
+        StubWebURLProtocol.handler = { _ in (404, "not found") }
+        let res = try await tool().execute(["url": "https://stub.local/404"], context: context())
+        XCTAssertEqual(res.error?.code, "http_error")
+        XCTAssertTrue(text(res).contains("404"))
+    }
+
+    func testTooLargeRejected() async throws {
+        StubWebURLProtocol.handler = { _ in (200, String(repeating: "x", count: 513_000)) }
+        let res = try await tool().execute(["url": "https://stub.local/big"], context: context())
+        XCTAssertEqual(res.error?.code, "too_large")
+    }
+
+    func testMaxCharsTruncation() async throws {
+        StubWebURLProtocol.handler = { _ in (200, String(repeating: "字", count: 100)) }
+        let res = try await tool().execute(["url": "https://stub.local/long", "max_chars": "10"], context: context())
+        XCTAssertNil(res.error)
+        XCTAssertEqual(res.meta?["truncated"], "true")
+        XCTAssertTrue(text(res).hasSuffix(String(repeating: "字", count: 10)))
+    }
+}

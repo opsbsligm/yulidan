@@ -34,7 +34,7 @@ swift-harness/
 |------|------|
 | 真实 LLM API | `LLM` 包内置 OpenAI 兼容客户端（非流式 + SSE 流式 + 连接检测），OpenAI / DeepSeek / Anthropic / 本地（Ollama 兼容，默认 `http://localhost:11434/v1`）；中文错误分类提示（401/402/403/404/429/5xx） |
 | 真实插件 | App 启动时把 `BuiltInFilesystemPlugin` / `BuiltInTerminalPlugin` 注册进 `PluginManager`，侧栏插件开关真实 install/uninstall |
-| 真实工具 | `read_file` / `write_file` / `list_files` / `exec_command`（zsh，带超时与管道防死锁），从 `ToolRegistry` 读取并由 LLM 工具调用真实执行 |
+| 真实工具 | `read_file` / `write_file` / `list_files` / `exec_command`（zsh，带超时与管道防死锁）/ `web_fetch`（网页抓取，协议白名单 + 大小上限），从 `ToolRegistry` 读取并由 LLM 工具调用真实执行 |
 | 会话持久化 | GRDB 6.29.3，数据库位于 `~/Library/Application Support/Harness/sessions.sqlite`，支持多会话/排序/事件重写 |
 | 主题 | 深色 / 浅色 / 跟随系统（**默认跟随系统**，设置页可切换，真实应用 `NSApp.appearance`） |
 | 会话操作 | 附件（文本 ≤200KB）、复制、导出 Markdown、重命名、删除 |

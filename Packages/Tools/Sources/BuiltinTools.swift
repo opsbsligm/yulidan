@@ -208,6 +208,82 @@ public struct ExecCommandTool: Tool {
     }
 }
 
+// MARK: - web_fetch
+
+/// 网页抓取：GET http/https，返回正文文本（字节上限 + 字符截断）
+///
+/// 安全约束：
+/// - 仅允许 http/https 协议；
+/// - 响应超过 `maxBytes` 直接拒绝（防大文件撑爆内存）；
+/// - 文本超过 `max_chars` 截断（默认 20000 字符）。
+public struct WebFetchTool: Tool {
+    public let name = "web_fetch"
+    public let description = "抓取 http/https 网页并返回文本内容（超限截断）"
+    public let parameterSchema = "{\"url\": \"网页地址\", \"max_chars\": \"最多返回字符数，默认 20000\"}"
+
+    private let session: URLSession
+    private let maxBytes: Int
+    private let timeout: TimeInterval
+
+    public init(session: URLSession = .shared, maxBytes: Int = 512_000, timeout: TimeInterval = 30) {
+        self.session = session
+        self.maxBytes = maxBytes
+        self.timeout = timeout
+    }
+
+    public func execute(_ args: [String: String], context _: ToolRunContext) async throws -> ToolResult {
+        guard let raw = args["url"]?.trimmingCharacters(in: .whitespaces), !raw.isEmpty else {
+            return ToolResult(content: [.text("错误：缺少参数 url")],
+                              error: ToolError(name: name, code: "missing_arg", message: "缺少 url 参数"))
+        }
+        guard let url = URL(string: raw), let scheme = url.scheme?.lowercased(),
+              scheme == "http" || scheme == "https" else {
+            return ToolResult(content: [.text("错误：仅支持 http/https 地址：\(raw)")],
+                              error: ToolError(name: name, code: "bad_url", message: "不支持的协议"))
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = timeout
+        request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Harness/0.1",
+                         forHTTPHeaderField: "User-Agent")
+        let (data, response): (Data, URLResponse)
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch {
+            var hint = ""
+            if let urlError = error as? URLError, urlError.code == .timedOut {
+                hint = "（超时）"
+            }
+            let msg = error.localizedDescription + hint
+            return ToolResult(content: [.text("❌ 抓取失败：\(msg)")],
+                              error: ToolError(name: name, code: "fetch_failed", message: msg))
+        }
+        guard let http = response as? HTTPURLResponse else {
+            return ToolResult(content: [.text("❌ 无法解析 HTTP 响应")],
+                              error: ToolError(name: name, code: "fetch_failed", message: "无法解析响应"))
+        }
+        guard (200 ..< 300).contains(http.statusCode) else {
+            return ToolResult(content: [.text("❌ HTTP \(http.statusCode)")],
+                              error: ToolError(name: name, code: "http_error", message: "HTTP \(http.statusCode)"))
+        }
+        guard data.count <= maxBytes else {
+            return ToolResult(content: [.text("内容过大（\(data.count) 字节），超过 \(maxBytes) 字节限制，拒绝抓取。")],
+                              error: ToolError(name: name, code: "too_large", message: "内容超过字节上限"))
+        }
+        // UTF-8 优先，失败回退 ISO-8859-1（任意字节可解码，保内容不丢失）
+        let text = String(data: data, encoding: .utf8) ?? String(data: data, encoding: .isoLatin1) ?? ""
+        let maxChars = Int(args["max_chars"] ?? "") ?? 20000
+        let truncated = text.count > maxChars
+        let shown = String(text.prefix(maxChars))
+        return ToolResult(content: [.text("✅ 已抓取 \(url.absoluteString)（\(data.count) 字节，HTTP \(http.statusCode)）\n\n\(shown)")],
+                          error: nil,
+                          meta: ["url": url.absoluteString,
+                                 "bytes": "\(data.count)",
+                                 "status": "\(http.statusCode)",
+                                 "truncated": String(truncated)])
+    }
+}
+
 // MARK: - 注册辅助
 
 public enum BuiltinTools {
@@ -218,7 +294,8 @@ public enum BuiltinTools {
 
     /// 创建全部内置工具实例；注入 PathSandbox 后文件工具受沙箱约束
     public static func makeAll(sandbox: PathSandbox?) -> [any Tool] {
-        [ReadFileTool(sandbox: sandbox), WriteFileTool(sandbox: sandbox), ListFilesTool(sandbox: sandbox), ExecCommandTool()]
+        [ReadFileTool(sandbox: sandbox), WriteFileTool(sandbox: sandbox), ListFilesTool(sandbox: sandbox),
+         ExecCommandTool(), WebFetchTool()]
     }
 
     /// 根据工具名推断分类（UI 展示用）
@@ -229,6 +306,7 @@ public enum BuiltinTools {
         switch name {
         case "read_file", "write_file", "list_files": return ("filesystem", "文件")
         case "exec_command": return ("terminal", "终端")
+        case "web_fetch": return ("network", "网络")
         case "use_skill", "list_skills": return ("skills", "技能")
         default: return ("general", "通用")
         }
