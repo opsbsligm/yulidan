@@ -9,6 +9,9 @@ struct SidebarView: View {
     let sessions: [SessionRecord]
     /// 正在生成的会话（Codex 式：列表行运行中指示）
     let generatingSessionId: SessionID?
+    /// 折叠态（Codex 式：窄图标 rail）
+    let isCollapsed: Bool
+    let onToggleCollapse: () -> Void
     /// 会话标题（由 ViewModel 提供，保证与重命名/自动标题一致）
     let titleFor: (SessionRecord) -> String
     let onNewSession: () -> Void
@@ -63,8 +66,18 @@ struct SidebarView: View {
     }
 
     var body: some View {
+        if isCollapsed {
+            collapsedBody
+        } else {
+            expandedBody
+        }
+    }
+
+    // MARK: - 展开态（宽 260）
+
+    private var expandedBody: some View {
         VStack(spacing: 0) {
-            // 顶部品牌行（Codex 式：名称 ⌄ + 搜索图标）
+            // 顶部品牌行（Codex 式：名称 ⌄ + 折叠 + 搜索图标）
             HStack(spacing: 2) {
                 Menu {
                     Button {
@@ -94,6 +107,18 @@ struct SidebarView: View {
                 .help("Harness 菜单")
 
                 Spacer()
+
+                // 折叠（Codex 式：收起为窄 rail）
+                Button(action: onToggleCollapse) {
+                    Image(systemName: "sidebar.left")
+                        .font(.system(size: 13))
+                        .foregroundStyle(HarnessTheme.textSecondary)
+                        .frame(width: 26, height: 26)
+                        .background(Circle().fill(Color.secondary.opacity(0.08)))
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .help("折叠侧边栏")
 
                 Button {
                     withAnimation(.smooth(duration: 0.15)) { showSearch.toggle() }
@@ -279,9 +304,108 @@ struct SidebarView: View {
         .frame(width: 260)
         .glassSurface(.prominent, cornerRadius: 0)
     }
+
+    // MARK: - 折叠态（窄图标 rail，宽 52）
+
+    private var collapsedBody: some View {
+        VStack(spacing: 2) {
+            Button(action: onToggleCollapse) {
+                Image(systemName: "sidebar.left")
+                    .font(.system(size: 14))
+                    .foregroundStyle(HarnessTheme.textSecondary)
+                    .frame(width: 28, height: 28)
+                    .background(Circle().fill(Color.secondary.opacity(0.08)))
+                    .clipShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .help("展开侧边栏")
+            .padding(.top, 14)
+            .padding(.bottom, 8)
+
+            Button(action: startNewChat) {
+                Image(systemName: "square.and.pencil")
+                    .font(.system(size: 14))
+                    .foregroundStyle(HarnessTheme.textPrimary)
+                    .frame(width: 28, height: 28)
+                    .background(Circle().fill(Color.secondary.opacity(0.08)))
+                    .clipShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .help("新对话（⌘N）")
+            .keyboardShortcut("n", modifiers: .command)
+
+            ForEach([AppTab.chat, .agents, .plugins, .skills, .tools], id: \.self) { tab in
+                Button {
+                    withAnimation(.smooth(duration: 0.18)) { selectedTab = tab }
+                } label: {
+                    Image(systemName: tab.icon)
+                        .font(.system(size: 14, weight: selectedTab == tab ? .semibold : .regular))
+                        .foregroundStyle(selectedTab == tab ? HarnessTheme.accent : HarnessTheme.textSecondary)
+                        .frame(width: 28, height: 28)
+                        .background(
+                            selectedTab == tab
+                                ? Circle().fill(HarnessTheme.sidebarHover)
+                                : Circle().fill(.clear)
+                        )
+                }
+                .buttonStyle(.plain)
+                .help(tab.title)
+                .modifier(NavShortcutModifier(index: NavRowShortcut.index(for: tab)))
+            }
+
+            Spacer()
+
+            Button {
+                withAnimation(.smooth(duration: 0.18)) { selectedTab = .settings }
+            } label: {
+                Image(systemName: "gear")
+                    .font(.system(size: 14))
+                    .foregroundStyle(selectedTab == .settings ? HarnessTheme.accent : HarnessTheme.textSecondary)
+                    .frame(width: 28, height: 28)
+                    .background(
+                        selectedTab == .settings
+                            ? Circle().fill(HarnessTheme.sidebarHover)
+                            : Circle().fill(.clear)
+                    )
+            }
+            .buttonStyle(.plain)
+            .help("设置（⌘,）")
+            .keyboardShortcut(",", modifiers: .command)
+
+            // 头像（点击展开侧边栏）
+            Button(action: onToggleCollapse) {
+                ZStack {
+                    Circle().fill(HarnessTheme.surface)
+                    Text(avatarInitial)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(HarnessTheme.accent)
+                }
+                .frame(width: 26, height: 26)
+            }
+            .buttonStyle(.plain)
+            .help("展开侧边栏")
+            .padding(.bottom, 10)
+        }
+        .frame(width: 52)
+        .glassSurface(.prominent, cornerRadius: 0)
+    }
 }
 
 // MARK: - 导航行（图标 + 文字）
+
+/// ⌘1–⌘6 面板快捷键索引（展开/折叠两态共用）
+enum NavRowShortcut {
+    static func index(for tab: AppTab) -> Int? {
+        switch tab {
+        case .chat: 1
+        case .agents: 2
+        case .plugins: 3
+        case .skills: 4
+        case .tools: 5
+        case .settings: 6
+        }
+    }
+}
 
 struct NavRow: View {
     let tab: AppTab
@@ -291,14 +415,7 @@ struct NavRow: View {
 
     /// ⌘1–⌘6 面板快捷键（Codex 式；settings 走 ⌘6 由底栏齿轮承载）
     private var shortcutIndex: Int? {
-        switch tab {
-        case .chat: 1
-        case .agents: 2
-        case .plugins: 3
-        case .skills: 4
-        case .tools: 5
-        case .settings: 6
-        }
+        NavRowShortcut.index(for: tab)
     }
 
     var body: some View {
@@ -455,6 +572,8 @@ enum RelativeTime {
             selectedSession: .constant(nil),
             sessions: [],
             generatingSessionId: nil,
+            isCollapsed: false,
+            onToggleCollapse: {},
             titleFor: { _ in "示例对话" },
             onNewSession: {},
             onSelectSession: { _ in },

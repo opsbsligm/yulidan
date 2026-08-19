@@ -276,6 +276,11 @@ final class AppViewModel: ObservableObject {
     @Published var isGenerating = false
     /// 正在生成的会话 ID（Codex 式：列表行运行中指示；三入口拦截防切换污染）
     @Published var generatingSessionId: SessionID?
+    /// 侧边栏折叠（Codex 式；UserDefaults 持久化）
+    @Published var isSidebarCollapsed = UserDefaults.standard.bool(forKey: "sidebarCollapsed") {
+        didSet { UserDefaults.standard.set(isSidebarCollapsed, forKey: "sidebarCollapsed") }
+    }
+
     /// 当前正在执行的工具名（Codex 式实时进度；nil = 无工具运行）
     @Published var activeToolName: String?
     @Published var generationError: String?

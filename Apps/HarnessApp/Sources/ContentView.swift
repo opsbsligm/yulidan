@@ -12,6 +12,10 @@ struct ContentView: View {
                 selectedSession: $viewModel.selectedSession,
                 sessions: viewModel.searchResults ?? viewModel.sessions,
                 generatingSessionId: viewModel.generatingSessionId,
+                isCollapsed: viewModel.isSidebarCollapsed,
+                onToggleCollapse: {
+                    withAnimation(.smooth(duration: 0.18)) { viewModel.isSidebarCollapsed.toggle() }
+                },
                 titleFor: { viewModel.sessionTitle(for: $0) },
                 onNewSession: { viewModel.createNewSession() },
                 onSelectSession: { viewModel.selectSession($0) },
@@ -26,6 +30,24 @@ struct ContentView: View {
         }
         .background(HarnessTheme.bgPrimary)
         .frame(minWidth: 800, minHeight: 500)
+        // 折叠态：主区左上角展开按钮（Codex 式）
+        .overlay(alignment: .topLeading) {
+            if viewModel.isSidebarCollapsed {
+                Button {
+                    withAnimation(.smooth(duration: 0.18)) { viewModel.isSidebarCollapsed = false }
+                } label: {
+                    Image(systemName: "sidebar.left")
+                        .font(.system(size: 13))
+                        .foregroundStyle(HarnessTheme.textSecondary)
+                        .frame(width: 26, height: 26)
+                        .background(Circle().fill(Color.secondary.opacity(0.08)))
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .help("展开侧边栏")
+                .padding(10)
+            }
+        }
         // 全局 Toast
         .overlay(alignment: .bottom) {
             if let toast = viewModel.toastMessage {
