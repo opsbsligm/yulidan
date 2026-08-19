@@ -274,6 +274,8 @@ final class AppViewModel: ObservableObject {
     @Published var sessions: [SessionRecord] = []
     @Published var messages: [ChatMessage] = []
     @Published var isGenerating = false
+    /// 正在生成的会话 ID（Codex 式：列表行运行中指示；三入口拦截防切换污染）
+    @Published var generatingSessionId: SessionID?
     /// 当前正在执行的工具名（Codex 式实时进度；nil = 无工具运行）
     @Published var activeToolName: String?
     @Published var generationError: String?
@@ -750,6 +752,12 @@ final class AppViewModel: ObservableObject {
     }
 
     func createNewSession(silent: Bool = false) {
+        guard !isGenerating else {
+            if !silent {
+                showToast("当前对话正在生成，请先停止生成再新建")
+            }
+            return
+        }
         let session = SessionRecord(metadata: SessionMetadata(cwd: URL(fileURLWithPath: NSHomeDirectory())))
         sessions.insert(session, at: 0)
         selectedSession = session
@@ -763,6 +771,10 @@ final class AppViewModel: ObservableObject {
     }
 
     func deleteSession(_ session: SessionRecord) {
+        if session.id == generatingSessionId {
+            showToast("该对话正在生成，请先停止生成再删除")
+            return
+        }
         dropChatLoop(sessionID: session.id)
         sessions.removeAll { $0.id == session.id }
         Task { [db = sessionDB] in
@@ -784,6 +796,10 @@ final class AppViewModel: ObservableObject {
     }
 
     func selectSession(_ session: SessionRecord) {
+        guard !isGenerating else {
+            showToast("当前对话正在生成，请先停止生成再切换")
+            return
+        }
         generationError = nil
         presentSession(session)
     }
@@ -995,6 +1011,7 @@ final class AppViewModel: ObservableObject {
         autoTitle()
 
         isGenerating = true
+        generatingSessionId = selectedSession?.id
         generationError = nil
         generateTask = Task { await self.performGeneration() }
     }
@@ -1117,23 +1134,30 @@ final class AppViewModel: ObservableObject {
         await agent.followup(UserMessage(content: [.text(newUserText)]))
         let result = await agent.whenIdle()
         if Task.isCancelled {
-            isGenerating = false; return
+            isGenerating = false
+            generatingSessionId = nil
+            return
         }
+        // 防御：生成期间会话一致性（正常路径已被三入口拦截，此处兜底防边界竞态写污染他会话）
+        guard guardGenerationSession() else { return }
         if let errorText = result.error {
             messages.append(ChatMessage(id: UUID(), role: .assistant,
                                         content: "⚠️ 请求失败：\(errorText)",
                                         timestamp: Date(), status: .error))
             generationError = errorText
             isGenerating = false
+            generatingSessionId = nil
             await notifyGeneration(error: errorText)
             return
         }
         // 工具轨迹 + 最终回答入会话
         guard let content = appendTurnResult(result) else {
             isGenerating = false
+            generatingSessionId = nil
             return
         }
         isGenerating = false
+        generatingSessionId = nil
         generationError = nil
         persistSession()
         // 记忆反馈闭环：蒸馏本轮交换（显式记住/纠正/决策/事实）→ 长期记忆
@@ -1224,6 +1248,17 @@ final class AppViewModel: ObservableObject {
         _ = await engine.evaluate()
     }
 
+    /// 生成期间会话一致性校验（防御用：不一致时清零生成态并返回 false）
+    @discardableResult
+    private func guardGenerationSession() -> Bool {
+        guard selectedSession?.id == generatingSessionId else {
+            isGenerating = false
+            generatingSessionId = nil
+            return false
+        }
+        return true
+    }
+
     /// 停止生成（真实取消 URLSession 请求）
     func stopGenerating() {
         generateTask?.cancel()
@@ -1231,6 +1266,7 @@ final class AppViewModel: ObservableObject {
         // 同步取消 AgentLoop：whenIdle 立即返回，在途 LLM 调用后台自行完成（不再阻塞）
         Task { [chatAgent] in await chatAgent?.cancel(keepInbox: false) }
         isGenerating = false
+        generatingSessionId = nil
         showToast("已停止生成")
     }
 

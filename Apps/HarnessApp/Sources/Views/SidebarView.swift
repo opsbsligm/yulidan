@@ -7,6 +7,8 @@ struct SidebarView: View {
     @Binding var selectedTab: AppTab
     @Binding var selectedSession: SessionRecord?
     let sessions: [SessionRecord]
+    /// 正在生成的会话（Codex 式：列表行运行中指示）
+    let generatingSessionId: SessionID?
     /// 会话标题（由 ViewModel 提供，保证与重命名/自动标题一致）
     let titleFor: (SessionRecord) -> String
     let onNewSession: () -> Void
@@ -164,6 +166,7 @@ struct SidebarView: View {
                 }
                 .buttonStyle(.plain)
                 .onHover { newHover = $0 }
+                .keyboardShortcut("n", modifiers: .command)
                 .padding(.bottom, 4)
 
                 ForEach([AppTab.chat, .agents, .plugins, .skills, .tools], id: \.self) { tab in
@@ -200,6 +203,7 @@ struct SidebarView: View {
                                 session: session,
                                 title: titleFor(session),
                                 isSelected: selectedSession?.id == session.id,
+                                isGenerating: session.id == generatingSessionId,
                                 onSelect: { onSelectSession(session) },
                                 onDelete: { onDeleteSession(session) }
                             )
@@ -266,7 +270,8 @@ struct SidebarView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                 }
                 .buttonStyle(.plain)
-                .help("设置")
+                .help("设置（⌘,）")
+                .keyboardShortcut(",", modifiers: .command)
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
@@ -283,6 +288,18 @@ struct NavRow: View {
     let isSelected: Bool
     let action: () -> Void
     @State private var isHovered = false
+
+    /// ⌘1–⌘6 面板快捷键（Codex 式；settings 走 ⌘6 由底栏齿轮承载）
+    private var shortcutIndex: Int? {
+        switch tab {
+        case .chat: 1
+        case .agents: 2
+        case .plugins: 3
+        case .skills: 4
+        case .tools: 5
+        case .settings: 6
+        }
+    }
 
     var body: some View {
         Button(action: action) {
@@ -315,15 +332,29 @@ struct NavRow: View {
         }
         .buttonStyle(.plain)
         .onHover { isHovered = $0 }
+        .modifier(NavShortcutModifier(index: shortcutIndex))
     }
 }
 
-// MARK: - 会话列表项（单行 + hover 删除）
+/// 条件键盘快捷键（index 为 nil 时不附加，避免与 ⌘6 齿轮重复绑定）
+struct NavShortcutModifier: ViewModifier {
+    let index: Int?
+    func body(content: Content) -> some View {
+        if let index {
+            content.keyboardShortcut(KeyEquivalent(Character(String(index))), modifiers: .command)
+        } else {
+            content
+        }
+    }
+}
+
+// MARK: - 会话列表项（单行 + hover 删除 + 相对时间 + 生成指示）
 
 struct SessionListItem: View {
     let session: SessionRecord
     let title: String
     let isSelected: Bool
+    let isGenerating: Bool
     let onSelect: () -> Void
     let onDelete: () -> Void
     @State private var isHovered = false
@@ -332,14 +363,27 @@ struct SessionListItem: View {
         HStack(spacing: 8) {
             Button(action: onSelect) {
                 HStack(spacing: 8) {
-                    Image(systemName: "bubble.right")
-                        .font(.system(size: 12))
-                        .foregroundStyle(isSelected ? HarnessTheme.accent : HarnessTheme.textTertiary)
+                    if isGenerating {
+                        // Codex 式：在途任务运行中指示
+                        ProgressView()
+                            .controlSize(.mini)
+                            .scaleEffect(0.7)
+                            .frame(width: 12)
+                    } else {
+                        Image(systemName: "bubble.right")
+                            .font(.system(size: 12))
+                            .foregroundStyle(isSelected ? HarnessTheme.accent : HarnessTheme.textTertiary)
+                    }
                     Text(title)
                         .font(.system(size: 13))
                         .lineLimit(1)
                         .foregroundStyle(isSelected ? HarnessTheme.textPrimary : HarnessTheme.textSecondary)
                     Spacer(minLength: 4)
+                    // Codex 式：行尾相对时间（生成中显示状态替代时间）
+                    Text(isGenerating ? "生成中…" : RelativeTime.format(session.metadata.createdAt))
+                        .font(.system(size: 10))
+                        .foregroundStyle(isGenerating ? HarnessTheme.accent : HarnessTheme.textTertiary)
+                        .lineLimit(1)
                     if isHovered, !isSelected {
                         Button {
                             onDelete()
@@ -367,6 +411,39 @@ struct SessionListItem: View {
         )
         .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
         .onHover { isHovered = $0 }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(isGenerating ? "\(title)，生成中" : "\(title)，\(RelativeTime.format(session.metadata.createdAt))")
+    }
+}
+
+// MARK: - 相对时间（纯函数，可单测）
+
+enum RelativeTime {
+    /// 今天：刚刚 / N分钟前 / N小时前；昨天；<7天：N天前；否则 M月d日
+    static func format(_ date: Date, now: Date = Date()) -> String {
+        let cal = Calendar.current
+        if cal.isDateInToday(date) {
+            let mins = max(0, Int(now.timeIntervalSince(date) / 60))
+            if mins < 1 {
+                return "刚刚"
+            }
+            if mins < 60 {
+                return "\(mins)分钟前"
+            }
+            return "\(mins / 60)小时前"
+        }
+        if cal.isDateInYesterday(date) {
+            return "昨天"
+        }
+        let days = cal.dateComponents([.day], from: cal.startOfDay(for: date),
+                                      to: cal.startOfDay(for: now)).day ?? 0
+        if days < 7 {
+            return "\(days)天前"
+        }
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "zh_CN")
+        f.dateFormat = "M月d日"
+        return f.string(from: date)
     }
 }
 
@@ -377,6 +454,7 @@ struct SessionListItem: View {
             selectedTab: .constant(.chat),
             selectedSession: .constant(nil),
             sessions: [],
+            generatingSessionId: nil,
             titleFor: { _ in "示例对话" },
             onNewSession: {},
             onSelectSession: { _ in },

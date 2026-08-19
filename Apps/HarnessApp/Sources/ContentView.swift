@@ -11,6 +11,7 @@ struct ContentView: View {
                 selectedTab: $viewModel.selectedTab,
                 selectedSession: $viewModel.selectedSession,
                 sessions: viewModel.searchResults ?? viewModel.sessions,
+                generatingSessionId: viewModel.generatingSessionId,
                 titleFor: { viewModel.sessionTitle(for: $0) },
                 onNewSession: { viewModel.createNewSession() },
                 onSelectSession: { viewModel.selectSession($0) },
