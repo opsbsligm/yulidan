@@ -1,8 +1,8 @@
 # Swift Harness — 质量保障报告
 
-> 生成时间: 2026-08-20 06:50
-> 项目版本: v0.3.4（后端 8 模块闭环 + 跨模块场景 4 项 + App 层场景 16 项 + 前端打磨 F1–F11 完成，HEAD `17a0fd8`）
-> 说明: 本轮完成 F10 用户消息 Codex 式无气泡纯文本（B8）+ F11 会话分组纯函数化（SessionGroups + 2 项单测）——**F7 差距盘点 B1–B8 全部闭环**，UI 打磨剩余项仅剩实机视觉验收；666 用例基线；覆盖率 llvm-cov export lcov 口径重测；门禁结果均为当前 HEAD 实测。
+> 生成时间: 2026-08-20 07:10
+> 项目版本: v0.3.4（后端 8 模块闭环 + 跨模块场景 4 项 + App 层场景 16 项 + 前端打磨 F1–F11 完成，HEAD `ead0c45`）
+> 说明: 跨会话接续核验轮 — ① 质量门禁 07:02 全量复跑（ci-local pr + main 双模式全绿：SwiftLint 0 / SwiftFormat 0 / 编译 0 警告 / 666 用例全绿 / MAIN_EXIT=0，本轮 0 次停滞）；② 八大后端模块子能力代码级需求审计逐条通过（见 §六）；③ P1 观察数据累计入册（见 §四 P1）。上轮完成 F10 用户消息 Codex 式无气泡纯文本（B8）+ F11 会话分组纯函数化（SessionGroups + 2 项单测）——**F7 差距盘点 B1–B8 全部闭环**，UI 打磨剩余项仅剩实机视觉验收；666 用例基线；覆盖率 llvm-cov export lcov 口径重测；门禁结果均为当前 HEAD 实测。
 
 ---
 
@@ -84,7 +84,7 @@
 ### P1
 | 问题 | 现象/复现 | 状态 |
 |------|-----------|------|
-| macOS 27 beta 瞬态协作池调度停滞（`--parallel` 全量偶发失败） | 现象：`swift test --parallel`（或直接调 xctest）下 `CoordinatorLifecycleTests/testShutdownCancelsAllAndClears` 约 1/8~1/10 概率失败（blocker 10s 未 running → cancelCount=0）。**根因（现场 sample 实锤）**：新 xctest 进程偶发「协作池任务 ~10-13s 不派发，而池线程全部空闲」（证据：主线程阻塞于 XCTest async 桥接 mach_msg 等待、全部池/wq 线程 `__workq_kernreturn` 空闲、无任何线程执行排队的 Swift 任务；样本 /tmp/stall_sample_19.txt）。**环境故障，非协调器逻辑缺陷**：停滞解除后 run 任务立即执行且行为完全符合规范（排队取消不执行/运行取消/无僵尸残留）。排除链：最小 actor+Task 复现包 15/15 绿（非通用 actor 问题）；直接 xctest 调用 1/10 复现（与 SPM --parallel 无关）；串行 swift test 健康窗口 8/8 绿；AC 电源（非电池节流） | 修复双层：①测试层 — 前置等待 10s→30s、4 个 `eventually` helper 默认窗口 3s→5s（正常路径毫秒级返回，仅停滞时拉长）②CI 层 — pr/xcode/main/weekly 全量测试步骤加**有界单次重试**（停滞属环境故障，真实回归重试仍会失败）。**残留风险**：停滞超 30s，或其余固定 sleep 断言点（MCP 300-500ms / Agent 10-100ms / ServiceContainer 150ms 等）撞上停滞窗口仍可能偶发失败，由 CI 重试兜底；若 macOS 正式版仍复现再升级处理 | **修复已验证（观察期）**：Subagent 模块 15/15（其中 9 轮处于停滞窗口、11-12s 慢通过，测试内重试在真实窗口下全部存活）+ 全量 `--parallel` ×2（628）+ 串行 ×1（628）+ ci-local main ×2 + ci-local pr 全绿（`50fb2be` 提交前实测）。观察期：若 macOS 正式版仍复现再升级处理 |
+| macOS 27 beta 瞬态协作池调度停滞（`--parallel` 全量偶发失败） | 现象：`swift test --parallel`（或直接调 xctest）下 `CoordinatorLifecycleTests/testShutdownCancelsAllAndClears` 约 1/8~1/10 概率失败（blocker 10s 未 running → cancelCount=0）。**根因（现场 sample 实锤）**：新 xctest 进程偶发「协作池任务 ~10-13s 不派发，而池线程全部空闲」（证据：主线程阻塞于 XCTest async 桥接 mach_msg 等待、全部池/wq 线程 `__workq_kernreturn` 空闲、无任何线程执行排队的 Swift 任务；样本 /tmp/stall_sample_19.txt）。**环境故障，非协调器逻辑缺陷**：停滞解除后 run 任务立即执行且行为完全符合规范（排队取消不执行/运行取消/无僵尸残留）。排除链：最小 actor+Task 复现包 15/15 绿（非通用 actor 问题）；直接 xctest 调用 1/10 复现（与 SPM --parallel 无关）；串行 swift test 健康窗口 8/8 绿；AC 电源（非电池节流） | 修复双层：①测试层 — 前置等待 10s→30s、4 个 `eventually` helper 默认窗口 3s→5s（正常路径毫秒级返回，仅停滞时拉长）②CI 层 — pr/xcode/main/weekly 全量测试步骤加**有界单次重试**（停滞属环境故障，真实回归重试仍会失败）。**残留风险**：停滞超 30s，或其余固定 sleep 断言点（MCP 300-500ms / Agent 10-100ms / ServiceContainer 150ms 等）撞上停滞窗口仍可能偶发失败，由 CI 重试兜底；若 macOS 正式版仍复现再升级处理 | **修复已验证（观察期）**：Subagent 模块 15/15（其中 9 轮处于停滞窗口、11-12s 慢通过，测试内重试在真实窗口下全部存活）+ 全量 `--parallel` ×2（628）+ 串行 ×1（628）+ ci-local main ×2 + ci-local pr 全绿（`50fb2be` 提交前实测）。观察期：若 macOS 正式版仍复现再升级处理。**观察累计（2026-08-20）**：F6–F11 开发期全量回归累计 8+ 轮（各模块 full+main 及 manifest 修复后连续 2 轮）0 次停滞致失败；07:02 跨会话核验轮 ci-local pr + main 复跑 666 全绿 0 停滞。观察继续 |
 
 ### P2
 | 问题 | 说明 | 状态 |
@@ -142,11 +142,62 @@
 | 测试代码（Packages 10,131 + Apps 2,839） | 12,970 行（+47：SessionGroupsTests 2 项） |
 | SPM 目标 | 16 库/可执行 + 17 测试目标（单一 xctest 进程） |
 | 工具链 | Swift 6.3.3 / Xcode 26.6 / macOS arm64 / platforms .macOS(.v15) |
-| 提交总数 | 105（含本报告提交） |
+| 提交总数 | 106（不含本次核验提交） |
+
+### 八大后端模块代码级需求审计（2026-08-20 跨会话核验轮）
+
+> 方法：对照目标模块清单逐条子能力 grep/阅读实码取证（非依赖提交信息/报告记忆）。**全部子能力均有实码证据，无缺口。**
+
+| # | 模块·子能力 | 代码级证据 |
+|---|------------|-----------|
+| 1 | Prompt·统一编排 | `PromptService` 协议 + `PromptEngine`（PromptEngine.swift） |
+| 1 | Prompt·角色模板 | agent/subagent 内建模板 + `PromptTemplateStore` + `BuiltInPromptTemplates` |
+| 1 | Prompt·版本快照 | `PromptTemplateStore`：每次 update 生成 version+1 不可变快照，保留全历史（FIFO 上限），`template(named:version:)` 回查 |
+| 1 | Prompt·动态渲染 | `PromptRenderer`/`TemplateRenderer`（变量替换 + 分节装配） |
+| 1 | Prompt·模型差异化适配 | `ModelPromptAdapter.adapt(_:profile:)` + `ModelProfile`（family/toolCallStyle/contextWindow/promptNotes） |
+| 2 | 多 Agent·生命周期 | `actor SubagentCoordinator`：spawn/cancel/waitFor/waitForAll/allStates/removeFinished/shutdown |
+| 2 | 多 Agent·入参下发 | `SubagentSpec`（任务文本 + 结构化入参 + 单任务超时 + 父任务 ID） |
+| 2 | 多 Agent·回调接收 | `onEvent` 生命周期事件 + `onFinished` 完成回调（独立直挂通知/统计） |
+| 2 | 多 Agent·内存回收/防僵尸 | 终态宽限期自动回收（reap）+ 并发槽位门控（maxConcurrent，含竞态修复 `50fb2be`） |
+| 2 | 多 Agent·Actor 隔离 | `actor SubagentCoordinator` + `actor AgentLoop`（并发隔离实码） |
+| 3 | 工具·完整链路 | `ToolExecutor.execute`：查找 → 必填参数校验 → 按工具熔断 → `withToolTimeout` 单次超时 → 执行 → 输出二次校验（可选 JSON + 字符截断）→ 错误归一化回传 |
+| 3 | 工具·流式结果 | `ToolExecEvent` 进度事件流（执行中增量上报） |
+| 3 | 工具·多轮嵌套 | `AgentLoop` 工具循环：tool_calls → executeToolBatch → 结果回填上下文 → 下一轮（单轮步数上限 + toolTraces 轨迹） |
+| 4 | MCP·客户端/会话 | `actor StdioMCPClient`：start（幂等）/ initialize 握手 / notifications/initialized / ping / stop / listTools / callTool |
+| 4 | MCP·能力协商 | `negotiatedCapabilities` + `parseCapabilities`（initialize 响应解析） |
+| 4 | MCP·双向通信 | `onNotification` 下行通知回调 + `onServerRequest` 服务器反向请求应答 |
+| 4 | MCP·服务发现 | `MCPDiscovery.loadConfigs/probe/discover`（~/.harness/mcp/servers.json） |
+| 4 | MCP·工具自动注册 | App 层 `MCPServerManager.connectStdio(config, into: toolRegistry)` + `makeTools()` → 主 Agent 注册表（含 listChanged 缓存失效重注册） |
+| 5 | RAG·加载解析 | `DocumentLoader`（md/txt 等，含失败错误类型） |
+| 5 | RAG·切片分块 | `Chunker`（targetSize 800 / overlap 120 / 段落感知） |
+| 5 | RAG·向量化 | `TextVectorizer` 协议 + `HashingVectorizer`（512 维，零模型依赖） |
+| 5 | RAG·向量存储 | `actor VectorStore`（持久化 fileURL + 去重） |
+| 5 | RAG·召回/重排/过滤 | `RAGEngine`：召回 K=20 → final = cosine + 0.3×termOverlap 重排 → topK；`RetrievalOptions.filter` 元数据等值过滤 |
+| 5 | RAG·来源溯源 | `RetrievedChunk.citation`：「来源 · 块 N · 字符 start-end」+ 召回分/终分双轨 |
+| 6 | 记忆·短期总结 | `MemoryEngine.consolidateSession`（会话自动总结蒸馏入长期库） |
+| 6 | 记忆·长期持久 | `LongTermMemoryStore` + save/recall/forget/stats/promptSection 注入 |
+| 6 | 记忆·意义评估 | `SignificanceScorer` + `record` → `MemoryDecision` |
+| 6 | 记忆·一致性/冲突 | `ConsistencyChecker` + 冲突信息取代（revision 递增） |
+| 6 | 记忆·反馈闭环迭代 | `applyFeedback` → ① 长期记忆库（意义度保底 + 冲突取代）② RAG 知识库入库（origin=feedback 元数据，后续检索复用）；`attachRAG` 共享引擎注入 |
+| 7 | Skill·Hermes 自动 | `actor SkillEvolutionEngine`：observe 任务观测 → evaluate 重复模式聚类（阈值）→ 自动生成技能 → 保存 + 注册表可复用 + 版本记录 |
+| 7 | Skill·手动编辑 | `SkillStore.parse/serialize/save`（Markdown 技能文件，用户技能目录） |
+| 7 | Skill·调试运行 | `SkillDebugger`（SkillDebugReport 问题清单 + passed 判定） |
+| 7 | Skill·版本管理 | `SkillVersioning`（历史 ≤20 条 + changeNote/changedAt） |
+| 7 | Skill·销毁删除 | `SkillStore.delete` |
+| 8 | 多模型·画像 | `ProviderProfile`（family/supportsToolCalls/supportsReasoning/defaultMaxTokens；内建 openAI/deepSeek/local/anthropic/mock + `local(forModel:)` 模型名白名单细分） |
+| 8 | 多模型·格式差异 | `Adapters`：OpenAI/DeepSeek/Local/Anthropic 四适配（Anthropic 消息结构 classify/assistantMsg/userMsg 映射 + tool_use/tool_result 块） |
+| 8 | 多模型·JSON 归一 | `LLMResponseNormalizer`（`repairToolArguments` 参数 JSON 修复 / contentBlocks / 统一 `LLMResponse`） |
+| 8 | 多模型·SSE 聚合 | `StreamChunk`（text/reasoning/done(finish,usage,toolCalls) delta 累积聚合） |
+| 8 | 多模型·上层隔离 | `LLMProvider` 统一内部协议；上层（AgentLoop）仅经协议 + `profile.supportsToolCalls` 能力门控，零厂商分支 |
+
+**架构约束核验**：全部业务能力经 `ServiceContainer`（DI 容器 + 插件系统 + EventBus + CircuitBreaker）扩展装配，容器核心未重构；纯原生 SwiftUI/AppKit（无 WebView/WKWebView/Electron）；deployment target `.macOS(.v15)`（macOS 25 运行兼容，上提与否待用户确认）。
+
 
 ## 六、提交链（近期）
 
 ```
+ead0c45  fix(project): ToolsTests 补声明 Agent 依赖（xcodebuild 依赖扫描警告根除，双清单同步）
+50df89b  docs(quality): 666 用例基线 + F10/F11 入册 + B1–B8 全部闭环宣告
 17a0fd8  test(ui): F11 会话分组纯函数化（SessionGroups）+ 置顶段/日分组 2 项单测
 b5486ec  feat(ui): F10 用户消息 Codex 式无气泡纯文本（B8 闭环）— 通栏左对齐 medium 字重
 c32a856  feat(ui): F9 置顶会话（B6 闭环）— SessionMetadata.pinned + 置顶段 + 持久化往返
@@ -177,7 +228,9 @@ cf0e230  docs(quality): 刷新质量报告 — 前端阶段1/2 基线
 
 ## 七、下一阶段
 
-已完成（本轮）：F10 用户消息无气泡纯文本（`b5486ec`：B8 闭环）+ F11 分组纯函数化（`17a0fd8`）——**F7 Codex 布局对齐差距清单 B1–B8 全部闭环**（666 用例基线）。前端打磨阶段（F1–F11）至此全部落地。
+已完成（2026-08-20 跨会话核验轮）：① 门禁 07:02 全量复跑全绿（ci-local pr + main；SwiftLint 0 / SwiftFormat 0 / 编译 0 警告 / XCTest 180 + Swift Testing 486 = 666 全绿 / MAIN_EXIT=0；本轮 0 次停滞）② 八大后端模块 37 项子能力代码级需求审计逐条通过（见 §五审计表）③ P1 观察数据累计入册（F6–F11 期 8+ 轮 + 本轮 1 轮，累计 0 停滞致失败）。
+
+已完成（上轮）：F10 用户消息无气泡纯文本（`b5486ec`：B8 闭环）+ F11 分组纯函数化（`17a0fd8`）——**F7 Codex 布局对齐差距清单 B1–B8 全部闭环**（666 用例基线）。前端打磨阶段（F1–F11）至此全部落地。
 
 1. 剩余项（需用户）：① **实机视觉验收**——GlassSurface（CardModifier 全局升级影响所有卡片）/ 折叠 rail / 置顶段 / 相对时间行 / ⌘ 快捷键 / 无气泡消息样式，无头环境结构性不可测 ② `dsh web` 约束口径确认（P2）③ 部署目标 15→25 是否上提确认（当前 15 超集兼容）
 2. 持续观察：P1 macOS 27 beta 协作池调度停滞（每轮全量回归观察，CI 有界重试兜底；macOS 正式版若复现再升级）
