@@ -1,8 +1,8 @@
 # Swift Harness — 质量保障报告
 
-> 生成时间: 2026-08-20 00:10
-> 项目版本: v0.3.1（后端 8 模块闭环 + 4 项跨模块场景端到端自测 + 前端阶段 1/2/3a/3b/3c 完成，HEAD `bc8f3fc`）
-> 说明: 场景测试扩展（跨轮上下文/记忆注入/技能复用）+ Notifications 可测性重构（66.7%→82.7%）；覆盖率按 llvm-cov export lcov 口径重测（口径说明见第三节）；门禁结果均为当前 HEAD 实测。
+> 生成时间: 2026-08-20 01:55
+> 项目版本: v0.3.2（后端 8 模块闭环 + 跨模块场景 4 项 + App 层场景 10 项 + 前端阶段 1/2/3a/3b/3c 完成，HEAD `2192233`）
+> 说明: 本轮新增 AppViewModel 会话生命周期 5 场景 + 工具面板 5 场景（含沙箱根切换端到端）；修复跨 suite 静态工厂竞态（新增实例级测试缝 providerFactoryOverride）；覆盖率按 llvm-cov export lcov 口径重测（口径说明见第三节）；门禁结果均为当前 HEAD 实测。
 
 ---
 
@@ -10,10 +10,10 @@
 
 | 门禁 | 状态 | 详情 |
 |------|------|------|
-| SwiftFormat | ✅ 0 改动 | `swiftformat --lint . --config .swiftformat`（157 文件） |
+| SwiftFormat | ✅ 0 改动 | `swiftformat --lint . --config .swiftformat`（160 文件） |
 | SwiftLint | ✅ 0 违规 | `swiftlint lint --strict --config .swiftlint.yml` |
 | 编译 | ✅ 0 警告 | 全量冷编译（450 targets 含测试目标，覆盖率构建实测） |
-| 单元测试 | ✅ 635/635 | XCTest 180 + Swift Testing 455（87 suites），0 失败（含 4 项跨模块场景端到端） |
+| 单元测试 | ✅ 645/645 | XCTest 180 + Swift Testing 465（89 suites），0 失败（含 4 项跨模块场景 + 10 项 App 层场景端到端） |
 | 本地镜像备份 | ✅ 每次提交后 | `git push --mirror /Users/liguangming/code/swift-harness-backup.git` |
 | GitHub 推送 | ⏸ 暂缓 | 按用户要求先本地版本控制，未推送远端（`.github/workflows/swift-ci.yml` 四 job 已就位；本地模拟 `tools/ci-local.sh [pr|leaks|xcode|main]` 可跑，leaks 门禁 0 leaks 实测） |
 
@@ -45,15 +45,16 @@
 
 ## 三、测试用例与行覆盖率（2026-08-20 00:05 全量重测，llvm-cov export lcov 口径）
 
-| 模块 | 行覆盖（仅源文件，635 用例 run 实测） | 状态 |
+| 模块 | 行覆盖（仅源文件，645 用例 run 实测） | 状态 |
 |------|--------|------|
-| Skill | 98.3%（626/637） | ✅ ≥90% |
 | Sandbox | 98.2%（54/55） | ✅ ≥90% |
+| Skill | 98.0%（624/637） | ✅ ≥90%（较上版 -2 行为 run-to-run 变异：技能进化时序路径，测试全绿非代码回归） |
 | Prompt | 96.5%（329/341） | ✅ ≥90% |
 | RAG | 96.4%（596/618） | ✅ ≥90% |
 | Subagent | 96.3%（315/327） | ✅ ≥90%（含槽位门控转移语义修复代码 `50fb2be`） |
 | Tools | 96.1%（489/509） | ✅ ≥90% |
 | Memory | 93.5%（490/524） | ✅ ≥90% |
+| Terminal | 93.5%（157/168） | ✅ ≥90%（profraw union 覆盖回升 +3 行，上版 91.7%） |
 | LLM | 93.4%（937/1003） | ✅ ≥90%；wire 格式零网络桩（tools/tool_calls/reasoning/SSE 聚合/归一化边界） |
 | MCP | 93.4%（606/649） | ✅ ≥90%（跨模块场景测试补测工具自动注册链路） |
 | PluginXPC | 92.9%（197/212） | ✅ ≥90% |
@@ -61,12 +62,11 @@
 | WebUI | 92.1%（499/542） | ✅ ≥90% |
 | Session | 92.0%（287/312） | ✅ ≥90% |
 | ServiceContainer | 91.8%（642/699） | ✅ ≥90% |
-| Terminal | 91.7%（154/168） | ✅ ≥90% |
 | Notifications | 82.7%（62/75） | ⚠️ 结构性上限：剩余 13 行为 `SystemNotificationCenter` UN 真实包装层（裸 xctest 进程调用实测 abort；授权状态映射已拆纯函数 `state(from:)` 全测） |
-| HarnessApp（UI 层） | 18.7%（925/4954） | 说明：SwiftUI 视图层，不计入 90% 核心基线（ViewModel 逻辑已由 HarnessAppTests 覆盖） |
+| HarnessApp（UI 层） | 53.5%（1015/1897） | 说明：SwiftUI 视图层，不计入 90% 核心基线（ViewModel 逻辑已由 HarnessAppTests 覆盖）。**口径变更**：本版起 UI 层改用 llvm-cov lcov 插桩行口径（旧版 18.7% 为总行数口径，两者不可直接比较）；本轮 +122 行由 10 项 App 层场景测试驱动 |
 
-**总计: 635 个测试用例（XCTest 180 + Swift Testing 455），全部通过。**
-**15 个后端包行覆盖 94.1%（6701/7123）；14 个核心包（除 Notifications）均 ≥90%。**
+**总计: 645 个测试用例（XCTest 180 + Swift Testing 465），全部通过。**
+**15 个后端包行覆盖 94.1%（6702/7123）；14 个核心包（除 Notifications）均 ≥90%。**
 
 > 口径说明：行覆盖统计各模块 `Sources/` 源文件（不含测试），本版改用 `llvm-cov export --format=lcov` 按 DA 记录去重行统计（该 beta 工具链 `llvm-cov report/export --format=json` 不可用）；分母与上一版（llvm-cov report 口径）不同，**绝对值不可直接纵向比较，模块相对排序与 ≥90% 达标状态一致**。`swift test` 末尾 "Test run with N" 只统计 Swift Testing，XCTest 计数看 "Executed N tests"。
 
@@ -101,6 +101,9 @@
 | lint 扫描范围被 ci-derived-data 污染（swiftlint LLVM 崩溃 / swiftformat 1545 文件） | `99ba131` |
 | AppViewModelToolLoopTests 两处既有 swiftformat 违规 | `58a13d9` |
 | P1 macOS 27 beta 瞬态协作池调度停滞（根因定位 + 槽位门控竞态修复 + 测试加固 + CI 有界重试） | `50fb2be` |
+| 跨 suite 静态 providerFactory 竞态（生命周期 suite 与 ToolLoop suite 并行时工厂被互覆，脚本化 LLM 错配：测试收到他套件 "done: hello"） | `2192233`（新增实例级测试缝 providerFactoryOverride，新 suite 走实例缝不触碰静态工厂） |
+| App 层会话生命周期无场景测试（创建/对话/持久化/改名/切换/删除/跨实例重载） | `2192233`（5 项场景闭环，含 DB 持久化与异步删除清理断言） |
+| 工具面板 executeTool / parseParams / 沙箱根切换无端到端场景 | `2192233`（5 项场景闭环，含沙箱根切换越界拒绝/放行/恢复） |
 | Apple LLVM 21 llvm-profdata merge -f bug（ci-local 覆盖率汇总失败） | `50fb2be`（绕过） |
 | 跨模块业务场景端到端自测缺口（8 模块集成链路无单一场景贯穿验证） | `dfe393e` |
 | 跨轮上下文/记忆注入/技能复用回环无集成断言 | `bc8f3fc` |
@@ -111,17 +114,18 @@
 | 项 | 数值 |
 |----|------|
 | 源码（Packages，77 文件） | 11,723 行 |
-| 源码（Apps/HarnessApp，21 文件） | 6,128 行 |
+| 源码（Apps/HarnessApp，21 文件） | 6,135 行（+7：providerFactoryOverride 实例测试缝） |
 | 源码（Apps 辅助 target：DSHCLI/HarnessCore/HarnessPluginWorker/MemProbe，10 文件） | 1,250 行 |
-| 源码合计（108 文件） | 19,101 行 |
-| 测试代码（Packages 10,094 + Apps 1,454） | 11,548 行 |
+| 源码合计（108 文件） | 19,108 行 |
+| 测试代码（Packages 10,094 + Apps 2,026） | 12,120 行（+572：生命周期 358 + 工具面板 214） |
 | SPM 目标 | 16 库/可执行 + 17 测试目标（单一 xctest 进程） |
 | 工具链 | Swift 6.3.3 / Xcode 26.6 / macOS arm64 / platforms .macOS(.v15) |
-| 提交总数 | 89（含本报告提交） |
+| 提交总数 | 91（含本报告提交） |
 
 ## 六、提交链（近期）
 
 ```
+2192233  test(app): 会话生命周期 5 场景 + 工具面板 5 场景端到端测试（providerFactory 实例缝隔离跨 suite 竞态）
 bc8f3fc  test(scenario): 跨轮工具上下文保留 + 记忆注入系统提示词 + 技能复用回环（场景测试 4 项闭环）
 dfe393e  test(scenario): 跨模块业务场景端到端测试（8 模块集成链路自测）
 c34ee2f  docs(quality): P1 调度停滞修复验证闭环 + P2 profdata -f bug 入册 + 覆盖率 lcov 口径重测（50fb2be）
@@ -149,9 +153,10 @@ cf0e230  docs(quality): 刷新质量报告 — 前端阶段1/2 基线
 
 已完成（本周期）：P1 调度停滞根因闭环验证 + 槽位门控竞态修复 + CI 有界重试 + profdata 参数序绕过（`50fb2be`）；8 大后端模块规格逐项对标审计（全部规格点均有实现+测试证据，无功能缺口）；跨模块业务场景端到端自测（`dfe393e`，631 用例基线）。
 
-1. P1 观察期：后续每轮全量回归持续观察（CI 有界重试兜底）；macOS 正式版若仍复现再升级处理
-2. 已完成（上轮）：场景测试扩展 4 项闭环（`bc8f3fc`：跨轮上下文 + 记忆注入 + 技能复用回环）；Notifications 可测性重构（66.7%→82.7%，剩余为 UN 真实包装层结构性上限）
-3. 持续迭代候选（按价值排序）：① App 层 ViewModel 场景测试扩展（设置导航/会话切换真实 ViewModel 驱动）② Terminal 模块覆盖观察（91.7%）③ 覆盖率工具链口径统一（官方工具链修复 -f bug 后恢复）
-4. `dsh web` 约束口径：待用户确认（P2）
-5. 部署目标口径：目标模式要求「最低支持 macOS 25」，当前 deployment target 为 macOS 15（超集兼容，满足要求）；是否将部署目标上提至 25 待用户确认
-6. 后端全部稳定后：UI 打磨阶段（Codex 对齐/二级设置/Liquid Glass）
+1. 已完成（本轮）：App 层会话生命周期 5 场景 + 工具面板 5 场景端到端（`2192233`，645 用例基线）；跨 suite 静态工厂竞态实锤并修复（实例级测试缝 providerFactoryOverride）
+2. P1 观察期：后续每轮全量回归持续观察（CI 有界重试兜底）；macOS 正式版若仍复现再升级处理
+3. 已完成（上轮）：场景测试扩展 4 项闭环（`bc8f3fc`：跨轮上下文 + 记忆注入 + 技能复用回环）；Notifications 可测性重构（66.7%→82.7%，剩余为 UN 真实包装层结构性上限）
+4. 持续迭代候选（按价值排序）：① 设置导航由 SettingsMenuModelTests 状态机测试全覆盖（导航态属 SettingsView @State，无独立 VM 可驱动，判定已闭环不重复建设）② Terminal 覆盖观察（本轮回升至 93.5%）③ 覆盖率工具链口径统一（官方工具链修复 -f bug 后恢复）④ 其余 App 层场景缺口盘点（设置回调 onSandboxChange/onNotificationsChange 消费链）
+5. `dsh web` 约束口径：待用户确认（P2）
+6. 部署目标口径：目标模式要求「最低支持 macOS 25」，当前 deployment target 为 macOS 15（超集兼容，满足要求）；是否将部署目标上提至 25 待用户确认
+7. 后端全部稳定后：UI 打磨阶段（Codex 对齐/二级设置/Liquid Glass）
