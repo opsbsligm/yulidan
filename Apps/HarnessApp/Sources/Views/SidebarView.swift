@@ -272,7 +272,7 @@ struct SidebarView: View {
             .padding(.vertical, 10)
         }
         .frame(width: 260)
-        .background(HarnessTheme.sidebarBg)
+        .glassSurface(.prominent, cornerRadius: 0)
     }
 }
 

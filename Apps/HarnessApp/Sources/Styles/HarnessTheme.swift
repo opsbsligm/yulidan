@@ -99,12 +99,7 @@ enum HarnessTheme {
 struct CardModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
-            .background(HarnessTheme.surface)
-            .cornerRadius(HarnessTheme.radiusLarge)
-            .overlay(
-                RoundedRectangle(cornerRadius: HarnessTheme.radiusLarge)
-                    .stroke(HarnessTheme.border, lineWidth: 0.5)
-            )
+            .glassSurface(.regular, cornerRadius: HarnessTheme.radiusLarge)
     }
 }
 
@@ -166,17 +161,17 @@ extension View {
         modifier(MessageBubbleModifier(isUser: isUser))
     }
 
-    /// Liquid Glass effects
+    /// Liquid Glass effects（委托 WWDC26 GlassSurface 系统：原生/降级/无障碍自动选择）
     func liquidGlassLight() -> some View {
-        modifier(LiquidGlassModifier(material: .hudWindow))
+        glassSurface(.thin)
     }
 
     func liquidGlassMedium() -> some View {
-        modifier(LiquidGlassModifier(material: .popover))
+        glassSurface(.regular)
     }
 
     func liquidGlassDark() -> some View {
-        modifier(LiquidGlassModifier(material: .sidebar))
+        glassSurface(.prominent)
     }
 }
 

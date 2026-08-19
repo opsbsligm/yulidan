@@ -141,7 +141,7 @@ struct LLMSettingsContainer: View {
                         .font(.system(size: 12, design: .monospaced))
                         .frame(height: 70)
                         .padding(4)
-                        .background(HarnessTheme.surface).cornerRadius(6)
+                        .glassSurface(.thin, cornerRadius: 6)
                         .overlay(RoundedRectangle(cornerRadius: 6).stroke(HarnessTheme.border, lineWidth: 0.5))
                 }
 

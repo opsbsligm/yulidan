@@ -123,8 +123,7 @@ struct ChatInputArea: View {
                 .padding(.horizontal, 10)
                 .padding(.vertical, 10)
             }
-            .background(HarnessTheme.surface)
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .glassSurface(.regular, cornerRadius: 16)
             .overlay(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .stroke(isFocused ? HarnessTheme.accent.opacity(0.45) : HarnessTheme.border, lineWidth: 1)

@@ -189,7 +189,7 @@ struct SettingsView: View {
             Spacer()
         }
         .frame(width: 200)
-        .background(HarnessTheme.sidebarBg)
+        .glassSurface(.prominent, cornerRadius: 0)
     }
 
     // MARK: 内容区（子页头 + 子页内容）
@@ -401,8 +401,7 @@ struct ShortcutRow: View {
                 .font(.system(size: 12, design: .monospaced))
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
-                .background(HarnessTheme.surface)
-                .cornerRadius(4)
+                .glassSurface(.thin, cornerRadius: 4)
                 .frame(width: 110, alignment: .leading)
 
             Text(action)
