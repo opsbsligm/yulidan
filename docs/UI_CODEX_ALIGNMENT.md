@@ -1,6 +1,6 @@
 # UI 对标 Codex 差距盘点（F7）
 
-> 生成：2026-08-20 ｜ HEAD 基线：`a0cb8ab`（655 用例）
+> 生成：2026-08-20 ｜ HEAD 基线：`171c881`（660 用例）
 > 范围：用户 5 项 UI 要求中「布局对标 Codex」「按钮/面板布局对齐 Codex 交互」两项的逐项差距盘点。
 > 方法：逐文件读当前实现（ContentView / SidebarView / ChatAreaView / ChatInputArea / WelcomeAreaView / SettingsView），与 Codex 桌面端布局/交互范式对照。
 
@@ -20,13 +20,13 @@
 
 | # | 优先级 | 差距 | Codex 行为 | 处置 |
 |---|--------|------|-----------|------|
-| B1 | **P1** | 生成中切换/新建/删除会话污染消息流 | Codex 生成中任务状态锁定，切换不打断当前任务写入 | 修复：selectSession/createNewSession/deleteSession 三入口生成中拦截 + performGeneration 写回前会话一致性校验 |
-| B2 | P1 | 会话列表无在途生成状态指示 | Codex 活跃任务行显示运行中指示 | 实现：generatingSessionId 发布 + 列表行 spinner |
-| B3 | P2 | 会话行无相对时间 | Codex 任务行显示「2h」「昨天」等相对时间 | 实现：RelativeTime 纯函数 + 行尾时间 |
-| B4 | P2 | 无全局键盘快捷键 | Codex：⌘N 新任务 / ⌘, 设置 / ⌘1-6 面板切换 | 实现：⌘N 新对话 / ⌘, 设置 / ⌘1–⌘6 六个面板 |
+| B1 | **P1** | 生成中切换/新建/删除会话污染消息流 | Codex 生成中任务状态锁定，切换不打断当前任务写入 | ✅ 已闭环 `171c881`：三入口拦截 + guardGenerationSession 防御 + 2 项场景测试 |
+| B2 | P1 | 会话列表无在途生成状态指示 | Codex 活跃任务行显示运行中指示 | ✅ 已闭环 `171c881`：generatingSessionId 发布 + 列表行 spinner |
+| B3 | P2 | 会话行无相对时间 | Codex 任务行显示「2h」「昨天」等相对时间 | ✅ 已闭环 `171c881`：RelativeTime.format 纯函数（3 组单测）+ 行尾时间 |
+| B4 | P2 | 无全局键盘快捷键 | Codex：⌘N 新任务 / ⌘, 设置 / ⌘1-6 面板切换 | ✅ 已闭环 `171c881`：⌘N / ⌘, / ⌘1–⌘6（视觉验收待实机） |
 | B5 | P2 | 侧边栏不可折叠 | Codex 支持折叠侧边栏释放主区宽度 | **登记待办**（需折叠态持久化 + 布局重构，下轮） |
 | B6 | P2 | 无置顶会话 | Codex 支持 pinned 任务段 | **登记待办**（需 SessionMetadata 扩展 + DB 迁移，下轮） |
-| B7 | P2 | SessionSidebarView.swift 死代码（仅自身 #Preview 引用，ContentView 已用 SidebarView） | — | 本轮删除 |
+| B7 | P2 | SessionSidebarView.swift 死代码（仅自身 #Preview 引用，ContentView 已用 SidebarView） | — | ✅ 已闭环 `171c881`：删除（UI 层分母 -93 插桩行） |
 | B8 | P3 | 用户消息为气泡样式 | Codex 用户消息为无气泡纯文本 | **登记待办**（视觉微调，随视觉验收一并对齐） |
 
 ## 三、本轮实施（B1/B2/B3/B4/B7）
