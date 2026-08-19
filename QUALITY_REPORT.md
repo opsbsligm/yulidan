@@ -1,8 +1,8 @@
 # Swift Harness — 质量保障报告
 
-> 生成时间: 2026-08-20 04:55
-> 项目版本: v0.3.4（后端 8 模块闭环 + 跨模块场景 4 项 + App 层场景 16 项 + 前端阶段 1/2/3a/3b/3c/3d/3e 完成，HEAD `171c881`）
-> 说明: 本轮完成 F7 Codex 布局对齐差距盘点与首批落地（`docs/UI_CODEX_ALIGNMENT.md`）：**P1 修复** 生成中切换/新建/删除会话污染消息流（三入口拦截 + 写回一致性防御）+ 列表生成指示 + 行尾相对时间 + ⌘N/⌘,/⌘1–⌘6 快捷键 + 删除 SessionSidebarView 死代码；新增 5 项测试（660 用例基线）；覆盖率 llvm-cov export lcov 口径重测；门禁结果均为当前 HEAD 实测。
+> 生成时间: 2026-08-20 05:35
+> 项目版本: v0.3.4（后端 8 模块闭环 + 跨模块场景 4 项 + App 层场景 16 项 + 前端阶段 1/2/3a/3b/3c/3d/3e/3f 完成，HEAD `49d3626`）
+> 说明: 本轮完成 F8 侧边栏折叠（B5：52pt 图标 rail + UserDefaults 持久化 + 主区展开按钮，1 项测试）；承接 F7 Codex 布局对齐（`docs/UI_CODEX_ALIGNMENT.md`：P1 会话守卫 + 生成指示/相对时间/⌘ 快捷键/死代码删除）；661 用例基线；覆盖率 llvm-cov export lcov 口径重测；门禁结果均为当前 HEAD 实测。
 
 ---
 
@@ -13,7 +13,7 @@
 | SwiftFormat | ✅ 0 改动 | `swiftformat --lint . --config .swiftformat`（164 文件） |
 | SwiftLint | ✅ 0 违规 | `swiftlint lint --strict --config .swiftlint.yml` |
 | 编译 | ✅ 0 警告 | 全量冷编译（450 targets 含测试目标，覆盖率构建实测） |
-| 单元测试 | ✅ 660/660 | XCTest 180 + Swift Testing 480（94 suites），0 失败（含 4 项跨模块场景 + 16 项 App 层场景端到端 + 4 项 GlassSurface + 2 项生成守卫 + 3 项 RelativeTime） |
+| 单元测试 | ✅ 661/661 | XCTest 180 + Swift Testing 481（95 suites），0 失败（含 4 项跨模块场景 + 16 项 App 层场景端到端 + 4 项 GlassSurface + 2 项生成守卫 + 3 项 RelativeTime + 1 项折叠持久化） |
 | 本地镜像备份 | ✅ 每次提交后 | `git push --mirror /Users/liguangming/code/swift-harness-backup.git` |
 | GitHub 推送 | ⏸ 暂缓 | 按用户要求先本地版本控制，未推送远端（`.github/workflows/swift-ci.yml` 四 job 已就位；本地模拟 `tools/ci-local.sh [pr|leaks|xcode|main]` 可跑，leaks 门禁 0 leaks 实测） |
 
@@ -43,11 +43,12 @@
 | F4 | 会话级 AgentLoop 持久化（LRU 上限 8/上下文指纹变化重建/跨轮热切/删除即回收 + 启动竞态修复） | `fbe5600` | ✅ 闭环 |
 | F5 | whenIdle 取消感知（OnceIdleContinuation + 任务取消立即唤醒，不中断运行中 turn） | `84c7b6f` | ✅ 闭环 |
 | F6 | WWDC26 Liquid Glass 表面系统（GlassSurface：GlassLevel 三级 / resolveMode 纯函数降级链（减弱透明度 solid > macOS26+ 原生 glassEffect > NSVisualEffectView legacy）/ reduceTransparencyTestOverride 测试缝 / material(for:) 纯函数 / 核心表面应用：Sidebar prominent、composer regular r16、设置 chip thin、CardModifier 全局升级） | `a0cb8ab` | ✅ 闭环（视觉验收待实机，见 §七） |
-| F7 | Codex 布局对齐差距盘点（`docs/UI_CODEX_ALIGNMENT.md`）+ 首批落地：生成中会话守卫（三入口拦截 + 一致性防御，P1）/ 列表生成指示 / 相对时间 / ⌘N/⌘,/⌘1–⌘6 / 死代码删除 | `171c881` | ✅ 闭环（B5 折叠 / B6 置顶 / B8 气泡微调登记待办） |
+| F7 | Codex 布局对齐差距盘点（`docs/UI_CODEX_ALIGNMENT.md`）+ 首批落地：生成中会话守卫（三入口拦截 + 一致性防御，P1）/ 列表生成指示 / 相对时间 / ⌘N/⌘,/⌘1–⌘6 / 死代码删除 | `171c881` | ✅ 闭环（B6 置顶 / B8 气泡微调登记待办） |
+| F8 | 侧边栏折叠（B5）：isSidebarCollapsed UserDefaults 持久化 / 52pt 图标 rail（展开/新对话/5 面板/设置/头像，快捷键两态共用）/ 展开态折叠按钮 + 折叠态主区展开按钮 | `49d3626` | ✅ 闭环（视觉验收待实机） |
 
-## 三、测试用例与行覆盖率（2026-08-20 04:45 全量重测，llvm-cov export lcov 口径）
+## 三、测试用例与行覆盖率（2026-08-20 05:25 全量重测，llvm-cov export lcov 口径）
 
-| 模块 | 行覆盖（仅源文件，660 用例 run 实测） | 状态 |
+| 模块 | 行覆盖（仅源文件，661 用例 run 实测） | 状态 |
 |------|--------|------|
 | Sandbox | 98.2%（54/55） | ✅ ≥90% |
 | Skill | 98.3%（626/637） | ✅ ≥90%（较上版 +2 行，run-to-run 变异回升：技能进化时序路径，测试全绿非代码回归） |
@@ -56,7 +57,7 @@
 | Subagent | 96.3%（315/327） | ✅ ≥90%（含槽位门控转移语义修复代码 `50fb2be`） |
 | Tools | 96.1%（489/509） | ✅ ≥90% |
 | Memory | 93.5%（490/524） | ✅ ≥90% |
-| Terminal | 91.7%（154/168） | ✅ ≥90%（较上版 -3 行，profraw union run-to-run 变异，测试全绿非代码回归） |
+| Terminal | 93.5%（157/168） | ✅ ≥90%（较上版 +3 行，profraw union run-to-run 变异回升，测试全绿非代码回归） |
 | LLM | 93.4%（937/1003） | ✅ ≥90%；wire 格式零网络桩（tools/tool_calls/reasoning/SSE 聚合/归一化边界） |
 | MCP | 93.4%（606/649） | ✅ ≥90%（跨模块场景测试补测工具自动注册链路） |
 | PluginXPC | 92.9%（197/212） | ✅ ≥90% |
@@ -65,10 +66,10 @@
 | Session | 92.0%（287/312） | ✅ ≥90% |
 | ServiceContainer | 91.8%（642/699） | ✅ ≥90% |
 | Notifications | 82.7%（62/75） | ⚠️ 结构性上限：剩余 13 行为 `SystemNotificationCenter` UN 真实包装层（裸 xctest 进程调用实测 abort；授权状态映射已拆纯函数 `state(from:)` 全测） |
-| HarnessApp（UI 层） | 25.8%（1277/4944） | 说明：SwiftUI 视图层，不计入 90% 核心基线（ViewModel 逻辑已由 HarnessAppTests 覆盖）。较上版 24.3%（1225/5037）：分母 -93 行（删除 SessionSidebarView 死代码）、命中 +52 行（守卫/相对时间路径，同口径：llvm-cov lcov 插桩行） |
+| HarnessApp（UI 层） | 25.2%（1280/5072） | 说明：SwiftUI 视图层，不计入 90% 核心基线（ViewModel 逻辑已由 HarnessAppTests 覆盖）。较上版 25.8%（1277/4944）：折叠 rail 新增插桩行（视图分支无头不可测），命中 +3 行（同口径：llvm-cov lcov 插桩行） |
 
-**总计: 660 个测试用例（XCTest 180 + Swift Testing 480），全部通过。**
-**16 个后端包（含 WebUI）行覆盖 94.1%（6701/7123）；不含 WebUI 15 包 94.2%（6202/6581）；14 个核心包（除 Notifications）均 ≥90%。**（口径：上版「15 包 6701/7123」实为含 WebUI，本版起拆分标注）
+**总计: 661 个测试用例（XCTest 180 + Swift Testing 481），全部通过。**
+**16 个后端包（含 WebUI）行覆盖 94.1%（6704/7123）；不含 WebUI 15 包 94.3%（6205/6581）；14 个核心包（除 Notifications）均 ≥90%。**（口径：上版「15 包 6701/7123」实为含 WebUI，本版起拆分标注）
 
 > 口径说明：行覆盖统计各模块 `Sources/` 源文件（不含测试），本版改用 `llvm-cov export --format=lcov` 按 DA 记录去重行统计（该 beta 工具链 `llvm-cov report/export --format=json` 不可用）；分母与上一版（llvm-cov report 口径）不同，**绝对值不可直接纵向比较，模块相对排序与 ≥90% 达标状态一致**。`swift test` 末尾 "Test run with N" 只统计 Swift Testing，XCTest 计数看 "Executed N tests"。
 
@@ -119,23 +120,25 @@
 | 26 处 #ActorIsolatedCall 编译警告（本 SDK ViewModifier 为 @MainActor 隔离，GlassSurface 静态成员随类型隔离，非隔离测试代码调用触发，零警告基线破坏） | `a0cb8ab`（suite 加 @MainActor，与既有 App 测试惯例一致；`swift build --build-tests` 0 警告实测） |
 | 生成中切换/新建/删除会话污染消息流（P1：performGeneration 后台写回落到切换后的新会话） | `171c881`（三入口拦截 + guardGenerationSession 写回前一致性防御 + 2 项场景测试锁定） |
 | SessionSidebarView.swift 死代码（217 行，仅自身 #Preview 引用） | `171c881`（删除，UI 层分母 -93 插桩行） |
+| 侧边栏不可折叠（F7 盘点 B5，Codex 对齐差距） | `49d3626`（52pt 图标 rail + 持久化 + 1 项测试） |
 
 ## 五、代码统计
 
 | 项 | 数值 |
 |----|------|
 | 源码（Packages，77 文件） | 11,723 行 |
-| 源码（Apps/HarnessApp，21 文件） | 6,182 行（F7 净 +47：守卫/相对时间/快捷键 +129 − 删 SessionSidebarView 217 + 格式整理） |
+| 源码（Apps/HarnessApp，21 文件） | 6,328 行（F8 净 +146：折叠 rail/持久化） |
 | 源码（Apps 辅助 target：DSHCLI/HarnessCore/HarnessPluginWorker/MemProbe，10 文件） | 1,250 行 |
-| 源码合计（108 文件） | 19,155 行 |
-| 测试代码（Packages 10,094 + Apps 2,664） | 12,758 行（+165：SessionGuardTests 5 场景） |
+| 源码合计（108 文件） | 19,301 行 |
+| 测试代码（Packages 10,094 + Apps 2,722） | 12,816 行（+58：SidebarCollapseTests） |
 | SPM 目标 | 16 库/可执行 + 17 测试目标（单一 xctest 进程） |
 | 工具链 | Swift 6.3.3 / Xcode 26.6 / macOS arm64 / platforms .macOS(.v15) |
-| 提交总数 | 98（含本报告提交） |
+| 提交总数 | 100（含本报告提交） |
 
 ## 六、提交链（近期）
 
 ```
+49d3626  feat(ui): F8 侧边栏折叠（B5 闭环）— 窄图标 rail + 持久化 + 主区展开按钮
 171c881  feat(ui): F7 Codex 布局对齐 — 生成中会话守卫 + 列表生成指示/相对时间 + ⌘ 快捷键 + 死代码删除
 a0cb8ab  feat(ui): WWDC26 Liquid Glass 表面系统（原生 glassEffect + 三级降级链 + 4 项单测）+ 核心表面应用
 19c7fb2  test(app): 会话操作 4 场景（clearChat/重试/子任务入口/插件启停）+ 技能目录全局覆盖竞态根除
@@ -164,10 +167,10 @@ cf0e230  docs(quality): 刷新质量报告 — 前端阶段1/2 基线
 
 ## 七、下一阶段
 
-已完成（本轮）：F7 Codex 布局对齐差距盘点（`docs/UI_CODEX_ALIGNMENT.md`）+ 首批落地（`171c881`：B1 P1 生成中会话守卫 / B2 生成指示 / B3 相对时间 / B4 ⌘ 快捷键 / B7 死代码删除，660 用例基线）。
+已完成（本轮）：F7 Codex 布局对齐差距盘点 + 首批落地（`171c881`：B1 P1 生成中会话守卫 / B2 生成指示 / B3 相对时间 / B4 ⌘ 快捷键 / B7 死代码删除）；F8 侧边栏折叠（`49d3626`：B5 闭环，661 用例基线）。
 
-1. 下一步（F8 候选，按价值排序）：① B5 侧边栏折叠/展开（折叠态持久化 + 主区宽度释放）② B6 置顶会话（pinned 段 + SessionMetadata 扩展）③ B8 用户消息气泡 → 无气泡纯文本（随视觉验收一并对齐）
-2. 视觉验收：GlassSurface（CardModifier 全局升级）+ F7 列表行/快捷键 需用户实机确认（无头环境结构性限制）
+1. 下一步（F9 候选，按价值排序）：① B6 置顶会话（pinned 段 + SessionMetadata 扩展，Codex pinned 任务对齐）② B8 用户消息气泡 → 无气泡纯文本（随视觉验收一并对齐）③ 折叠 rail 视觉细节打磨（间距/选中态，待实机反馈）
+2. 视觉验收：GlassSurface（CardModifier 全局升级）+ F7/F8 列表行/快捷键/折叠 rail 需用户实机确认（无头环境结构性限制）
 3. P1 观察期：后续每轮全量回归持续观察（CI 有界重试兜底）；macOS 正式版若仍复现再升级处理
 4. 持续迭代候选（按价值排序）：① exportChat/exportSkill/attachFiles 模态 UI 人工验收（无头 xctest 结构性不可测，已判定）② Terminal/WebUI 覆盖观察 ③ 覆盖率工具链口径统一（官方工具链修复 -f bug 后恢复）④ in-flight LLM 调用 cancel 联动中断（P2 观察项，需 AgentLoop 架构扩展）
 5. `dsh web` 约束口径：待用户确认（P2）
