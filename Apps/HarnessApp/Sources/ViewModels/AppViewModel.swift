@@ -947,6 +947,9 @@ final class AppViewModel: ObservableObject {
     }
 
     private func makeProvider(_ cfg: LLMConfig, key: String) -> any LLMProvider {
+        if let factory = providerFactoryOverride {
+            return factory(cfg, key)
+        }
         if let factory = Self.providerFactory {
             return factory(cfg, key)
         }
@@ -1434,6 +1437,10 @@ final class AppViewModel: ObservableObject {
     static var notificationServiceFactory: (@Sendable () -> any NotificationService)?
     /// 模型供应商工厂覆盖（单元测试隔离用；生产为 nil → 真实 API 适配器）
     static var providerFactory: (@Sendable (LLMConfig, String) -> (any LLMProvider))?
+
+    /// 实例级模型供应商工厂覆盖（单元测试隔离用；优先于静态 providerFactory。
+    /// 多个 suite 并行时避免静态工厂被跨 suite 覆盖导致脚本化 LLM 错配；生产为 nil）
+    var providerFactoryOverride: (@Sendable (LLMConfig, String) -> (any LLMProvider))?
 
     /// 子任务历史文件（~/Library/Application Support/Harness/，与 XPC plist 同目录约定）
     static var subagentHistoryURL: URL {
