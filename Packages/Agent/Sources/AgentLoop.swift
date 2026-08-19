@@ -37,8 +37,8 @@ public actor AgentLoop {
     public nonisolated(unsafe) var status: AgentStatus = .idle
     private var inbox: Inbox
 
-    /// whenIdle() 等待队列（由 processInbox 完成 / cancel 唤醒）
-    private var idleWaiters: [CheckedContinuation<AgentResult, Never>] = []
+    /// whenIdle() 等待队列（由 processInbox 完成 / cancel / 任务取消 唤醒；OnceBox 保证只 resume 一次）
+    private var idleWaiters: [OnceIdleContinuation] = []
     /// 取消标记：置位后 whenIdle 立即返回；新的 send/followup 会清除
     private var cancelFlag = false
 
@@ -151,9 +151,28 @@ public actor AgentLoop {
         if status == .idle, !inbox.hasPending {
             return lastResult
         }
-        return await withCheckedContinuation { continuation in
-            idleWaiters.append(continuation)
+        // 取消感知（P2）：等待方任务被取消（如 WebUI 超时）时立即原子唤醒，
+        // 不再悬挂到 turn 自然结束（原实现 Task 取消不 resume continuation，孤儿任务有界挂起）
+        let box = OnceIdleContinuation()
+        return await withTaskCancellationHandler {
+            await withCheckedContinuation { (continuation: CheckedContinuation<AgentResult, Never>) in
+                box.set(continuation)
+                self.idleWaiters.append(box)
+            }
+        } onCancel: { [weak self] in
+            Task { [weak self] in
+                await self?.wakeIdleWaiter(box)
+            }
         }
+    }
+
+    /// 取消路径唤醒：立即以当前结果 resume（调用方任务已取消，结果仅作收敛）；
+    /// 不中断运行中的 turn（OnceBox 与正常完成路径互斥，恰好一方生效）
+    private func wakeIdleWaiter(_ box: OnceIdleContinuation) {
+        if let idx = idleWaiters.firstIndex(where: { $0 === box }) {
+            idleWaiters.remove(at: idx)
+        }
+        box.resume(lastResult)
     }
 
     /// 处理输入箱中的所有待处理批次
@@ -176,7 +195,22 @@ public actor AgentLoop {
         let waiters = idleWaiters
         idleWaiters = []
         for waiter in waiters {
-            waiter.resume(returning: lastResult)
+            waiter.resume(lastResult)
+        }
+    }
+
+    /// continuation 单射盒：正常完成 / cancel / 任务取消 三条路径竞争时保证恰好 resume 一次
+    private final class OnceIdleContinuation: @unchecked Sendable {
+        private let lock = NSLock()
+        private var continuation: CheckedContinuation<AgentResult, Never>?
+
+        func set(_ continuation: CheckedContinuation<AgentResult, Never>) {
+            lock.withLock { self.continuation = continuation }
+        }
+
+        func resume(_ result: AgentResult) {
+            guard let c = lock.withLock({ let v = continuation; continuation = nil; return v }) else { return }
+            c.resume(returning: result)
         }
     }
 

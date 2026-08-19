@@ -481,6 +481,41 @@ struct AgentLoopWhenIdleTests {
         #expect(result.status == .idle)
         #expect(result.messages.isEmpty)
     }
+
+    /// P2：WebUI 超时取消 whenIdle 后不再悬挂到 turn 结束（Task 取消 → 立即唤醒）
+    @Test("whenIdle 任务取消：立即唤醒，不等待慢 turn 结束")
+    func taskCancellationWakesWaiter() async {
+        let llm = ScriptedLLM(responses: [textResponse("很慢的回答")], delay: 3)
+        let loop = AgentLoop(id: AgentID(), sessionID: SessionID(), llm: llm, tools: ToolRegistry(), model: "mock-model")
+        await loop.send(UserMessage(content: [.text("go")]), target: .nextTurn, wakeup: true)
+        let waiter = Task { await loop.whenIdle() }
+        try? await Task.sleep(for: .milliseconds(100)) // 确保已进入挂起
+        // 5s 的 turn 尚未结束；此时取消等待任务（模拟 WebUI 超时）
+        waiter.cancel()
+        let start = Date()
+        let result = await waiter.value // 必须在取消后迅速返回，而非等 5s
+        let elapsed = Date().timeIntervalSince(start)
+        #expect(elapsed < 1, "取消后应在 1s 内返回，实际 \(elapsed)")
+        _ = result // 取消路径结果仅作收敛（调用方任务已废弃该结果）
+        // turn 本身继续运行不受影响
+        _ = await loop.whenIdle()
+        #expect(await loop.currentStatus == .idle)
+    }
+
+    /// 正常完成路径不受取消感知改造影响（OnceBox 恰好一方生效）
+    @Test("whenIdle 正常完成：turn 结束按序唤醒（取消感知改造回归）")
+    func normalCompletionStillWakes() async {
+        let llm = ScriptedLLM(responses: [textResponse("ok")], delay: 0.1)
+        let loop = AgentLoop(id: AgentID(), sessionID: SessionID(), llm: llm, tools: ToolRegistry(), model: "mock-model")
+        await loop.send(UserMessage(content: [.text("go")]), target: .nextTurn, wakeup: true)
+        let a = Task { await loop.whenIdle() }
+        let b = Task { await loop.whenIdle() }
+        try? await Task.sleep(for: .milliseconds(50))
+        let ra = await a.value
+        let rb = await b.value
+        #expect(ra.error == nil && rb.error == nil)
+        #expect(ra.messages.count == 1 && rb.messages.count == 1)
+    }
 }
 
 // MARK: - AgentLoop 上下文裁剪（maxHistoryMessages）
