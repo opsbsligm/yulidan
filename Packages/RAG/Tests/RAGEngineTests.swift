@@ -127,7 +127,7 @@ struct RAGEngineTests {
     @Test func ingestSameSourceTwiceDoesNotDuplicate() async {
         let engine = makeEngine()
         _ = await engine.ingestText("重复入库测试：swift 并发 actor 隔离", source: "f.md", title: "F")
-        let (docs1, chunks1, _) = await engine.stats()
+        let (_, chunks1, _) = await engine.stats()
         _ = await engine.ingestText("重复入库测试：swift 并发 actor 隔离", source: "f.md", title: "F")
         let (docs2, chunks2, _) = await engine.stats()
         #expect(docs2 == 1)
