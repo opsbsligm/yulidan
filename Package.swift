@@ -44,7 +44,7 @@ let package = Package(
                 dependencies: ["ServiceContainer", "Session", "LLM", "Terminal", "Sandbox"],
                 path: "Packages/Tools/Sources"),
         .testTarget(name: "ToolsTests",
-                    dependencies: ["Tools", "ServiceContainer", "Session", "LLM", "Terminal", "Sandbox"],
+                    dependencies: ["Tools", "ServiceContainer", "Session", "LLM", "Terminal", "Sandbox", "Agent"],
                     path: "Packages/Tools/Tests"),
 
         .target(name: "Agent",

@@ -352,6 +352,7 @@ targets:
       - target: LLM
       - target: Terminal
       - target: Sandbox
+      - target: Agent
       - package: GRDB
         product: GRDB
     settings:
