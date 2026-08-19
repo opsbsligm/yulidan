@@ -24,6 +24,8 @@ opt_in_rules:
 excluded:
   - .build
   - DerivedData
+  - ci-derived-data
+  - .swiftpm
 
 line_length:
   warning: 200

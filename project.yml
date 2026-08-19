@@ -65,6 +65,8 @@ targets:
       - target: ServiceContainer
       - target: Session
       - target: LLM
+      - target: Terminal
+      - target: Sandbox
     settings:
       base:
         # Xcode 26 不会把 SPM systemLibrary(GRDB/CSQLite) 的 modulemap 传播给
@@ -154,6 +156,7 @@ targets:
     dependencies:
       - target: ServiceContainer
       - target: Tools
+      - target: RAG
     settings:
       base:
         # Xcode 26 不会把 SPM systemLibrary(GRDB/CSQLite) 的 modulemap 传播给
@@ -182,6 +185,9 @@ targets:
     dependencies:
       - target: ServiceContainer
       - target: Agent
+      - target: Session
+      - target: LLM
+      - target: Tools
     settings:
       base:
         # Xcode 26 不会把 SPM systemLibrary(GRDB/CSQLite) 的 modulemap 传播给
@@ -189,6 +195,53 @@ targets:
         OTHER_SWIFT_FLAGS:
           - -Xcc
           - -fmodule-map-file=$(SRCROOT)/Support/CSQLite/module.modulemap
+  Prompt:
+    type: library.static
+    platform: macOS
+    sources: [Packages/Prompt/Sources]
+    dependencies:
+      - target: ServiceContainer
+  RAG:
+    type: library.static
+    platform: macOS
+    sources: [Packages/RAG/Sources]
+    dependencies:
+      - target: ServiceContainer
+      - target: Tools
+    settings:
+      base:
+        # Xcode 26 不会把 SPM systemLibrary(GRDB/CSQLite) 的 modulemap 传播给
+        # 无链接阶段的静态库 target，这里显式注入（字节级一致副本，见 README.txt）
+        OTHER_SWIFT_FLAGS:
+          - -Xcc
+          - -fmodule-map-file=$(SRCROOT)/Support/CSQLite/module.modulemap
+  Memory:
+    type: library.static
+    platform: macOS
+    sources: [Packages/Memory/Sources]
+    dependencies:
+      - target: RAG
+      - target: Tools
+      - target: Session
+    settings:
+      base:
+        # Xcode 26 不会把 SPM systemLibrary(GRDB/CSQLite) 的 modulemap 传播给
+        # 无链接阶段的静态库 target，这里显式注入（字节级一致副本，见 README.txt）
+        OTHER_SWIFT_FLAGS:
+          - -Xcc
+          - -fmodule-map-file=$(SRCROOT)/Support/CSQLite/module.modulemap
+  Notifications:
+    type: library.static
+    platform: macOS
+    sources: [Packages/Notifications/Sources]
+    dependencies:
+      - target: ServiceContainer
+  PluginXPC:
+    type: library.static
+    platform: macOS
+    sources: [Packages/PluginXPC/Sources]
+    dependencies:
+      - target: ServiceContainer
   Sandbox:
     type: library.static
     platform: macOS
@@ -223,6 +276,16 @@ targets:
       - target: LLM
       - target: Tools
       - target: Agent
+      - target: Prompt
+      - target: RAG
+      - target: Memory
+      - target: Notifications
+      - target: PluginXPC
+      - target: MCP
+      - target: Subagent
+      - target: Skill
+      - target: Terminal
+      - target: Sandbox
       - package: GRDB
         product: GRDB
     settings:
@@ -287,6 +350,8 @@ targets:
       - target: ServiceContainer
       - target: Session
       - target: LLM
+      - target: Terminal
+      - target: Sandbox
       - package: GRDB
         product: GRDB
     settings:
@@ -302,6 +367,8 @@ targets:
       - target: Session
       - target: LLM
       - target: Tools
+      - target: Terminal
+      - target: Sandbox
       - package: GRDB
         product: GRDB
       - target: ServiceContainer

@@ -5,6 +5,7 @@ Packages/.build/
 
 # Xcode
 DerivedData/
+ci-derived-data/
 *.xcuserstate
 xcuserdata/
 *.xcscmblueprint

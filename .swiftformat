@@ -8,4 +8,4 @@
 --trim-whitespace always
 --indent-case false
 --swiftversion 6.0
---exclude .build DerivedData .swiftpm
+--exclude .build,DerivedData,ci-derived-data,.swiftpm
