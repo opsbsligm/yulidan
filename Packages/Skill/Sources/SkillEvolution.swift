@@ -200,15 +200,18 @@ public actor SkillEvolutionEngine {
     public let config: EvolutionConfig
     private let registry: SkillRegistry
     private let observationStore: (any ObservationStore)?
+    /// 技能保存根目录（nil = SkillStore 默认用户目录；测试可注入隔离目录）
+    private let saveRoot: URL?
     private var observations: [TaskObservation] = []
     /// 已生成过的技能名（防止重复生成）
     private var generatedNames: Set<String> = []
 
     public init(registry: SkillRegistry, config: EvolutionConfig = .init(),
-                observationStore: (any ObservationStore)? = nil) {
+                observationStore: (any ObservationStore)? = nil, saveRoot: URL? = nil) {
         self.registry = registry
         self.config = config
         self.observationStore = observationStore
+        self.saveRoot = saveRoot
         if let observationStore {
             // 恢复上次进程留下的观测窗口（CLI 短进程跨 run 累计重复任务）
             observations = Array(observationStore.load().suffix(200))
@@ -251,10 +254,11 @@ public actor SkillEvolutionEngine {
                 var skill = Skill(name: candidate.name, description: candidate.description,
                                   instructions: candidate.instructions, tags: candidate.tags,
                                   source: "auto")
-                let fileURL = try SkillStore.save(skill)
+                let root = saveRoot ?? SkillStore.userSkillsDirectory
+                let fileURL = try SkillStore.save(skill, to: root)
                 skill.source = fileURL.path
                 try? SkillVersioning.record(skill, note: "自动生成（\(candidate.evidenceCount) 次相似任务）",
-                                            directory: SkillStore.skillDirectory(for: skill.name))
+                                            directory: SkillStore.skillDirectory(for: skill.name, root: root))
                 _ = await registry.register(skill)
                 generatedNames.insert(candidate.name)
                 created.append(candidate)

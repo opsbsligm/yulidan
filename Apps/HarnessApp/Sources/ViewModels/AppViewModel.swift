@@ -325,7 +325,7 @@ final class AppViewModel: ObservableObject {
     // MARK: - 初始化
 
     /// - Parameter skillUserDirectory: 用户技能目录（测试注入隔离目录；生产默认 ~/.harness/skills）
-    init(skillUserDirectory: URL? = nil) {
+    init(skillUserDirectory: URL? = nil, sessionDBURL: URL? = nil) {
         let container = ServiceContainer()
         let eventBus = EventBus()
         pluginManager = PluginManager(container: container, eventBus: eventBus,
@@ -344,7 +344,7 @@ final class AppViewModel: ObservableObject {
         )
         llmConfig = LLMConfig.load()
         self.skillUserDirectory = skillUserDirectory ?? SkillStore.userSkillsDirectory
-        sessionDB = try? SessionDB(dbURL: Self.sessionDBURLOverride)
+        sessionDB = try? SessionDB(dbURL: sessionDBURL ?? Self.sessionDBURLOverride)
         sessionTitles = Self.loadTitles()
         // 先占位（init 两阶段初始化限制），onEvent 由 registerSubagentRuntime 后置赋值
         subagentCoordinator = SubagentCoordinator(maxConcurrent: 4)

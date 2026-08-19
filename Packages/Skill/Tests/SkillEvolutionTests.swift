@@ -127,7 +127,7 @@ struct SkillEvolutionTests {
         await engine.observe(sessionID: "s", task: "帮我重启一下 Nginx 服务并检查状态")
         await engine.observe(sessionID: "s", task: "帮我重启一下 Nginx 服务并检查状态")
         // 注册表已有同名技能 → 跳过（不写盘）
-        #expect((await engine.evaluate()).isEmpty)
+        #expect(await (engine.evaluate()).isEmpty)
     }
 
     @Test func makeCandidateRequiresRepetition() {
@@ -195,10 +195,10 @@ struct SkillToolsExtendedTests {
     @Test func saveSkillCreatesThenBumpsVersion() async throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("skill-tool-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        SkillStore.userSkillsDirectoryOverride = dir
-        defer { SkillStore.userSkillsDirectoryOverride = nil }
+        defer { try? FileManager.default.removeItem(at: dir) }
+        // 显式 saveRoot 注入：不依赖全局目录覆盖（跨 suite 并发安全）
         let ctx = ToolRunContext(signal: CancellationToken(), sessionID: SessionID(), metadata: [:])
-        let tool = SaveSkillTool(registry: registry)
+        let tool = SaveSkillTool(registry: registry, saveRoot: dir)
 
         let r1 = try await tool.execute(["name": "my-skill", "description": "演示技能",
                                          "instructions": "## 步骤\n1. 开始", "tags": "a,b"],
@@ -258,8 +258,7 @@ struct SkillToolsExtendedTests {
     @Test func engineRestoresObservationsAcrossInstances() async throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("skill-evo-restart-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        SkillStore.userSkillsDirectoryOverride = dir
-        defer { SkillStore.userSkillsDirectoryOverride = nil }
+        defer { try? FileManager.default.removeItem(at: dir) }
 
         let storeURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("obs-restart-\(UUID().uuidString).json")
@@ -270,7 +269,8 @@ struct SkillToolsExtendedTests {
         let registry1 = SkillRegistry()
         let engine1 = SkillEvolutionEngine(registry: registry1,
                                            config: .init(minRepetition: 2, similarityThreshold: 0.5),
-                                           observationStore: store)
+                                           observationStore: store,
+                                           saveRoot: dir)
         await engine1.observe(sessionID: "s", task: "帮我重启一下 Nginx 服务并检查状态",
                               toolNames: ["run_command"])
         #expect(await (engine1.evaluate()).isEmpty)
@@ -279,7 +279,8 @@ struct SkillToolsExtendedTests {
         let registry2 = SkillRegistry()
         let engine2 = SkillEvolutionEngine(registry: registry2,
                                            config: .init(minRepetition: 2, similarityThreshold: 0.5),
-                                           observationStore: store)
+                                           observationStore: store,
+                                           saveRoot: dir)
         #expect(await engine2.pendingObservationCount == 1) // 恢复成功
         await engine2.observe(sessionID: "s", task: "帮我重启一下 Nginx 服务并检查状态",
                               toolNames: ["run_command"])
@@ -298,7 +299,7 @@ struct SkillToolsExtendedTests {
         #expect(SkillStore.delete("nope", from: root) == false)
     }
 
-    @Test func parseSkipsLeadingBlankLines() throws {
+    @Test func parseSkipsLeadingBlankLines() {
         let text = "\n\n---\nname: lead\ndescription: d\n---\n正文"
         #expect(SkillStore.parse(text, source: "t")?.name == "lead")
     }
@@ -314,7 +315,7 @@ struct SkillToolsExtendedTests {
         #expect(SkillDebugger.validate(longDesc).contains { $0.message.contains("超过 200 字符") })
         let emptyBody = Skill(name: "ok", description: "d", instructions: "", source: "s")
         #expect(SkillDebugger.validate(emptyBody).contains { $0.message == "instructions 正文为空" })
-        let hugeBody = Skill(name: "ok", description: "d", instructions: String(repeating: "长", count: 20_001), source: "s")
+        let hugeBody = Skill(name: "ok", description: "d", instructions: String(repeating: "长", count: 20001), source: "s")
         #expect(SkillDebugger.validate(hugeBody).contains { $0.message.contains("超过 20000 字符") })
     }
 
@@ -337,7 +338,7 @@ struct SkillToolsExtendedTests {
                                           config: .init(minRepetition: 2, similarityThreshold: 0.5))
         await engine.observe(sessionID: "s", task: "帮我重启一下 Nginx 服务并检查状态")
         await engine.observe(sessionID: "s", task: "帮我重启一下 Nginx 服务并检查状态")
-        #expect((await engine.evaluate()).isEmpty)
+        #expect(await (engine.evaluate()).isEmpty)
     }
 
     @Test func sharedEvolutionCachesEngine() async throws {

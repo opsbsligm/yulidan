@@ -2,7 +2,6 @@ import Foundation
 @testable import HarnessApp
 import LLM
 import Session
-import Skill
 import Testing
 import Tools
 
@@ -28,18 +27,13 @@ struct AppViewModelToolLoopTests {
         defer { AppViewModel.providerFactory = nil }
 
         let dbURL = tempDBURL()
-        AppViewModel.sessionDBURLOverride = dbURL
-        defer {
-            AppViewModel.sessionDBURLOverride = nil
-            try? FileManager.default.removeItem(at: dbURL)
-        }
+        defer { try? FileManager.default.removeItem(at: dbURL) }
 
         let skillDir = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("harness-toolloop-skills-\(UUID().uuidString)")
-        SkillStore.userSkillsDirectoryOverride = skillDir
-        defer { SkillStore.userSkillsDirectoryOverride = nil }
+        defer { try? FileManager.default.removeItem(at: skillDir) }
 
-        let vm = AppViewModel(skillUserDirectory: skillDir)
+        let vm = AppViewModel(skillUserDirectory: skillDir, sessionDBURL: dbURL)
         vm.llmConfig.provider = .local // hasAPIKey = true，走测试缝 provider
         let tool = EchoTool()
         await vm.toolRegistry.register(tool)
@@ -83,18 +77,13 @@ struct AppViewModelToolLoopTests {
         defer { AppViewModel.providerFactory = nil }
 
         let dbURL = tempDBURL()
-        AppViewModel.sessionDBURLOverride = dbURL
-        defer {
-            AppViewModel.sessionDBURLOverride = nil
-            try? FileManager.default.removeItem(at: dbURL)
-        }
+        defer { try? FileManager.default.removeItem(at: dbURL) }
 
         let skillDir = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("harness-toolloop-skills-\(UUID().uuidString)")
-        SkillStore.userSkillsDirectoryOverride = skillDir
-        defer { SkillStore.userSkillsDirectoryOverride = nil }
+        defer { try? FileManager.default.removeItem(at: skillDir) }
 
-        let vm = AppViewModel(skillUserDirectory: skillDir)
+        let vm = AppViewModel(skillUserDirectory: skillDir, sessionDBURL: dbURL)
         vm.llmConfig.provider = .local
 
         vm.sendMessage("你好")

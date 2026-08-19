@@ -18,7 +18,7 @@ struct AppViewModelSessionSearchTests {
     }
 
     /// 轮询等搜索出结果（250ms 防抖 + DB 异步）
-    private func waitForResults(_ vm: AppViewModel, timeout: TimeInterval = 6) async -> [SessionRecord]? {
+    private func waitForResults(_ vm: AppViewModel, timeout: TimeInterval = 15) async -> [SessionRecord]? {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
             if vm.searchResults != nil {
@@ -45,11 +45,7 @@ struct AppViewModelSessionSearchTests {
     @Test("正文检索命中 + 改名/派生标题并集 + 空查询复位")
     func searchFlow() async throws {
         let dbURL = tempDBURL()
-        AppViewModel.sessionDBURLOverride = dbURL
-        defer {
-            AppViewModel.sessionDBURLOverride = nil
-            try? FileManager.default.removeItem(at: dbURL)
-        }
+        defer { try? FileManager.default.removeItem(at: dbURL) }
 
         // 预置 DB 会话（正文含唯一词）
         let s1 = SessionID()
@@ -66,7 +62,7 @@ struct AppViewModelSessionSearchTests {
             return
         }
 
-        let vm = AppViewModel()
+        let vm = AppViewModel(sessionDBURL: dbURL)
         guard await waitForInitialLoad(vm, s1) else {
             Issue.record("启动加载未完成")
             return
@@ -82,8 +78,11 @@ struct AppViewModelSessionSearchTests {
 
         // 标题并集：s2 正文无"标题词"以外信息，但派生标题（首条用户消息）含 ABC标题词
         vm.handleSessionSearch("ABC标题词")
-        // 先清空上一次结果，再等新结果
-        try? await Task.sleep(nanoseconds: 400_000_000)
+        // 轮询等新结果命中 s2（防抖 + 负载下的时序鲁棒）
+        let deadline = Date().addingTimeInterval(15)
+        while Date() < deadline, vm.searchResults?.contains(where: { $0.id == s2 }) != true {
+            try? await Task.sleep(for: .milliseconds(50))
+        }
         results = vm.searchResults
         #expect(results?.contains(where: { $0.id == s2 }) == true)
 
@@ -95,12 +94,8 @@ struct AppViewModelSessionSearchTests {
     @Test("无匹配时结果为空数组")
     func noMatch() async {
         let dbURL = tempDBURL()
-        AppViewModel.sessionDBURLOverride = dbURL
-        defer {
-            AppViewModel.sessionDBURLOverride = nil
-            try? FileManager.default.removeItem(at: dbURL)
-        }
-        let vm = AppViewModel()
+        defer { try? FileManager.default.removeItem(at: dbURL) }
+        let vm = AppViewModel(sessionDBURL: dbURL)
         vm.handleSessionSearch("绝对不存在的词xyz123")
         let results = await waitForResults(vm)
         #expect(results?.isEmpty == true)

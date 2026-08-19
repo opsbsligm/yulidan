@@ -68,9 +68,12 @@ public struct SaveSkillTool: Tool {
     public let requiredParameters = ["name", "description", "instructions"]
 
     private let registry: SkillRegistry
+    /// 技能保存根目录（nil = SkillStore 默认用户目录；测试可注入隔离目录）
+    private let saveRoot: URL?
 
-    public init(registry: SkillRegistry) {
+    public init(registry: SkillRegistry, saveRoot: URL? = nil) {
         self.registry = registry
+        self.saveRoot = saveRoot
     }
 
     public func execute(_ args: [String: String], context _: ToolRunContext) async throws -> ToolResult {
@@ -88,9 +91,10 @@ public struct SaveSkillTool: Tool {
                           source: "manual",
                           version: (existing?.version ?? 0) + 1)
         do {
-            let fileURL = try SkillStore.save(skill)
+            let root = saveRoot ?? SkillStore.userSkillsDirectory
+            let fileURL = try SkillStore.save(skill, to: root)
             skill.source = fileURL.path
-            let directory = SkillStore.skillDirectory(for: skill.name)
+            let directory = SkillStore.skillDirectory(for: skill.name, root: root)
             try? SkillVersioning.record(skill,
                                         note: existing == nil ? "新建" : "更新（覆盖旧版）",
                                         directory: directory)
