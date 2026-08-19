@@ -118,6 +118,18 @@ struct ChunkyStubTool: Tool {
     }
 }
 
+/// 轮询直到条件满足或超时（替代固定 sleep，防事件循环调度抖动导致瞬态失败）
+private func eventually(_ timeout: TimeInterval = 3, _ condition: @escaping () async -> Bool) async -> Bool {
+    let deadline = Date().addingTimeInterval(timeout)
+    while Date() < deadline {
+        if await condition() {
+            return true
+        }
+        try? await Task.sleep(nanoseconds: 10_000_000)
+    }
+    return await condition()
+}
+
 actor ExecEventBox {
     private(set) var events: [ToolExecEvent] = []
     func append(_ event: ToolExecEvent) {
@@ -262,7 +274,8 @@ final class ToolExecutorTests: XCTestCase {
         await registry.register(EchoStubTool())
         let result = await executor.execute(ToolCall(name: "echo", arguments: ["text": "hi"]), in: registry)
         XCTAssertNil(result.error)
-        try await Task.sleep(nanoseconds: 100_000_000)
+        let gotTwo = await eventually { await box.events.count == 2 }
+        XCTAssertTrue(gotTwo, "3 秒内应发出 started/finished 两个事件")
         let events = await box.events
         XCTAssertEqual(events.count, 2)
         if case let .started(name) = events[0] {

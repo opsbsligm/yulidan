@@ -113,6 +113,18 @@ actor MockAgent: Agent {
     }
 }
 
+/// 轮询直到条件满足或超时（替代固定 sleep，防事件循环调度抖动导致瞬态失败）
+private func eventually(_ timeout: TimeInterval = 3, _ condition: @escaping () async -> Bool) async -> Bool {
+    let deadline = Date().addingTimeInterval(timeout)
+    while Date() < deadline {
+        if await condition() {
+            return true
+        }
+        try? await Task.sleep(nanoseconds: 10_000_000)
+    }
+    return await condition()
+}
+
 actor EventBox {
     private(set) var events: [SubagentEvent] = []
     func append(_ event: SubagentEvent) {
@@ -247,8 +259,9 @@ final class SubagentCoordinatorTests: XCTestCase {
         let agent = MockAgent(delay: 0.05)
         let id = await coordinator.spawn(agent: agent, spec: SubagentSpec(name: "evt", task: "x"))
         _ = await coordinator.waitFor(id)
-        // 等待事件回调落盘
-        try await Task.sleep(nanoseconds: 100_000_000)
+        // 等待事件回调落盘（条件轮询替代固定 sleep）
+        let gotThree = await eventually { await box.events.count == 3 }
+        XCTAssertTrue(gotThree, "3 秒内应落盘 spawned/started/finished 三个事件")
         let events = await box.events
         XCTAssertEqual(events.count, 3)
         if case let .spawned(eID, name) = events[0] {

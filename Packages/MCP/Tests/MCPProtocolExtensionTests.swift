@@ -154,7 +154,8 @@ final class MCPProtocolExtensionTests: XCTestCase {
         let first = try await client.listTools()
         XCTAssertEqual(first.map(\.name).sorted(), ["add", "echo", "notify", "server_request"])
         _ = try await client.callTool(name: "notify", arguments: [:])
-        try await Task.sleep(for: .milliseconds(150))
+        let notified = await eventually { await box.all.contains("notifications/tools/list_changed") }
+        XCTAssertTrue(notified, "3 秒内应收到 list_changed 通知")
         let second = try await client.listTools()
         XCTAssertTrue(second.map(\.name).contains("after_change"), "list_changed 后应重新拉取工具清单")
         let methods = await box.all
@@ -188,7 +189,8 @@ final class MCPProtocolExtensionTests: XCTestCase {
         let out = try await client.callTool(name: "server_request", arguments: [:])
         XCTAssertTrue(out.contains("got-result"), "应收到处理器应答（实际：\(out)）")
         XCTAssertTrue(out.contains("echoed"))
-        try await Task.sleep(for: .milliseconds(100))
+        let recorded = await eventually { await seen.all == ["client/echo"] }
+        XCTAssertTrue(recorded, "3 秒内应收到 server→client 请求回调")
         let methods = await seen.all
         XCTAssertEqual(methods, ["client/echo"])
     }
@@ -292,6 +294,18 @@ final class MCPProtocolExtensionTests: XCTestCase {
 }
 
 // MARK: - 收集器
+
+/// 轮询直到条件满足或超时（替代固定 sleep，防事件循环调度抖动导致瞬态失败）
+private func eventually(_ timeout: TimeInterval = 3, _ condition: @escaping () async -> Bool) async -> Bool {
+    let deadline = Date().addingTimeInterval(timeout)
+    while Date() < deadline {
+        if await condition() {
+            return true
+        }
+        try? await Task.sleep(nanoseconds: 10_000_000)
+    }
+    return await condition()
+}
 
 actor NotificationBox {
     private(set) var all: [String] = []
