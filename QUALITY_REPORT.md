@@ -1,8 +1,8 @@
 # Swift Harness — 质量保障报告
 
-> 生成时间: 2026-08-19 10:40
-> 项目版本: v0.2.0（后端 8 模块闭环 + 前端阶段1/2 完成，HEAD `5f11dee`）
-> 说明: 前端打磨阶段（设置两级菜单 + 主聊天工具循环接线）基线刷新；测试数、覆盖率、门禁结果均为当前 HEAD 实测。
+> 生成时间: 2026-08-19 16:30
+> 项目版本: v0.3.0（后端 8 模块闭环 + 前端阶段 1/2/3a/3b/3c 完成，HEAD `851a100`）
+> 说明: 前端打磨阶段基线刷新；测试数、覆盖率、门禁结果均为当前 HEAD 实测。
 
 ---
 
@@ -10,12 +10,12 @@
 
 | 门禁 | 状态 | 详情 |
 |------|------|------|
-| SwiftFormat | ✅ 0 改动 | `swiftformat . --config .swiftformat` |
-| SwiftLint | ✅ 0 违规 | `swiftlint lint --strict`（warning 按 error 计） |
-| 编译 | ✅ 0 警告 | `swift package clean` 全量冷编译（含测试目标） |
-| 单元测试 | ✅ 602/602 | XCTest 178 + Swift Testing 424（81 suites），0 失败 |
+| SwiftFormat | ✅ 0 改动 | `swiftformat --lint . --config .swiftformat`（157 文件） |
+| SwiftLint | ✅ 0 违规 | `swiftlint lint --strict --config .swiftlint.yml` |
+| 编译 | ✅ 0 警告 | 全量冷编译（450 targets 含测试目标，覆盖率构建实测） |
+| 单元测试 | ✅ 628/628 | XCTest 180 + Swift Testing 448（85 suites），0 失败 |
 | 本地镜像备份 | ✅ 每次提交后 | `git push --mirror /Users/liguangming/code/swift-harness-backup.git` |
-| GitHub 推送 | ⏸ 暂缓 | 按用户要求先本地版本控制，未推送远端 |
+| GitHub 推送 | ⏸ 暂缓 | 按用户要求先本地版本控制，未推送远端（`.github/workflows/swift-ci.yml` 已就位，推远端即生效） |
 
 ## 二、八大后端模块交付状态
 
@@ -36,32 +36,39 @@
 |---|------|------|------|
 | F1 | 设置两级菜单 + 子页面导航跳转（SettingsTab/SettingsSubTab 模型 + SettingsNavigationState 纯状态机 + LLM 三子页共享 ViewModel） | `261e71a` | ✅ 闭环 |
 | F2 | 主聊天路径接 AgentLoop 工具循环（history 种子/工具轨迹消息/stopGenerating 同步取消/技能进化真实工具序列） | `5f11dee` | ✅ 闭环 |
-| F3 | UI 布局对标 Codex（主界面按钮/面板对齐） | — | 待办 |
+| F3a | Codex 式工具轨迹行 + 顶栏会话标题 | `7b3dc8c` | ✅ 闭环 |
+| F3b | AgentLoop onProgress 实时工具进度 + Codex 式贴底滚动 | `2886435` | ✅ 闭环 |
+| F3-轨迹 | 工具轨迹 Codex 式可折叠行（toolTraces 端到端 + UI 独立组件 + 6 项回归测试） | `58a13d9` | ✅ 闭环 |
+| F3c | 顶栏 Codex 式重排（左标题/右模型 pill/动作收纳溢出菜单）+ composer 居中限宽 720 | `ead1742` | ✅ 闭环 |
+| F4 | 会话级 AgentLoop 持久化（LRU 上限 8/上下文指纹变化重建/跨轮热切/删除即回收 + 启动竞态修复） | `fbe5600` | ✅ 闭环 |
+| F5 | whenIdle 取消感知（OnceIdleContinuation + 任务取消立即唤醒，不中断运行中 turn） | `84c7b6f` | ✅ 闭环 |
 
-## 三、测试用例与行覆盖率（2026-08-19 全量实测，llvm-cov）
+## 三、测试用例与行覆盖率（2026-08-19 全量实测，llvm-cov 当前工具链口径）
 
-| 模块 | 行覆盖（仅源文件，602 用例 run 实测） | 状态 |
+| 模块 | 行覆盖（仅源文件，628 用例 run 实测） | 状态 |
 |------|--------|------|
-| Sandbox | 98.7%（221/224） | ✅ ≥90% |
-| Skill | 97.6%（1246/1276） | ✅ ≥90% |
-| RAG | 96.6%（1239/1283） | ✅ ≥90% |
-| Prompt | 95.4%（605/634） | ✅ ≥90% |
-| Subagent | 95.1%（1057/1111） | ✅ ≥90% |
-| Terminal | 94.9%（300/316） | ✅ ≥90% |
-| Tools | 94.6%（1366/1444） | ✅ ≥90% |
-| ServiceContainer | 94.4%（1679/1778） | ✅ ≥90% |
-| PluginXPC | 94.3%（466/494） | ✅ ≥90% |
-| MCP | 93.9%（1294/1378） | ✅ ≥90% |
-| Session | 93.8%（800/853） | ✅ ≥90% |
-| LLM | 93.3%（2489/2668） | ✅ ≥90%；wire 格式零网络桩（tools/tool_calls/reasoning/SSE 聚合/归一化边界） |
-| Agent | 92.7%（1222/1318） | ✅ ≥90%（本阶段种子历史+步骤轨迹补测，87.9%→92.7%） |
-| WebUI | 92.4%（1016/1100） | ✅ ≥90% |
-| Memory | 91.9%（808/879） | ✅ ≥90% |
-| Notifications | 89.9%（213/237） | ⚠️ 略低于 90%；UNUserNotificationCenter 真实包装层测试进程不可达（系统限制） |
+| Sandbox | 98.4%（63/64） | ✅ ≥90% |
+| Subagent | 97.5%（352/361） | ✅ ≥90% |
+| Skill | 96.7%（670/693） | ✅ ≥90% |
+| Tools | 95.7%（572/598） | ✅ ≥90% |
+| PluginXPC | 94.6%（297/314） | ✅ ≥90% |
+| RAG | 94.5%（659/697） | ✅ ≥90% |
+| Prompt | 94.5%（363/384） | ✅ ≥90% |
+| Terminal | 93.2%（206/221） | ✅ ≥90% |
+| LLM | 92.8%（1243/1339） | ✅ ≥90%；wire 格式零网络桩（tools/tool_calls/reasoning/SSE 聚合/归一化边界） |
+| MCP | 92.3%（728/789） | ✅ ≥90% |
+| WebUI | 92.1%（608/660） | ✅ ≥90% |
+| Session | 92.0%（412/448） | ✅ ≥90% |
+| Memory | 91.7%（521/568） | ✅ ≥90% |
+| ServiceContainer | 91.4%（687/752） | ✅ ≥90% |
+| Agent | 91.1%（494/542） | ✅ ≥90%（本阶段 toolTraces 补测 6 项） |
+| Notifications | 67.1%（49/73） | ⚠️ UNUserNotificationCenter 真实包装层测试进程不可达（系统限制） |
+| HarnessApp（UI 层） | 10.9%（1216/11138） | 说明：SwiftUI 视图层，不计入 90% 核心基线（ViewModel 逻辑已由 HarnessAppTests 覆盖） |
 
-**总计: 602 个测试用例（XCTest 178 + Swift Testing 424），全部通过。包级源码总行覆盖 94.3%（16993 行中 972 行未覆盖）。**
+**总计: 628 个测试用例（XCTest 180 + Swift Testing 448），全部通过。**
+**15 个后端包行覆盖 93.2%（7924/8503）；14 个核心包（除 Notifications）93.4%（7875/8430）。**
 
-> 口径说明：行覆盖统计各模块 `Sources/` 源文件（不含测试）；`swift test` 末尾 "Test run with N" 只统计 Swift Testing，XCTest 计数看 "Executed N tests"。
+> 口径说明：行覆盖统计各模块 `Sources/` 源文件（不含测试），llvm-cov 可执行插桩行口径（当前工具链；与上一版报告"全代码行"口径分母不同，百分比可比）。`swift test` 末尾 "Test run with N" 只统计 Swift Testing，XCTest 计数看 "Executed N tests"。
 
 ## 四、已知问题清单（按优先级）
 
@@ -71,51 +78,58 @@
 ### P1
 | 问题 | 现象/复现 | 状态 |
 |------|-----------|------|
-| HarnessPluginWorker 进程泄漏 | XPC 测试后残留进程需手动 kill | 遗留观察；插件宿主非主链路 |
+| XCTest 瞬态失败 | 2026-08-19 单跑全量抓到 1 次 2 失败（0 unexpected）；随后 9 次全量/隔离复跑（含 3 次覆盖插桩 run）均 0 失败；仅出现在单发全量 XCTest run，疑似时序/调度相关（XPC E2E、Terminal 等慢套件嫌疑最大） | 观察中；再复现即抓现场定位（已有多轮日志留存机制） |
 
 ### P2
 | 问题 | 说明 | 状态 |
 |------|------|------|
-| 瞬态测试失败 | 累计 9 次未复现（含并发调度/轮询异步类；覆盖插桩 run 下概率偏高；单跑与复跑均绿） | 观察中（如再升级出现，升 P1 排查轮询超时阈值） |
-| WebUIApp 超时取消后 whenIdle 有界挂起 | 取消场景下有界等待后才返回 | 遗留 |
-| `dsh web` 与"非 Web 服务"约束边界 | 需用户确认约束口径 | 待确认 |
-| RAG 同文件重复入库不去重 | 重复 ingest 同文件产生重复块 | 遗留 |
-| SSE 流式不转发 reasoning 增量 | 仅非流式 complete 解析 reasoning_content | 待优化 |
-| local 画像默认关闭工具调用 | 依赖具体引擎（Ollama/vLLM 能力不一） | 待按模型名细分 |
+| `dsh web` 与"非 Web 服务"约束边界 | 需用户确认约束口径（WebUI 为本地 127.0.0.1 调试服务，非对外 Web 服务） | 待确认 |
 | 冷 scratch 偶发 emit-module 工具链崩溃 | `no such module 'Agent'`，同 scratch 重试即过（环境坑非代码） | 已知 |
+
+### 已闭环（本周期）
+| 问题 | 闭环提交 |
+|------|-----------|
+| HarnessPluginWorker 进程泄漏（P1） | `c5bdc41` |
+| WebUIApp 超时取消后 whenIdle 有界挂起 | `84c7b6f` |
+| RAG 同文件重复入库不去重 | `c5bdc41` |
+| SSE 流式不转发 reasoning 增量 | `c5bdc41` |
+| local 画像默认关闭工具调用 | `c5bdc41`（按模型名白名单细分） |
+| 冷编译警告（RAG 测试 docs1 未使用） | `851a100` |
+| AppViewModelToolLoopTests 两处既有 swiftformat 违规 | `58a13d9` |
 
 ## 五、代码统计
 
 | 项 | 数值 |
 |----|------|
-| 源码（Packages+Apps，*.swift） | 18,558 行 |
-| 测试代码 | 10,434 行 |
+| 源码（Packages，77 文件） | 11,681 行 |
+| 源码（Apps/HarnessApp，21 文件） | 6,128 行 |
+| 源码合计（98 文件） | 17,809 行 |
+| 测试代码（Packages 9,934 + Apps 1,004） | 10,938 行 |
 | SPM 目标 | 16 库/可执行 + 17 测试目标（单一 xctest 进程） |
 | 工具链 | Swift 6.3.3 / Xcode 26.6 / macOS arm64 / platforms .macOS(.v15) |
+| 提交总数 | 75 |
 
-## 六、提交链（本开发周期）
+## 六、提交链（近期）
 
 ```
+851a100  fix(test): 冷编译警告清零（RAGEngineTests docs1 未使用变量）
+ead1742  feat(app): 顶栏 Codex 式重排 + composer 居中限宽（前端阶段3c）
+58a13d9  feat(agent): 工具轨迹 Codex 式可折叠行（toolTraces 端到端 + UI + 回归测试）
+84c7b6f  fix(agent): whenIdle 取消感知（P2 闭环：WebUI 超时后孤儿任务不再悬挂到 turn 结束）
+fbe5600  feat(agent): 会话级 AgentLoop 持久化（跨轮工具上下文保留 + LRU 内存回收）
+c5bdc41  fix(quality): P1+P2 后端四项闭环（PluginWorker 进程泄漏 / RAG 去重 / SSE reasoning 流式 / local 画像按模型细分）
+2886435  feat(app): AgentLoop onProgress 实时工具进度 + Codex 式贴底滚动（前端阶段3b）
+7b3dc8c  feat(app): Codex 式工具轨迹行 + 顶栏会话标题（前端阶段3a）
+c8e3cc4  fix(test): 根除跨 suite 全局覆盖竞态（瞬态测试失败根因）
+cf0e230  docs(quality): 刷新质量报告 — 前端阶段1/2 基线
 5f11dee  feat(app): 主聊天路径接 AgentLoop 工具循环（前端阶段2/P2 接线闭环）
-261e71a  feat(app): 设置两级菜单 + 子页面导航跳转（前端阶段1）
-5817ba3  docs(quality): 刷新质量报告 — 后端8模块全闭环基线
-d890934  feat(llm): 多模型服务商抽象适配层（模块8）
-92be3b7  test(quality): 冷编译警告清零 + Skill 覆盖率补测（86.5%→95.8%）+ 基线 561 全绿
-68270a9  feat(skill): Skill 技能体系完整闭环（模块7）
-b800e91  feat(memory): 记忆系统（模块6）
-6fcd98d  feat(rag): RAG 检索增强系统（模块5）
-1ba4bb8  feat(mcp): MCP 标准协议完整对接（模块4）
-10f7f86  feat(tools): 工具调用完整链路（模块3）
-cf17f77  feat(subagent): 多Agent调度生命周期完善（模块2）
-b25582a  feat(prompt): 提示词工程层（模块1）
 ```
 
-## 七、下一阶段（前端打磨持续）
+## 七、下一阶段
 
-已完成：设置两级菜单 + 子页面导航（`261e71a`）、主聊天 AgentLoop 工具循环（`5f11dee`）
+已完成（本周期）：工具轨迹可折叠行端到端（`58a13d9`）、顶栏 Codex 式重排 + composer 限宽（`ead1742`）、冷编译警告清零（`851a100`）。
 
-1. UI 布局对标 Codex：主界面（ChatArea/Sidebar/Welcome）按钮/面板布局对齐 Codex 交互范式
-2. 工具轨迹消息 UI 展示打磨（.tool 消息气泡样式/折叠）
-3. 会话级 AgentLoop 持久化（跨轮工具上下文保留，当前每轮重建 + 文本历史种子）
-4. 保留 WWDC26 Liquid Glass 设计、动效、降级策略、无障碍
-5. 硬约束：纯 SwiftUI + AppKit，禁 WebView/Electron，macOS 25+
+1. XCTest 瞬态失败：持续观察，复现即定位（P1）
+2. `dsh web` 约束口径：待用户确认（P2）
+3. UI 细节打磨（如需要）：Sidebar/Welcome 已确认 Codex 对齐；剩余为微调用
+4. 收尾：全量门禁 + 阶段进度报告
