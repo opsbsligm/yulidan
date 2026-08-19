@@ -1,6 +1,6 @@
 # UI 对标 Codex 差距盘点（F7）
 
-> 生成：2026-08-20 ｜ HEAD 基线：`c32a856`（664 用例）
+> 生成：2026-08-20 ｜ HEAD 基线：`17a0fd8`（666 用例）｜ **B1–B8 全部闭环**
 > 范围：用户 5 项 UI 要求中「布局对标 Codex」「按钮/面板布局对齐 Codex 交互」两项的逐项差距盘点。
 > 方法：逐文件读当前实现（ContentView / SidebarView / ChatAreaView / ChatInputArea / WelcomeAreaView / SettingsView），与 Codex 桌面端布局/交互范式对照。
 
@@ -27,7 +27,7 @@
 | B5 | P2 | 侧边栏不可折叠 | Codex 支持折叠侧边栏释放主区宽度 | ✅ 已闭环 `49d3626`：52pt 图标 rail + UserDefaults 持久化 + 主区展开按钮（视觉验收待实机） |
 | B6 | P2 | 无置顶会话 | Codex 支持 pinned 任务段 | ✅ 已闭环 `c32a856`：SessionMetadata.pinned（旧 JSON 兼容解码）+ 置顶段 + 持久化往返（3 项测试） |
 | B7 | P2 | SessionSidebarView.swift 死代码（仅自身 #Preview 引用，ContentView 已用 SidebarView） | — | ✅ 已闭环 `171c881`：删除（UI 层分母 -93 插桩行） |
-| B8 | P3 | 用户消息为气泡样式 | Codex 用户消息为无气泡纯文本 | **登记待办**（视觉微调，随视觉验收一并对齐） |
+| B8 | P3 | 用户消息为气泡样式 | Codex 用户消息为无气泡纯文本 | ✅ 已闭环 `b5486ec`：通栏左对齐 medium 字重（视觉验收待实机） |
 
 ## 三、本轮实施（B1/B2/B3/B4/B7）
 
