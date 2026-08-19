@@ -38,6 +38,7 @@ struct ChatAreaView: View {
                 onRemoveAttachment: { viewModel.removeAttachment($0) },
                 isFocused: _isInputFocused
             )
+            .frame(maxWidth: .infinity) // 居中（内层限宽 720）
             .padding(.horizontal, 24)
             .padding(.bottom, 12)
         }
@@ -46,19 +47,42 @@ struct ChatAreaView: View {
     }
 }
 
-// MARK: - 顶部栏
+// MARK: - 顶部栏（Codex 式：左=会话标题 / 右=模型 pill + 溢出菜单）
 
 struct ChatTopBar: View {
     @ObservedObject var viewModel: AppViewModel
     let session: SessionRecord
     let draftText: String
     @State private var modelHovered = false
+    @State private var moreHovered = false
     @State private var renameText = ""
     @State private var showRenameAlert = false
     @State private var showDeleteConfirm = false
+    @State private var showClearConfirm = false
+
     var body: some View {
-        HStack(spacing: 8) {
-            // 模型选择（真实菜单：提供商 → 模型）
+        HStack(spacing: 10) {
+            // 会话标题（Codex 式：左侧主元素，当前任务名）
+            Text(viewModel.sessionTitle(for: session))
+                .font(.system(size: 13, weight: .medium, design: .rounded))
+                .foregroundStyle(HarnessTheme.textPrimary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .help(viewModel.sessionTitle(for: session))
+                .accessibilityLabel("会话：\(viewModel.sessionTitle(for: session))")
+
+            if !viewModel.hasAPIKey {
+                HStack(spacing: 4) {
+                    Image(systemName: "exclamationmark.triangle.fill").font(.system(size: 11)).foregroundStyle(.orange)
+                    Text("未配置 API Key").font(.system(size: 11)).foregroundStyle(.orange)
+                }
+                .onTapGesture { viewModel.selectedTab = .settings }
+                .help("点击前往设置配置 API Key")
+            }
+
+            Spacer()
+
+            // 模型选择（Codex 式：右侧紧凑 pill，提供商→模型）
             Menu {
                 ForEach(ModelProvider.allCases, id: \.self) { provider in
                     let models = provider.selectableModels.isEmpty
@@ -85,79 +109,72 @@ struct ChatTopBar: View {
                     Label("模型设置…", systemImage: "gear")
                 }
             } label: {
-                HStack(spacing: 6) {
+                HStack(spacing: 5) {
                     Image(systemName: viewModel.llmConfig.provider.icon)
-                        .font(.system(size: 12))
-                    Text("\(viewModel.llmConfig.provider.displayName) · \(viewModel.llmConfig.modelName)")
-                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                        .font(.system(size: 11))
+                    Text(viewModel.llmConfig.modelName)
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
                         .lineLimit(1)
-                    Image(systemName: "chevron.down").font(.system(size: 10))
+                    Image(systemName: "chevron.down").font(.system(size: 9))
                 }
                 .foregroundStyle(modelHovered ? HarnessTheme.textPrimary : HarnessTheme.textSecondary)
                 .padding(.horizontal, 10).padding(.vertical, 6)
-                .background(modelHovered ? Color.secondary.opacity(0.1) : .clear)
-                .cornerRadius(6)
+                .background(
+                    Capsule().fill(modelHovered ? Color.secondary.opacity(0.1) : .clear)
+                )
+                .overlay(Capsule().stroke(HarnessTheme.border, lineWidth: 0.5))
             }
-            .menuStyle(.button)
+            .menuIndicator(.hidden)
             .buttonStyle(.plain)
             .onHover { modelHovered = $0 }
             .help("切换模型提供商与模型")
 
-            if !viewModel.hasAPIKey {
-                HStack(spacing: 4) {
-                    Image(systemName: "exclamationmark.triangle.fill").font(.system(size: 11)).foregroundStyle(.orange)
-                    Text("未配置 API Key").font(.system(size: 11)).foregroundStyle(.orange)
-                }
-                .onTapGesture { viewModel.selectedTab = .settings }
-                .help("点击前往设置配置 API Key")
+            // 更多（Codex 式：动作按钮收纳进溢出菜单）
+            Menu {
+                Button { viewModel.attachFiles() } label: { Label("添加附件", systemImage: "doc.badge.plus") }
+                Button { viewModel.spawnSubagentFromChat(draftText) } label: { Label("派生子 Agent", systemImage: "fork") }
+                Divider()
+                Button { viewModel.shareChat() } label: { Label("复制到剪贴板", systemImage: "doc.on.doc") }
+                Button { viewModel.exportChat() } label: { Label("导出为 Markdown…", systemImage: "square.and.arrow.down") }
+                Button {
+                    renameText = viewModel.sessionTitle(for: session)
+                    showRenameAlert = true
+                } label: { Label("重命名对话…", systemImage: "pencil") }
+                Divider()
+                Button(role: .destructive) {
+                    showClearConfirm = true
+                } label: { Label("清空本对话", systemImage: "trash") }
+                Button(role: .destructive) {
+                    showDeleteConfirm = true
+                } label: { Label("删除对话", systemImage: "trash.slash") }
+            } label: {
+                Image(systemName: "ellipsis.circle")
+                    .font(.system(size: 16))
+                    .foregroundStyle(moreHovered ? HarnessTheme.textPrimary : HarnessTheme.textSecondary)
+                    .padding(6)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(moreHovered ? HarnessTheme.surface : .clear)
+                    )
             }
-
-            // 会话标题（Codex 式：头部显示当前任务名）
-            Text(viewModel.sessionTitle(for: session))
-                .font(.system(size: 13, weight: .medium, design: .rounded))
-                .foregroundStyle(HarnessTheme.textSecondary)
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .help(viewModel.sessionTitle(for: session))
-
-            Spacer()
-
-            HStack(spacing: 2) {
-                RealButton(icon: "doc.badge.plus", label: "附件", action: { viewModel.attachFiles() })
-                RealButton(icon: "square.and.arrow.up", label: "分享", action: { viewModel.shareChat() })
-                RealButton(icon: "trash", label: "清空", action: { viewModel.clearChat() })
-                RealButton(icon: "fork", label: "派生", action: { viewModel.spawnSubagentFromChat(draftText) })
-                // 更多（真实菜单）
-                Menu {
-                    Button { viewModel.shareChat() } label: { Label("复制到剪贴板", systemImage: "doc.on.doc") }
-                    Button { viewModel.exportChat() } label: { Label("导出为 Markdown…", systemImage: "square.and.arrow.down") }
-                    Button {
-                        renameText = viewModel.sessionTitle(for: session)
-                        showRenameAlert = true
-                    } label: { Label("重命名对话…", systemImage: "pencil") }
-                    Divider()
-                    Button(role: .destructive) {
-                        showDeleteConfirm = true
-                    } label: { Label("删除对话", systemImage: "trash") }
-                } label: {
-                    Image(systemName: "ellipsis.circle")
-                        .font(.system(size: 16))
-                        .foregroundStyle(HarnessTheme.textSecondary)
-                        .padding(6)
-                }
-                .menuIndicator(.hidden)
-                .buttonStyle(.plain)
-                .help("更多操作")
-                .alert("重命名对话", isPresented: $showRenameAlert) {
-                    TextField("对话名称", text: $renameText)
-                    Button("确定") { viewModel.renameSession(renameText) }
-                    Button("取消", role: .cancel) {}
-                }
-                .confirmationDialog("确定删除该对话？此操作不可恢复。",
-                                    isPresented: $showDeleteConfirm, titleVisibility: .visible) {
-                    Button("删除", role: .destructive) { viewModel.deleteSession(session) }
-                    Button("取消", role: .cancel) {}
-                }
+            .menuIndicator(.hidden)
+            .buttonStyle(.plain)
+            .onHover { moreHovered = $0 }
+            .help("更多操作")
+            .alert("重命名对话", isPresented: $showRenameAlert) {
+                TextField("对话名称", text: $renameText)
+                Button("确定") { viewModel.renameSession(renameText) }
+                Button("取消", role: .cancel) {}
+            }
+            .confirmationDialog("确定删除该对话？此操作不可恢复。",
+                                isPresented: $showDeleteConfirm, titleVisibility: .visible) {
+                Button("删除", role: .destructive) { viewModel.deleteSession(session) }
+                Button("取消", role: .cancel) {}
+            }
+            .confirmationDialog("确定清空本对话的全部消息？此操作不可恢复。",
+                                isPresented: $showClearConfirm, titleVisibility: .visible) {
+                Button("清空", role: .destructive) { viewModel.clearChat() }
+                Button("取消", role: .cancel) {}
             }
         }
         .padding(.horizontal, 20).padding(.vertical, 10)
@@ -172,30 +189,6 @@ struct ChatTopBar: View {
         }
         cfg.save()
         viewModel.showToast("已切换：\(provider.displayName) / \(model)")
-    }
-}
-
-// MARK: - 通用按钮
-
-struct RealButton: View {
-    let icon: String
-    let label: String
-    let action: () -> Void
-    @State private var isHovered = false
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 4) {
-                Image(systemName: icon).font(.system(size: 13))
-                Text(label).font(.system(size: 12))
-            }
-            .foregroundStyle(isHovered ? HarnessTheme.textPrimary : HarnessTheme.textSecondary)
-            .padding(.horizontal, 8).padding(.vertical, 4)
-            .background(isHovered ? HarnessTheme.surface : .clear)
-            .cornerRadius(4)
-        }
-        .buttonStyle(.plain)
-        .onHover { isHovered = $0 }
     }
 }
 

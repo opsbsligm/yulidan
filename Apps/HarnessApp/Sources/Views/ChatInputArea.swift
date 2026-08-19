@@ -140,5 +140,6 @@ struct ChatInputArea: View {
             .foregroundStyle(HarnessTheme.textTertiary)
             .padding(.horizontal, 4)
         }
+        .frame(maxWidth: 720) // Codex 式：composer 居中限宽
     }
 }

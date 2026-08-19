@@ -113,7 +113,8 @@ struct WelcomeAreaView: View {
                                 lineWidth: 1)
                 )
             }
-            .padding(.horizontal, 48)
+            .frame(maxWidth: 720) // Codex 式：composer 居中限宽
+            .padding(.horizontal, 24)
             .padding(.bottom, 20)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         }
