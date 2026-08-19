@@ -55,6 +55,46 @@ private func scenarioTool(_ name: String, _ arguments: String, id: String) -> LL
                 finishReason: .toolCalls)
 }
 
+/// 记录型脚本 LLM：按序返回响应，并记录最近一次请求（供跨轮/注入断言）
+private final class RecordingScriptedLLM: LLMProvider, @unchecked Sendable {
+    let id = "recording-llm"
+    let supportedModels = ["mock-model"]
+    private let lock = NSLock()
+    private let responses: [LLMResponse]
+    private var count = 0
+    private var lastSystem: String?
+    private var storedMessages: [LLM.Message] = []
+
+    init(responses: [LLMResponse]) {
+        self.responses = responses
+    }
+
+    var lastSystemPrompt: String? {
+        lock.withLock { lastSystem }
+    }
+
+    var lastMessages: [LLM.Message] {
+        lock.withLock { storedMessages }
+    }
+
+    func request(_ request: LLMRequest) async throws -> LLMResponse {
+        var idx = 0
+        lock.withLock {
+            idx = min(count, responses.count - 1)
+            count += 1
+            lastSystem = request.systemPrompt
+            storedMessages = request.messages
+        }
+        return responses[idx]
+    }
+
+    func stream(_: LLMRequest) async throws -> AsyncThrowingStream<LLM.StreamChunk, Error> {
+        AsyncThrowingStream { continuation in
+            continuation.finish()
+        }
+    }
+}
+
 /// 跨模块业务场景端到端测试
 ///
 /// 场景叙事：用户在一个会话里提问 → 系统提示词按模型差异化渲染 → Agent 循环中
@@ -230,6 +270,71 @@ struct CrossModuleScenarioTests {
             break
         }
         #expect(supersededOK, "同主题不同事实应触发冲突取代（superseded）")
+    }
+
+    // MARK: 跨轮上下文 + 记忆注入 + 技能复用
+
+    @Test("跨轮工具上下文保留 + 记忆注入系统提示词 + 技能复用回环")
+    func crossTurnMemorySkillLoop() async {
+        // ── 1) 技能：保存 → 注册 use_skill 工具 ──
+        let skillRegistry = SkillRegistry()
+        let skill = Skill(name: "git-commit-flow", description: "约定式提交流程",
+                          instructions: "步骤：git status → 暂存 → 写 conventional 提交信息 → 提交",
+                          tags: ["git"], source: "scenario")
+        #expect(await skillRegistry.register(skill), "技能注册失败")
+        let registry = ToolRegistry()
+        await registry.register(UseSkillTool(registry: skillRegistry))
+        await registry.register(EchoTool())
+
+        // ── 2) 记忆：记录事实 → 生成提示词段 → 注入系统提示词 ──
+        let memory = MemoryEngine(store: LongTermMemoryStore())
+        _ = await memory.record(MemoryCandidate(content: "提交信息必须用中文 conventional 格式",
+                                                kind: .preference, topic: "git",
+                                                sourceSession: "s-cross", origin: .turn))
+        let section = await memory.promptSection()
+        #expect((section ?? "").contains("中文 conventional 格式"), "记忆提示词段缺失内容")
+        let injectedPrompt = "基础系统提示词\n\n\(section ?? "")"
+
+        // ── 3) 两轮对话：轮 1 工具循环（技能复用 + 回显），轮 2 纯文本 ──
+        let llm = RecordingScriptedLLM(responses: [
+            scenarioTool("use_skill", #"{"name":"git-commit-flow"}"#, id: "t1a"),
+            scenarioTool("echo_tool", #"{"text":"hello"}"#, id: "t1b"),
+            scenarioText("第一轮完成"),
+            scenarioText("第二轮完成"),
+        ])
+        let loop = AgentLoop(sessionID: SessionID(), llm: llm, tools: registry,
+                             model: "mock-model", systemPrompt: injectedPrompt)
+        await loop.send(UserMessage(content: [.text("按 git 提交流程提交并回显 hello")]),
+                        target: .nextTurn, wakeup: true)
+        let first = await loop.whenIdle()
+        #expect(first.error == nil, "轮 1 不应报错：\(first.error ?? "")")
+        #expect(first.toolTraces.count == 2, "轮 1 应执行 2 个工具（use_skill + echo）")
+        let skillTrace = first.toolTraces.first(where: { $0.name == "use_skill" })
+        #expect(skillTrace?.output.contains("约定式提交流程") == true, "技能复用未返回完整指令")
+        #expect(llm.lastSystemPrompt?.contains("中文 conventional 格式") == true,
+                "记忆段未注入系统提示词")
+
+        // 轮 2：跨轮上下文保留 — 轮 1 的工具结果应仍在 LLM 请求历史中
+        await loop.send(UserMessage(content: [.text("继续")]), target: .nextTurn, wakeup: true)
+        let second = await loop.whenIdle()
+        #expect(second.error == nil, "轮 2 不应报错：\(second.error ?? "")")
+        let turn2Messages = llm.lastMessages
+        let hasTurn1ToolResult = turn2Messages.contains { message in
+            guard message.role == .tool else { return false }
+            return message.content.contains { block in
+                if case let .toolResult(resultBlock) = block {
+                    return resultBlock.content.contains { sub in
+                        if case let .text(t) = sub {
+                            return t.contains("echo:")
+                        }
+                        return false
+                    }
+                }
+                return false
+            }
+        }
+        #expect(hasTurn1ToolResult, "轮 1 工具结果未保留到轮 2 上下文（跨轮上下文丢失）")
+        #expect(turn2Messages.contains { $0.role == .assistant }, "轮 2 请求应含轮 1 助手消息")
     }
 
     // MARK: Skill 进化 + 版本管理
