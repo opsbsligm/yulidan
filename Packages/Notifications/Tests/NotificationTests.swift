@@ -51,6 +51,14 @@ struct NotificationCoordinatorTests {
         #expect(service.authRequestCount == 1)
     }
 
+    @Test("ensureAuthorization 透传服务授权结果")
+    func ensureAuth() async {
+        let service = MockNotificationService()
+        let coordinator = NotificationCoordinator(service: service)
+        #expect(await coordinator.ensureAuthorization())
+        #expect(service.authRequestCount == 1)
+    }
+
     @Test("Success posts generation finished")
     func success() async {
         let service = MockNotificationService()
@@ -139,7 +147,7 @@ private final class FakeNotificationCenter: NotificationCenterProtocol, @uncheck
 }
 
 @Suite("SystemNotificationService Tests")
-struct SystemNotificationServiceTests {
+struct NotificationPostFlowTests {
     private func makeService(_ state: AuthorizationState, requestResult: Bool = false, throwError: Bool = false)
         -> (SystemNotificationService, FakeNotificationCenter) {
         let center = FakeNotificationCenter(state: state, requestResult: requestResult, throwOnRequest: throwError)
@@ -214,5 +222,21 @@ struct SystemNotificationServiceTests {
         let id = center.added[0].identifier
         #expect(!id.isEmpty)
         #expect(UUID(uuidString: id) != nil)
+    }
+}
+
+@Suite("SystemNotificationCenter 状态映射")
+struct NotificationStateMappingTests {
+    @Test("authorized/provisional → authorized")
+    func authorizedFamily() {
+        #expect(SystemNotificationCenter.state(from: .authorized) == .authorized)
+        #expect(SystemNotificationCenter.state(from: .provisional) == .authorized)
+        // .ephemeral 为 iOS 专有授权态（macOS 上标记 unavailable），映射逻辑同族归 authorized
+    }
+
+    @Test("notDetermined/denied 原样映射")
+    func plain() {
+        #expect(SystemNotificationCenter.state(from: .notDetermined) == .notDetermined)
+        #expect(SystemNotificationCenter.state(from: .denied) == .denied)
     }
 }

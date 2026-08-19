@@ -30,9 +30,10 @@ public final class SystemNotificationCenter: NotificationCenterProtocol, @unchec
 
     public init() {}
 
-    public func authorizationStatus() async -> AuthorizationState {
-        let settings = await center.notificationSettings()
-        switch settings.authorizationStatus {
+    /// 系统授权状态 → 内部值类型映射（纯函数，独立可测；
+    /// UNUserNotificationCenter 在裸 xctest 进程中不可达，故拆分至此）
+    public static func state(from status: UNAuthorizationStatus) -> AuthorizationState {
+        switch status {
         case .authorized, .provisional, .ephemeral:
             return .authorized
         case .notDetermined:
@@ -42,6 +43,11 @@ public final class SystemNotificationCenter: NotificationCenterProtocol, @unchec
         @unknown default:
             return .other
         }
+    }
+
+    public func authorizationStatus() async -> AuthorizationState {
+        let settings = await center.notificationSettings()
+        return Self.state(from: settings.authorizationStatus)
     }
 
     public func requestAuthorization(options: UNAuthorizationOptions) async throws -> Bool {
