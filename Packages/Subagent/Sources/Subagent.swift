@@ -139,6 +139,7 @@ public actor SubagentCoordinator {
     private var reaperTask: Task<Void, Never>?
     private var agents: [SubagentID: any Agent] = [:]
     private var tasks: [SubagentID: Task<Void, Never>] = [:]
+    /// 已占用槽位数（含已转移给排队等待者、尚未唤醒自增的部分）
     private var runningCount = 0
     private var slotWaiters: [CheckedContinuation<Void, Never>] = []
     private var stateWaiters: [SubagentID: [CheckedContinuation<SubagentState, Never>]] = [:]
@@ -222,6 +223,7 @@ public actor SubagentCoordinator {
             default: finished += 1
             }
         }
+        slotLog("counts-read running=\(running) queued=\(queued) finished=\(finished) states=\(states.count)")
         return (running, queued, finished)
     }
 
@@ -318,12 +320,17 @@ public actor SubagentCoordinator {
         state.phase = .running
         state.startedAt = Date()
         states[id] = state
+        slotLog("markRunning name=\(state.name)")
     }
 
     /// 落终态：补 finishedAt、唤醒等待者、释放并发槽位、发事件
     /// 阶段优先级：timedOut > cancelled > failed > succeeded
     private func finalize(_ id: SubagentID, result: AgentResult?) {
-        guard var state = states[id] else { return }
+        guard var state = states[id] else {
+            slotLog("finalize-NO-STATE name=\(stateNameFor(id))")
+            return
+        }
+        slotLog("finalize-start name=\(state.name) phase=\(String(describing: state.phase)) timeout=\(timeoutRequested.contains(id)) cancel=\(cancelRequested.contains(id))")
         if !state.phase.isTerminal {
             if timeoutRequested.contains(id) {
                 state.phase = .timedOut
@@ -360,22 +367,51 @@ public actor SubagentCoordinator {
         return spec.task + "\n\n【输入参数】\n" + lines.joined(separator: "\n")
     }
 
+    private func stateNameFor(_ id: SubagentID) -> String {
+        states[id]?.name ?? "?"
+    }
+
+    /// 槽位门控诊断日志（env `SUBAGENT_SLOT_DEBUG=1` 开启；默认零开销）。
+    /// 用途：macOS 27 beta 调度停滞窗口内捕获槽位/状态时间线（QUALITY_REPORT P1 现场取证）。
+    private func slotLog(_ msg: String) {
+        guard ProcessInfo.processInfo.environment["SUBAGENT_SLOT_DEBUG"] != nil else { return }
+        let text = "[slot] t=\(Date().timeIntervalSince1970) \(msg)\n"
+        FileHandle.standardError.write(text.data(using: .utf8) ?? Data())
+    }
+
     private func acquireSlot() async {
         if runningCount < maxConcurrent {
             runningCount += 1
+            slotLog("fast-acquire count=\(runningCount)")
             return
         }
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
             slotWaiters.append(continuation)
         }
-        runningCount += 1
+        // 排队唤醒：槽位已由释放方直接转移（runningCount 不变），不得重复计数
+        slotLog("waiter-woken count=\(runningCount)")
     }
 
+    /// 释放并发槽位
+    ///
+    /// 若有排队等待者，槽位**直接转移**给队首等待者（`runningCount` 不变、唤醒之）；
+    /// 无等待者才递减。
+    ///
+    /// ⚠️ 若「先递减、再唤醒」，在 `runningCount` 回落到 0 与等待者唤醒自增之间存在
+    /// 空窗：此时新任务的快速路径会抢占幽灵槽位，叠加等待者自增后并发数将超过
+    /// `maxConcurrent`（作业调度顺序反转时必现，macOS 27 beta 调度停滞曾暴露此竞态）。
     private func releaseSlot() {
-        runningCount -= 1
         if !slotWaiters.isEmpty {
+            slotLog("release-transfer waiters=\(slotWaiters.count) count=\(runningCount)")
             slotWaiters.removeFirst().resume()
+            return
         }
+        guard runningCount > 0 else {
+            slotLog("release-guard-EMPTY count=\(runningCount)")
+            return
+        }
+        runningCount -= 1
+        slotLog("release-decrement count=\(runningCount)")
     }
 }
 

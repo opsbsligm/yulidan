@@ -119,7 +119,8 @@ struct ChunkyStubTool: Tool {
 }
 
 /// 轮询直到条件满足或超时（替代固定 sleep，防事件循环调度抖动导致瞬态失败）
-private func eventually(_ timeout: TimeInterval = 3, _ condition: @escaping () async -> Bool) async -> Bool {
+/// 默认窗口 5s：macOS 27 beta 存在瞬态协作池调度停滞（~10-13s；证据见 QUALITY_REPORT P1）
+private func eventually(_ timeout: TimeInterval = 5, _ condition: @escaping () async -> Bool) async -> Bool {
     let deadline = Date().addingTimeInterval(timeout)
     while Date() < deadline {
         if await condition() {

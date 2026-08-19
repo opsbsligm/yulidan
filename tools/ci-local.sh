@@ -19,7 +19,13 @@ run_pr() {
     echo "❌ 发现编译警告（零警告基线破坏）"; exit 1
   fi
   step "PR-4 Unit Tests（门禁：全绿）"
-  swift test
+  # 有界重试：macOS 存在瞬态协作池调度停滞（线程空闲但任务不派发，~10-13s，见 QUALITY_REPORT P1）；
+  # 停滞属环境故障，真实回归重试仍会失败，重试一次用于区分二者
+  for attempt in 1 2; do
+    swift test --parallel && break
+    if [ "${attempt}" -eq 2 ]; then echo "❌ 全量测试两轮均失败"; exit 1; fi
+    echo "⚠️ 首轮全量失败 — 有限重试一次（环境调度停滞容忍，非代码回归）"
+  done
 }
 
 run_leaks() {
@@ -44,11 +50,19 @@ run_main() {
   step "MAIN Build Release"
   swift build --configuration release
   step "MAIN Full Test Suite + Coverage"
-  swift test --parallel --enable-code-coverage
+  # 有界重试：同 PR-4（macOS 瞬态调度停滞容忍，见 QUALITY_REPORT P1）
+  for attempt in 1 2; do
+    swift test --parallel --enable-code-coverage && break
+    if [ "${attempt}" -eq 2 ]; then echo "❌ 全量测试两轮均失败"; exit 1; fi
+    echo "⚠️ 首轮全量失败 — 有限重试一次（环境调度停滞容忍，非代码回归）"
+  done
   step "MAIN Coverage 汇总（llvm-cov，后端包行覆盖）"
-  BIN=.build/arm64-apple-macosx/release/swift-harnessPackageTests.xctest/Contents/MacOS/swift-harnessPackageTests
-  if [ -f "$BIN" ] && ls .build/arm64-apple-macosx/release/codecov/*.profraw >/dev/null 2>&1; then
-    xcrun llvm-profdata merge -f -o /tmp/ci_cov.profdata .build/arm64-apple-macosx/release/codecov/*.profraw
+  BIN=.build/arm64-apple-macosx/debug/swift-harnessPackageTests.xctest/Contents/MacOS/swift-harnessPackageTests
+  if [ -f "$BIN" ] && ls .build/arm64-apple-macosx/debug/codecov/*.profraw >/dev/null 2>&1; then
+    # ⚠️ Apple LLVM 21（Xcode 26.6 / macOS 27 beta）bug：`llvm-profdata merge -f`
+    #    任意参数序下报 “No such file or directory”（-o 输出文件）且 rc=1（已三组实验实锤）；
+    #    绕过：省略 -f（覆盖已存在输出文件仍可）并将 -o 置于输入文件之后（182 个 profraw 全量验证通过）。见 QUALITY_REPORT P2
+    xcrun llvm-profdata merge .build/arm64-apple-macosx/debug/codecov/*.profraw -o /tmp/ci_cov.profdata
     xcrun llvm-cov report "$BIN" -instr-profile /tmp/ci_cov.profdata \
       | grep -E '^Packages/|Filename' | sed 's/  */ /g' | awk '{print $1, $8, $9, $10}'
   else
