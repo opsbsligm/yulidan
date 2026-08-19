@@ -65,7 +65,9 @@ public actor AgentLoop {
         systemPrompt: String? = nil,
         maxSteps: Int = 8,
         maxHistoryMessages: Int = 200,
-        executor: ToolExecutor? = nil
+        executor: ToolExecutor? = nil,
+        // 种子历史（如从会话存储恢复的既有上下文）；入参后立即按上限裁剪
+        history: [LLM.Message] = []
     ) {
         self.id = id
         self.sessionID = sessionID
@@ -76,6 +78,7 @@ public actor AgentLoop {
         self.maxSteps = maxSteps
         self.maxHistoryMessages = max(4, maxHistoryMessages)
         self.executor = executor ?? ToolExecutor()
+        self.history = Self.trimHistory(history, max: maxHistoryMessages)
         inbox = Inbox()
     }
 
@@ -239,24 +242,40 @@ public actor AgentLoop {
         return LLM.Message(role: .assistant, content: blocks, source: .model)
     }
 
-    /// 裁剪上下文到最近 maxHistoryMessages 条（保留工具调用/结果的配对完整性：
+    /// 裁剪上下文到最近 max 条（保留工具调用/结果的配对完整性：
     /// 不留下“无主”的 tool 结果消息在队首）
-    private func trimHistory() {
-        guard history.count > maxHistoryMessages else { return }
-        var keep = history.suffix(maxHistoryMessages)
+    private static func trimHistory(_ history: [LLM.Message], max: Int) -> [LLM.Message] {
+        guard history.count > max else { return history }
+        var keep = history.suffix(max)
         // 队首若为 tool 结果（其 assistant 调用已被裁掉），继续丢弃直到安全边界
         while let first = keep.first, first.role == .tool {
             keep = keep.dropFirst()
         }
-        history = Array(keep)
+        return Array(keep)
     }
 
-    /// 构造当前步的助手消息（含工具调用块，供执行过程展示）
+    private func trimHistory() {
+        history = Self.trimHistory(history, max: maxHistoryMessages)
+    }
+
+    /// 构造当前步的助手消息（content + 工具调用块按 id 去重合并，供执行过程展示/观测）
     private func makeStepMessage(step: Int, response: LLMResponse) -> AssistantMessage {
-        AssistantMessage(
+        var blocks = response.content.map(Self.sessionBlock(from:))
+        if let calls = response.toolCalls {
+            let existing = Set(response.content.compactMap { block -> String? in
+                if case let .toolCall(tc) = block {
+                    return tc.id
+                }
+                return nil
+            })
+            blocks.append(contentsOf: calls.filter { !existing.contains($0.id) }.map {
+                Self.sessionBlock(from: .toolCall($0))
+            })
+        }
+        return AssistantMessage(
             turn: turnNumber,
             step: step,
-            content: response.content.map(Self.sessionBlock(from:)),
+            content: blocks,
             provider: llm.id,
             model: response.model,
             usage: response.usage.map {

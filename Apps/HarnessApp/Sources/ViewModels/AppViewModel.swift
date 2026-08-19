@@ -317,6 +317,8 @@ final class AppViewModel: ObservableObject {
     @Published var subagents: [SubagentDisplayItem] = AppViewModel.loadSubagentHistoryItems()
 
     private var generateTask: Task<Void, Never>?
+    /// 当前生成所用的 AgentLoop（stopGenerating 时同步取消；nil = 无进行中生成）
+    private var chatAgent: AgentLoop?
     private var sessionTitles: [UUID: String] = [:]
     private nonisolated(unsafe) var configObserver: (any NSObjectProtocol)?
 
@@ -919,6 +921,9 @@ final class AppViewModel: ObservableObject {
     }
 
     private func makeProvider(_ cfg: LLMConfig, key: String) -> any LLMProvider {
+        if let factory = Self.providerFactory {
+            return factory(cfg, key)
+        }
         switch cfg.provider {
         case .openAI:
             return OpenAIAdapter(apiKey: key)
@@ -977,58 +982,101 @@ final class AppViewModel: ObservableObject {
             return
         }
 
-        let history: [LLM.Message] = messages.suffix(20).compactMap { m in
+        // 种子历史：最近 20 条 user/assistant 文本（不含刚追加的新用户消息，它由 AgentLoop 入栈）
+        let newUserText = messages.last?.content ?? lastUserMessage
+        let seed: [LLM.Message] = messages.dropLast().suffix(20).compactMap { m in
             guard m.status == .delivered, m.role == .user || m.role == .assistant else { return nil }
             return LLM.Message(role: m.role == .user ? .user : .assistant,
                                content: [.text(m.content)])
         }
         // 提示词工程层 + 记忆系统：系统提示词（内置模板/用户配置 + 相关长期记忆注入 {{#context}}）
         let systemPrompt = await buildSystemPrompt(model: cfg.modelName, userConfigured: cfg.systemPrompt)
-        let request = LLMRequest(
-            model: cfg.modelName,
-            messages: history,
-            systemPrompt: systemPrompt,
-            maxTokens: cfg.maxTokens
-        )
         let provider = makeProvider(cfg, key: key)
 
-        do {
-            let resp = try await provider.request(request)
-            if Task.isCancelled {
-                isGenerating = false; return
-            }
-            let content = resp.content.compactMap { block -> String? in
-                if case let .text(t) = block {
-                    return t
-                }
-                return nil
-            }.joined(separator: "\n")
-            messages.append(ChatMessage(id: UUID(), role: .assistant, content: content,
-                                        timestamp: Date(), status: .delivered))
-            isGenerating = false
-            generationError = nil
-            persistSession()
-            // 记忆反馈闭环：蒸馏本轮交换（显式记住/纠正/决策/事实）→ 长期记忆
-            await processMemoryFeedback(userText: lastUserMessage, assistantText: content)
-            // 技能进化（Hermes 范式）：观测本轮任务，相似重复任务达阈值自动沉淀为技能
-            await observeSkillEvolution(task: lastUserMessage, content: resp.content)
-            await notifyGeneration(error: nil)
-        } catch is CancellationError {
-            isGenerating = false
-        } catch let e as URLError where e.code == .cancelled {
-            isGenerating = false
-        } catch {
-            if Task.isCancelled {
-                isGenerating = false; return
-            }
-            let desc = (error as? LLMError)?.errorDescription ?? error.localizedDescription
-            messages.append(ChatMessage(id: UUID(), role: .assistant,
-                                        content: "⚠️ 请求失败：\(desc)",
-                                        timestamp: Date(), status: .error))
-            generationError = desc
-            isGenerating = false
-            await notifyGeneration(error: desc)
+        // 主聊天路径：完整 AgentLoop 工具循环（工具注册表 → 参数校验 → 执行 → 结果回填 → 收敛）
+        let agent = AgentLoop(
+            sessionID: selectedSession?.id ?? SessionID(),
+            llm: provider,
+            tools: toolRegistry,
+            model: cfg.modelName,
+            systemPrompt: systemPrompt,
+            history: seed
+        )
+        chatAgent = agent
+        defer { chatAgent = nil }
+
+        // AgentLoop 内部统一捕获 LLM/工具异常并收敛为 result.error，此处无需 do/catch
+        await agent.followup(UserMessage(content: [.text(newUserText)]))
+        let result = await agent.whenIdle()
+        if Task.isCancelled {
+            isGenerating = false; return
         }
+        if let errorText = result.error {
+            messages.append(ChatMessage(id: UUID(), role: .assistant,
+                                        content: "⚠️ 请求失败：\(errorText)",
+                                        timestamp: Date(), status: .error))
+            generationError = errorText
+            isGenerating = false
+            await notifyGeneration(error: errorText)
+            return
+        }
+        // 工具轨迹 + 最终回答入会话
+        guard let content = appendTurnResult(result) else {
+            isGenerating = false
+            return
+        }
+        isGenerating = false
+        generationError = nil
+        persistSession()
+        // 记忆反馈闭环：蒸馏本轮交换（显式记住/纠正/决策/事实）→ 长期记忆
+        await processMemoryFeedback(userText: lastUserMessage, assistantText: content)
+        // 技能进化（Hermes 范式）：观测本轮任务真实工具序列，相似重复任务达阈值自动沉淀为技能
+        await observeSkillEvolution(task: lastUserMessage, toolNames: Self.turnToolNames(result.steps))
+        await notifyGeneration(error: nil)
+    }
+
+    /// 追加本轮 Agent 结果到会话：工具轨迹（每个含调用的步骤一条 .tool，展示用，不进 LLM 历史）
+    /// + 最终助手回答；无最终回答时返回 nil
+    private func appendTurnResult(_ result: AgentResult) -> String? {
+        for step in result.steps {
+            let names = Self.toolNames(in: step.content)
+            guard !names.isEmpty else { continue }
+            messages.append(ChatMessage(id: UUID(), role: .tool,
+                                        content: "调用工具：\(names.joined(separator: "、"))",
+                                        timestamp: Date(), status: .delivered))
+        }
+        guard let final = result.messages.last else { return nil }
+        let content = Self.textContent(of: final.content)
+        messages.append(ChatMessage(id: UUID(), role: .assistant, content: content,
+                                    timestamp: Date(), status: .delivered))
+        return content
+    }
+
+    /// 从助手消息块提取文本（多块换行拼接）
+    static func textContent(of blocks: [Session.ContentBlock]) -> String {
+        blocks.compactMap { block -> String? in
+            if case let .text(t) = block {
+                return t
+            }
+            return nil
+        }.joined(separator: "\n")
+    }
+
+    /// 单条助手消息中的工具名（按出现顺序去重）
+    static func toolNames(in blocks: [Session.ContentBlock]) -> [String] {
+        var seen = Set<String>()
+        return blocks.compactMap { block -> String? in
+            if case let .toolCall(call) = block {
+                return seen.insert(call.name).inserted ? call.name : nil
+            }
+            return nil
+        }
+    }
+
+    /// 整轮（全部步骤）的工具名序列（按步序、去重）
+    static func turnToolNames(_ steps: [Session.AssistantMessage]) -> [String] {
+        var seen = Set<String>()
+        return steps.flatMap { Self.toolNames(in: $0.content) }.filter { seen.insert($0).inserted }
     }
 
     /// 系统提示词：用户显式配置优先；否则渲染内置 agent 模板并注入相关长期记忆
@@ -1060,13 +1108,7 @@ final class AppViewModel: ObservableObject {
 
     /// 技能进化观测：上报本轮任务与工具序列；相似重复任务达阈值自动生成技能
     /// （引擎/注册表为进程级共享：SharedSkillEvolution + skillRegistry，技能落 ~/.harness/skills）
-    private func observeSkillEvolution(task: String, content: [LLM.ContentBlock]) async {
-        let toolNames = content.compactMap { block -> String? in
-            if case let .toolCall(call) = block {
-                return call.name
-            }
-            return nil
-        }
+    private func observeSkillEvolution(task: String, toolNames: [String]) async {
         var seen = Set<String>()
         let deduped = toolNames.filter { seen.insert($0).inserted }
         let sessionID = selectedSession?.id.rawValue.uuidString ?? "app"
@@ -1079,6 +1121,8 @@ final class AppViewModel: ObservableObject {
     func stopGenerating() {
         generateTask?.cancel()
         generateTask = nil
+        // 同步取消 AgentLoop：whenIdle 立即返回，在途 LLM 调用后台自行完成（不再阻塞）
+        Task { [chatAgent] in await chatAgent?.cancel(keepInbox: false) }
         isGenerating = false
         showToast("已停止生成")
     }
@@ -1284,6 +1328,8 @@ final class AppViewModel: ObservableObject {
 
     /// 通知服务工厂覆盖（单元测试隔离用；生产为 nil → 系统通知）
     static var notificationServiceFactory: (@Sendable () -> any NotificationService)?
+    /// 模型供应商工厂覆盖（单元测试隔离用；生产为 nil → 真实 API 适配器）
+    static var providerFactory: (@Sendable (LLMConfig, String) -> (any LLMProvider))?
 
     /// 子任务历史文件（~/Library/Application Support/Harness/，与 XPC plist 同目录约定）
     static var subagentHistoryURL: URL {
