@@ -182,3 +182,40 @@ struct SessionOriginTests {
         #expect(SessionOrigin.resumed.rawValue == "resumed")
     }
 }
+
+// MARK: - SessionMetadata pinned 字段（Codex 式置顶；旧 JSON 向后兼容）
+
+@Suite("SessionMetadata Pinned Tests")
+struct SessionMetadataPinnedTests {
+    @Test("缺省 pinned=false；withPinned 切换往返")
+    func defaultAndToggle() {
+        let meta = SessionMetadata(cwd: URL(fileURLWithPath: "/tmp"))
+        #expect(!meta.pinned)
+        let pinned = meta.withPinned(true)
+        #expect(pinned.pinned)
+        #expect(pinned.cwd == meta.cwd)
+        #expect(pinned.createdAt == meta.createdAt)
+        #expect(!meta.withPinned(true).withPinned(false).pinned)
+    }
+
+    @Test("旧 metadata_json（无 pinned 字段）解码为 false，编码后包含 pinned")
+    func legacyJSONDecodesAndEncodeIncludesPinned() throws {
+        let legacy = """
+        {"cwd":"file:///tmp/x","createdAt":780000000,"origin":"user"}
+        """
+        let decoded = try JSONDecoder().decode(SessionMetadata.self, from: #require(legacy.data(using: .utf8)))
+        #expect(!decoded.pinned)
+        #expect(decoded.origin == .user)
+
+        let encoded = try JSONEncoder().encode(decoded.withPinned(true))
+        let round = try JSONDecoder().decode(SessionMetadata.self, from: encoded)
+        #expect(round.pinned)
+
+        // 显式 pinned=false 的旧数据
+        let legacyFalse = """
+        {"cwd":"file:///tmp/x","createdAt":780000000,"origin":"user","pinned":false}
+        """
+        let decodedFalse = try JSONDecoder().decode(SessionMetadata.self, from: #require(legacyFalse.data(using: .utf8)))
+        #expect(!decodedFalse.pinned)
+    }
+}

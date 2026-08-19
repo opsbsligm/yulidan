@@ -62,12 +62,31 @@ public struct SessionMetadata: Sendable, Codable {
     public let createdAt: Date
     public let forkedFrom: SessionID?
     public let origin: SessionOrigin
+    /// 置顶（Codex 式 pinned 段；默认 false）
+    public let pinned: Bool
 
-    public init(cwd: URL, createdAt: Date = Date(), forkedFrom: SessionID? = nil, origin: SessionOrigin = .user) {
+    public init(cwd: URL, createdAt: Date = Date(), forkedFrom: SessionID? = nil, origin: SessionOrigin = .user, pinned: Bool = false) {
         self.cwd = cwd
         self.createdAt = createdAt
         self.forkedFrom = forkedFrom
         self.origin = origin
+        self.pinned = pinned
+    }
+
+    /// 自定义解码：兼容不含 pinned 字段的旧 metadata_json（缺省 false）
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        cwd = try c.decode(URL.self, forKey: .cwd)
+        createdAt = try c.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
+        forkedFrom = try c.decodeIfPresent(SessionID.self, forKey: .forkedFrom)
+        origin = try c.decodeIfPresent(SessionOrigin.self, forKey: .origin) ?? .user
+        pinned = try c.decodeIfPresent(Bool.self, forKey: .pinned) ?? false
+    }
+
+    /// 返回置顶态切换后的副本
+    public func withPinned(_ pinned: Bool) -> SessionMetadata {
+        SessionMetadata(cwd: cwd, createdAt: createdAt, forkedFrom: forkedFrom,
+                        origin: origin, pinned: pinned)
     }
 }
 

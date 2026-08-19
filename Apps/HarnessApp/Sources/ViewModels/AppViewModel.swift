@@ -949,6 +949,24 @@ final class AppViewModel: ObservableObject {
         }
     }
 
+    /// 置顶/取消置顶会话（Codex 式 pinned 段；metadata 持久化到 DB）
+    func togglePinSession(_ session: SessionRecord) {
+        guard let idx = sessions.firstIndex(where: { $0.id == session.id }) else { return }
+        let newPinned = !sessions[idx].metadata.pinned
+        let newMeta = sessions[idx].metadata.withPinned(newPinned)
+        let updated = SessionRecord(id: session.id, metadata: newMeta, events: sessions[idx].events,
+                                    currentTurn: sessions[idx].currentTurn, currentStep: sessions[idx].currentStep,
+                                    status: sessions[idx].status)
+        sessions[idx] = updated
+        if selectedSession?.id == session.id {
+            selectedSession = updated
+        }
+        Task { [sessionDB] in
+            try? await sessionDB?.save(updated)
+        }
+        showToast(newPinned ? "已置顶" : "已取消置顶")
+    }
+
     func renameSession(_ name: String) {
         guard let session = selectedSession else { return }
         let name = name.trimmingCharacters(in: .whitespacesAndNewlines)

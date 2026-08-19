@@ -131,6 +131,10 @@ struct ChatTopBar: View {
 
             // 更多（Codex 式：动作按钮收纳进溢出菜单）
             Menu {
+                Button { viewModel.togglePinSession(session) } label: {
+                    Label(session.metadata.pinned ? "取消置顶" : "置顶",
+                          systemImage: session.metadata.pinned ? "pin.slash" : "pin")
+                }
                 Button { viewModel.attachFiles() } label: { Label("添加附件", systemImage: "doc.badge.plus") }
                 Button { viewModel.spawnSubagentFromChat(draftText) } label: { Label("派生子 Agent", systemImage: "fork") }
                 Divider()

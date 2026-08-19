@@ -16,6 +16,7 @@ struct SidebarView: View {
     let titleFor: (SessionRecord) -> String
     let onNewSession: () -> Void
     let onSelectSession: (SessionRecord) -> Void
+    let onTogglePin: (SessionRecord) -> Void
     let onDeleteSession: (SessionRecord) -> Void
     /// 搜索框输入变化回调（空串 = 清空）
     let onSearch: (String) -> Void
@@ -43,16 +44,21 @@ struct SidebarView: View {
             : sessions.filter { titleFor($0).localizedCaseInsensitiveContains(searchText) }
     }
 
-    /// 按创建日期分组：今天 / 昨天 / 更早（组内按创建时间倒序）
+    /// 分组：置顶（Codex 式 pinned 段，最顶）→ 今天 / 昨天 / 更早（组内按创建时间倒序）
     private var groups: [(label: String, items: [SessionRecord])] {
         let cal = Calendar.current
         let today = cal.startOfDay(for: Date())
         let yesterday = cal.date(byAdding: .day, value: -1, to: today) ?? today
         var out: [(label: String, items: [SessionRecord])] = []
         let sorted = filtered.sorted { $0.metadata.createdAt > $1.metadata.createdAt }
-        let todayItems = sorted.filter { $0.metadata.createdAt >= today }
-        let yesterdayItems = sorted.filter { $0.metadata.createdAt >= yesterday && $0.metadata.createdAt < today }
-        let earlierItems = sorted.filter { $0.metadata.createdAt < yesterday }
+        let pinnedItems = sorted.filter(\.metadata.pinned)
+        if !pinnedItems.isEmpty {
+            out.append(("置顶", pinnedItems))
+        }
+        let rest = sorted.filter { !$0.metadata.pinned }
+        let todayItems = rest.filter { $0.metadata.createdAt >= today }
+        let yesterdayItems = rest.filter { $0.metadata.createdAt >= yesterday && $0.metadata.createdAt < today }
+        let earlierItems = rest.filter { $0.metadata.createdAt < yesterday }
         if !todayItems.isEmpty {
             out.append(("今天", todayItems))
         }
@@ -230,6 +236,7 @@ struct SidebarView: View {
                                 isSelected: selectedSession?.id == session.id,
                                 isGenerating: session.id == generatingSessionId,
                                 onSelect: { onSelectSession(session) },
+                                onTogglePin: { onTogglePin(session) },
                                 onDelete: { onDeleteSession(session) }
                             )
                             .padding(.horizontal, 4)
@@ -465,105 +472,6 @@ struct NavShortcutModifier: ViewModifier {
     }
 }
 
-// MARK: - 会话列表项（单行 + hover 删除 + 相对时间 + 生成指示）
-
-struct SessionListItem: View {
-    let session: SessionRecord
-    let title: String
-    let isSelected: Bool
-    let isGenerating: Bool
-    let onSelect: () -> Void
-    let onDelete: () -> Void
-    @State private var isHovered = false
-
-    var body: some View {
-        HStack(spacing: 8) {
-            Button(action: onSelect) {
-                HStack(spacing: 8) {
-                    if isGenerating {
-                        // Codex 式：在途任务运行中指示
-                        ProgressView()
-                            .controlSize(.mini)
-                            .scaleEffect(0.7)
-                            .frame(width: 12)
-                    } else {
-                        Image(systemName: "bubble.right")
-                            .font(.system(size: 12))
-                            .foregroundStyle(isSelected ? HarnessTheme.accent : HarnessTheme.textTertiary)
-                    }
-                    Text(title)
-                        .font(.system(size: 13))
-                        .lineLimit(1)
-                        .foregroundStyle(isSelected ? HarnessTheme.textPrimary : HarnessTheme.textSecondary)
-                    Spacer(minLength: 4)
-                    // Codex 式：行尾相对时间（生成中显示状态替代时间）
-                    Text(isGenerating ? "生成中…" : RelativeTime.format(session.metadata.createdAt))
-                        .font(.system(size: 10))
-                        .foregroundStyle(isGenerating ? HarnessTheme.accent : HarnessTheme.textTertiary)
-                        .lineLimit(1)
-                    if isHovered, !isSelected {
-                        Button {
-                            onDelete()
-                        } label: {
-                            Image(systemName: "xmark")
-                                .font(.system(size: 10, weight: .medium))
-                                .foregroundStyle(HarnessTheme.textTertiary)
-                                .frame(width: 18, height: 18)
-                                .background(Circle().fill(Color.secondary.opacity(0.12)))
-                        }
-                        .buttonStyle(.plain)
-                        .help("删除对话")
-                    }
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
-        .background(
-            isSelected ? HarnessTheme.sidebarSelected.opacity(0.7)
-                : isHovered ? HarnessTheme.sidebarHover
-                : .clear
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
-        .onHover { isHovered = $0 }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(isGenerating ? "\(title)，生成中" : "\(title)，\(RelativeTime.format(session.metadata.createdAt))")
-    }
-}
-
-// MARK: - 相对时间（纯函数，可单测）
-
-enum RelativeTime {
-    /// 今天：刚刚 / N分钟前 / N小时前；昨天；<7天：N天前；否则 M月d日
-    static func format(_ date: Date, now: Date = Date()) -> String {
-        let cal = Calendar.current
-        if cal.isDateInToday(date) {
-            let mins = max(0, Int(now.timeIntervalSince(date) / 60))
-            if mins < 1 {
-                return "刚刚"
-            }
-            if mins < 60 {
-                return "\(mins)分钟前"
-            }
-            return "\(mins / 60)小时前"
-        }
-        if cal.isDateInYesterday(date) {
-            return "昨天"
-        }
-        let days = cal.dateComponents([.day], from: cal.startOfDay(for: date),
-                                      to: cal.startOfDay(for: now)).day ?? 0
-        if days < 7 {
-            return "\(days)天前"
-        }
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "zh_CN")
-        f.dateFormat = "M月d日"
-        return f.string(from: date)
-    }
-}
-
 #Preview {
     ZStack {
         HarnessTheme.bgPrimary
@@ -577,6 +485,7 @@ enum RelativeTime {
             titleFor: { _ in "示例对话" },
             onNewSession: {},
             onSelectSession: { _ in },
+            onTogglePin: { _ in },
             onDeleteSession: { _ in },
             onSearch: { _ in }
         )
