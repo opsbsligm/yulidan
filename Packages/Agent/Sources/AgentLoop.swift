@@ -180,8 +180,8 @@ public actor AgentLoop {
                 )
                 let response = try await llm.request(request)
 
-                // 记录助手消息（含可能的工具调用块）
-                history.append(LLM.Message(role: .assistant, content: response.content, source: .model))
+                // 记录助手消息（含工具调用块，下一轮 wire 请求需回传）
+                history.append(Self.assistantHistoryMessage(response))
                 stepMessages.append(makeStepMessage(step: step, response: response))
 
                 let calls = response.toolCalls ?? []
@@ -221,6 +221,22 @@ public actor AgentLoop {
             await turn.fail(with: error)
             return AgentResult(status: .idle, error: error.localizedDescription, steps: stepMessages)
         }
+    }
+
+    /// 助手消息入历史：content + toolCall 块（按 id 去重防双源；
+    /// 下一轮 wire 请求需回传 assistant tool_calls 才能让模型看到工具调用上下文）
+    private static func assistantHistoryMessage(_ response: LLMResponse) -> LLM.Message {
+        var blocks = response.content
+        if let calls = response.toolCalls {
+            let existing = Set(response.content.compactMap { block -> String? in
+                if case let .toolCall(tc) = block {
+                    return tc.id
+                }
+                return nil
+            })
+            blocks.append(contentsOf: calls.filter { !existing.contains($0.id) }.map { .toolCall($0) })
+        }
+        return LLM.Message(role: .assistant, content: blocks, source: .model)
     }
 
     /// 裁剪上下文到最近 maxHistoryMessages 条（保留工具调用/结果的配对完整性：

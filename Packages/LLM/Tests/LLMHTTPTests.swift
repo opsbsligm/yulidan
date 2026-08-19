@@ -79,9 +79,9 @@ final class LLMHTTPTests: XCTestCase {
         let msgs = [
             LLM.Message(role: .user, content: [.text("你好")]),
         ]
-        let (content, usage) = try await client.complete(model: "deepseek-chat", messages: msgs)
-        XCTAssertEqual(content, "来自 Mock 服务端的回复")
-        XCTAssertEqual(usage?.totalTokens, 8)
+        let result = try await client.complete(model: "deepseek-chat", messages: msgs)
+        XCTAssertEqual(result.content, "来自 Mock 服务端的回复")
+        XCTAssertEqual(result.usage?.totalTokens, 8)
     }
 
     func testCheckConnection() async throws {

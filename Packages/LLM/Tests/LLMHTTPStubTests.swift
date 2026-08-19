@@ -72,12 +72,12 @@ func makeStubSession() -> URLSession {
     return URLSession(configuration: config)
 }
 
-private let okCompletion = """
+let okCompletion = """
 {"id":"cmpl-1","object":"chat.completion","model":"test-model","choices":[{"message":{"role":"assistant","content":"你好，世界"},"finish_reason":"stop"}],
 "usage":{"prompt_tokens":5,"completion_tokens":7,"total_tokens":12}}
 """
 
-private let sseBody = """
+let sseBody = """
 data: {"choices":[{"message":{"role":"assistant","content":"你"}}]}
 
 data: {"choices":[{"message":{"role":"assistant","content":"好"}}]}
@@ -86,7 +86,7 @@ data: [DONE]
 
 """
 
-private let anthropicBody = """
+let anthropicBody = """
 {"id":"msg_1","content":[{"type":"text","text":"来自 Anthropic"}],"usage":{"input_tokens":3,"output_tokens":4}}
 """
 
@@ -110,10 +110,12 @@ final class OpenAICompatChatHTTPTests: XCTestCase {
 
     func testCompleteSuccessParsesContentAndUsage() async throws {
         StubURLProtocol.handler = { _ in .init(status: 200, body: okCompletion, contentType: "application/json") }
-        let (content, usage) = try await client().complete(model: "test-model",
-                                                           messages: [Message(role: .user, content: [.text("hi")])])
-        XCTAssertEqual(content, "你好，世界")
-        XCTAssertEqual(usage?.totalTokens, 12)
+        let result = try await client().complete(model: "test-model",
+                                                 messages: [Message(role: .user, content: [.text("hi")])])
+        XCTAssertEqual(result.content, "你好，世界")
+        XCTAssertEqual(result.usage?.totalTokens, 12)
+        XCTAssertEqual(result.finishReason, .stop)
+        XCTAssertTrue(result.toolCalls.isEmpty)
         // 请求头/方法校验
         let req = StubURLProtocol.lastRequest!
         XCTAssertEqual(req.httpMethod, "POST")
@@ -263,6 +265,8 @@ final class AdapterHTTPTests: XCTestCase {
         var collected = ""
         for try await chunk in try await adapter.stream(LLMRequest(model: "gpt-4o-mini",
                                                                    messages: [Message(role: .user, content: [.text("hi")])])) {
+            // 终态 message_complete 块（JSON 摘要）不参与文本拼接
+            guard chunk.type == "text" else { continue }
             collected += String(data: chunk.data, encoding: .utf8) ?? ""
         }
         XCTAssertEqual(collected, "你好")
@@ -352,6 +356,7 @@ final class AdapterHTTPTests: XCTestCase {
         var collected = ""
         for try await chunk in try await adapter.stream(LLMRequest(model: "deepseek-chat",
                                                                    messages: [Message(role: .user, content: [.text("hi")])])) {
+            guard chunk.type == "text" else { continue }
             collected += String(data: chunk.data, encoding: .utf8) ?? ""
         }
         XCTAssertEqual(collected, "你好")
@@ -363,6 +368,7 @@ final class AdapterHTTPTests: XCTestCase {
         var collected = ""
         for try await chunk in try await adapter.stream(LLMRequest(model: "llama3.1",
                                                                    messages: [Message(role: .user, content: [.text("hi")])])) {
+            guard chunk.type == "text" else { continue }
             collected += String(data: chunk.data, encoding: .utf8) ?? ""
         }
         XCTAssertEqual(collected, "你好")
