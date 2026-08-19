@@ -1,8 +1,8 @@
 # Swift Harness — 质量保障报告
 
-> 生成时间: 2026-08-18 12:40
-> 项目版本: v0.1.0（开发中，HEAD `ab1e41c`）
-> 说明: 本版为 2026-08-14 v0.1.0-rc.2 报告的第二次基线更新（技能系统落地后）；测试数、覆盖率、门禁结果均为当前 HEAD 实测，未沿用旧数据。
+> 生成时间: 2026-08-19 08:20
+> 项目版本: v0.1.0（后端 8 模块全部闭环，HEAD `d890934`）
+> 说明: 本次为 Harness 后端 8 模块开发完成后的全量基线刷新；测试数、覆盖率、门禁结果均为当前 HEAD 实测，未沿用旧数据。
 
 ---
 
@@ -12,110 +12,97 @@
 |------|------|------|
 | SwiftFormat | ✅ 0 改动 | `swiftformat . --config .swiftformat` |
 | SwiftLint | ✅ 0 违规 | `swiftlint lint --strict`（warning 按 error 计） |
-| 编译 | ✅ 通过 | `swift build`（Swift 6.3 / strict concurrency） |
-| 单元测试 | ✅ 360/360 | XCTest 130 + Swift Testing 230（51 suites），0 失败 |
+| 编译 | ✅ 0 警告 | `swift package clean` 全量冷编译（含测试目标） |
+| 单元测试 | ✅ 591/591 | XCTest 178 + Swift Testing 413（78 suites），0 失败 |
 | 本地镜像备份 | ✅ 每次提交后 | `git push --mirror /Users/liguangming/code/swift-harness-backup.git` |
 | GitHub 推送 | ⏸ 暂缓 | 按用户要求先本地版本控制，未推送远端 |
 
-## 二、测试用例与行覆盖率（2026-08-18 实测，llvm-cov）
+## 二、八大后端模块交付状态
 
-| 模块 | 测试用例 | 行覆盖（仅源文件） | 状态 |
-|------|---------|--------|------|
-| HarnessCore | 4 | 100%（48/48） | ✅ 内置插件生命周期/目录全覆盖 |
-| Subagent | 18 | 96.5%（274/284） | ✅ ≥90% |
-| Skill | 15 | 94.2%（180/191） | ✅ ≥90% |
-| Terminal | 10 | 94.6%（209/221） | ✅ ≥90% |
-| PluginXPC | 8 | 93.3%（277/297） | ✅ ≥90% |
-| ServiceContainer | 101 | 91.3%（685/750） | ✅ ≥90% |
-| Agent | 35 | 90.2%（330/366） | ✅ ≥90% |
-| Session | 24 | 90.0%（368/409） | ✅ ≥90% |
-| Tools | 32 | 98.4%（253/257） | ✅ ≥90%；工具参数/边界/错误分支全覆盖 |
-| Sandbox | 15 | 98.4%（63/64） | ✅ ≥90%；余 1 行为根目录死代码分支 |
-| MCP | 17 | 94.0%（468/498） | ✅ ≥90%；stdio 异常分支（协议违规/null result/坏客户端跳过）已覆盖 |
-| LLM | 35 | 93.6%（670/716） | ✅ ≥90%；27 个零网络 HTTP 桩测试（complete/stream/checkConnection/错误分支） |
-| Notifications | 13 | 67.1%（49/73） | ⚠️ SystemNotificationCenter 真实包装层无法在测试进程触达（UNUserNotificationCenter.current() 限制）；编排/服务逻辑已全覆盖 |
-| HarnessApp（App 层） | 15 | 6.1%（631/10392） | ⚠️ SwiftUI 视图层无单测；AppViewModel 逻辑已部分覆盖 |
+| # | 模块 | 提交 | 状态 |
+|---|------|------|------|
+| 1 | Prompt 工程层（统一编排/角色模板/版本快照/动态渲染/模型差异化适配） | `b25582a` | ✅ 闭环 |
+| 2 | 多 Agent 调度（子母生命周期/入参下发/回调/自动回收/shutdown，Actor 隔离） | `cf17f77` | ✅ 闭环 |
+| 3 | 工具调用完整链路（ToolExecutor/参数校验/超时熔断/异常回传/流式进度/输出二次校验） | `10f7f86` | ✅ 闭环 |
+| 4 | MCP 标准协议（能力协商/双向通信/会话生命周期/服务发现/工具自动注册） | `1ba4bb8` | ✅ 闭环 |
+| 5 | RAG 检索增强（加载解析/切片/向量化/向量存储/召回/重排/过滤/溯源） | `6fcd98d` | ✅ 闭环 |
+| 6 | 记忆系统（短期蒸馏/长期持久/意义评估/一致性冲突/反馈闭环迭代 RAG+记忆库） | `b800e91` | ✅ 闭环 |
+| 7 | Skill 技能体系（Hermes 范式：观测→评估→自动生成→复用/编辑/调试/版本/销毁） | `68270a9` | ✅ 闭环 |
+| 8 | 多模型服务商抽象适配层（ProviderProfile 画像/tools 下发/tool_calls 解析/SSE 聚合/参数归一化） | `d890934` | ✅ 闭环 |
 
-**总计: 360 个测试用例（XCTest 130 + Swift Testing 230），全部通过。**
+## 三、测试用例与行覆盖率（2026-08-19 全量实测，llvm-cov）
 
-> 口径说明：行覆盖仅统计各模块 `Sources/` 源文件（不含测试文件）。
-> 核心包（Subagent / Skill / LLM / Sandbox / Tools / MCP / Terminal / PluginXPC / ServiceContainer / Agent / Session）行覆盖全部 ≥90%，满足验收标准。
+| 模块 | 行覆盖（仅源文件） | 状态 |
+|------|--------|------|
+| Skill | 96.8%（665/687） | ✅ ≥90% |
+| Subagent | 97.5%（352/361） | ✅ ≥90% |
+| RAG | 95.8%（639/667） | ✅ ≥90% |
+| Tools | 95.7%（572/598） | ✅ ≥90% |
+| Prompt | 94.5%（363/384） | ✅ ≥90% |
+| PluginXPC | 94.6%（281/297） | ✅ ≥90% |
+| Terminal | 93.2%（206/221） | ✅ ≥90% |
+| MCP | 92.3%（728/789） | ✅ ≥90% |
+| LLM | 92.6%（1211/1308） | ✅ ≥90%；wire 格式零网络桩（tools/tool_calls/reasoning/SSE 聚合/归一化边界） |
+| WebUI | 92.3%（609/660） | ✅ ≥90% |
+| Memory | 91.7%（521/568） | ✅ ≥90% |
+| ServiceContainer | 91.4%（687/752） | ✅ ≥90% |
+| Session | 90.8%（407/448） | ✅ ≥90% |
+| Agent | 87.9%（376/428） | ⚠️ 略低于 90%（turn 并发分支/边界路径） |
+| Sandbox | 98.4%（63/64） | ✅ ≥90% |
+| Notifications | 67.1%（49/73） | ⚠️ UNUserNotificationCenter 真实包装层测试进程不可达（系统限制） |
 
-## 三、rc.2 之后新增能力（50 个提交）
+**总计: 591 个测试用例（XCTest 178 + Swift Testing 413），全部通过。包级源码总行覆盖 93.1%（8305 行中 576 行未覆盖）。**
 
-### 模型与工具
-- **web_fetch 工具**：Agent 真实网页抓取（仅 http/https、512KB 字节上限、字符截断、错误分类），自动进入主 Agent / 子 Agent / CLI 工具链
-- **会话搜索**：侧栏搜索框升级为「标题 + 正文」全量检索（SessionDB.search 的 LIKE 检索 + 改名标题并集 + 250ms 防抖），无新 UI
-- LLM 真实适配器：OpenAI / DeepSeek / Anthropic / 本地 Ollama·vLLM（OpenAI 兼容协议）
-- MCP：协议类型 + 真实 JSON-RPC 2.0 stdio 客户端 + App 演示服务器（system_info / current_time）
-- Terminal 包：TerminalRunner 真实执行，ExecCommandTool 委托
-- PathSandbox 路径沙箱：文件工具越界拒绝，设置页可配置
+> 口径说明：行覆盖统计各模块 `Sources/` 源文件（不含测试）；`swift test` 末尾 "Test run with N" 只统计 Swift Testing，XCTest 计数看 "Executed N tests"。
 
-### 多 Agent 协作链（本轮主线）
-- `SubagentCoordinator`：并发槽位 / 超时 / 取消 / 事件回调 / whenIdle 真实等待
-- App「多Agent」页：派生 / 取消 / 清理 / 阶段徽章 / 耗时 / 结果文本
-- 执行过程可视化：AgentResult.steps 工具调用步骤时间线
-- 子任务历史持久化：重启不丢（上限 50 条）
-- 子任务终态系统通知（完成/失败/超时）
-- 对话页「派生」按钮：当前输入 → 子任务
-- CLI：`dsh agents run <任务...> --parallel --timeout`（与 App 同一协调器）
-- **spawn_subagent 工具**：主 Agent 对话中自主委派子任务；子 Agent 用独立工具注册表（不含本工具），防递归死锁
+## 四、已知问题清单（按优先级）
 
-### 技能系统（Skill）
-- Skill 包：Skill 模型 + SKILL.md frontmatter 解析（~/.harness/skills）+ SkillRegistry actor（注册/检索/提示词列表）
-- Agent 工具：list_skills（列技能）/ use_skill（按名加载指令，未找到返回 skill_not_found）
-- 内置技能 ×3：git-commit / code-review / ops-troubleshoot
-- App「技能」页：列表（内置/用户徽章）/ 新建 / 编辑（名称锁定）/ 删除 / 展开正文
-- CLI：dsh skills list / show / export / import
-- App 技能页导入（NSOpenPanel）/ 导出（NSSavePanel），与 CLI 文件格式互通
+### P0
+无。
 
-### App / 插件
-- macOS 系统通知（生成完成/失败，设置可开关）
-- 插件市场层 PluginMarketplace + 14 测试 + App 双视图（已安装/市场，真实安装/更新/卸载）
-- XPC 进程隔离：PluginXPC + worker 可执行 + 真实 E2E 测试 + App 隔离开关（启动恢复 + 徽章）
-- 性能：启动会话加载消除 N+1 与全量事件解码，实测 212×（docs/PERFORMANCE.md）
-- Codex 风格 UI 重构 + 远程窗口看门狗 + 碎片化窗口重建兜底
+### P1
+| 问题 | 现象/复现 | 状态 |
+|------|-----------|------|
+| HarnessPluginWorker 进程泄漏 | XPC 测试后残留进程需手动 kill | 遗留观察；插件宿主非主链路 |
 
-### 工程
-- LLM HTTP 层桩测试 17 用例（URLProtocol 注入 session，零网络）；修复 Anthropic system 提示词重复发送 bug + stream 回退路径 JSON 崩溃
-- DSH CLI：provider 解析 + 真实对话
-- `tools/rebuild-app.sh` 一键重建 .app 壳
-- HarnessAppTests 测试目标（App 层单测）
-- HarnessCoreTests 测试目标（内置插件 manifest/生命周期/目录 4 用例，模块覆盖 66.7% → 100%）
-- 通知协议化重构：NotificationCenterProtocol + AuthorizationState 抽象（SystemNotificationService 可注入替身），新增 8 个授权/投递分支测试
-- LLM 适配器补测 10 用例（DeepSeek/Local stream、四家 checkConnection、缺 Key、流式错误传播、适配器元数据）：LLM 75.7% → 93.6%
-- PathSandbox 补测 5 用例（错误描述/空路径回退/空白裁剪/错误载荷/根相等分支）：Sandbox 85.9% → 98.4%
-- 内置工具补测 11 用例（缺参/超大文件/非 UTF-8/写入失败/目录不存在/非目录/权限拒绝/sizeStr/exec 启动失败）+ ToolPipeline post 处理器用例：Tools 86.8% → 98.4%，ToolPipeline 100%
-- MCP 补测 5 用例（错误描述全集/取消上下文/坏客户端跳过/listTools 缓存/怪癖服务器：垃圾行·无 result 响应·null result·stderr 诊断）+ 删除死代码：MCP 84.3% → 94.0%
-- web_fetch 零网络桩测试 6 用例（缺参/协议白名单/成功+请求头/404/超大拒绝/截断）
-- SessionDB.search 4 用例（内容匹配/大小写/无匹配与空查询/limit/LIKE 通配符转义）+ AppViewModel 会话搜索 2 用例（sessionDBURLOverride 测试钩子，正文命中/标题并集/空查询复位/无匹配）
-
-## 四、CI/CD
-
-| 流水线 | 状态 | 详情 |
-|--------|------|------|
-| PR Check（GitHub Actions） | ✅ 配置 | lint + 编译 + 单测 |
-| Main Check（GitHub Actions） | ✅ 配置 | 全量测试 + 覆盖率 + CodeQL |
-| 本地门禁（每轮提交前） | ✅ 执行 | format + lint --strict + build + test 四连 |
-| 本地镜像备份 | ✅ 执行 | 每次提交后 `git push --mirror` 到本地裸库 |
-| GitHub 远端 | ⏸ 暂缓 | 用户要求先本地版本控制 |
-
-## 五、架构合规
-
-| 约束 | 状态 | 证据 |
+### P2
+| 问题 | 说明 | 状态 |
 |------|------|------|
-| 纯 macOS 原生 | ✅ | 无 WebView/WKWebView 依赖 |
-| 无 JavaScript | ✅ | 零 JS/TS/Node 依赖 |
-| Swift 6 并发 | ✅ | strict concurrency 编译通过 |
-| Protocol 驱动 | ✅ | 所有接口为 Protocol |
-| 模块化 | ✅ | SPM 14 个包 + App + CLI |
-| 最低 macOS 15 | ✅ | Package.swift 声明 |
+| App performGeneration 不走工具循环 | 主聊天路径单次 provider.request 不带 tools；模块8 后底层已具备能力，前端阶段接线 | 待前端阶段 |
+| 瞬态测试失败 | 累计 6 次未复现（含并发调度类） | 观察中 |
+| WebUIApp 超时取消后 whenIdle 有界挂起 | 取消场景下有界等待后才返回 | 遗留 |
+| `dsh web` 与"非 Web 服务"约束边界 | 需用户确认约束口径 | 待确认 |
+| RAG 同文件重复入库不去重 | 重复 ingest 同文件产生重复块 | 遗留 |
+| SSE 流式不转发 reasoning 增量 | 仅非流式 complete 解析 reasoning_content | 待优化 |
+| local 画像默认关闭工具调用 | 依赖具体引擎（Ollama/vLLM 能力不一） | 待按模型名细分 |
+| 冷 scratch 偶发 emit-module 工具链崩溃 | `no such module 'Agent'`，同 scratch 重试即过（环境坑非代码） | 已知 |
 
-## 六、改进建议（按优先级）
+## 五、代码统计
 
-1. **HarnessApp 视图层**：XCUITest 或快照测试（当前 9.1%；AppViewModel 已部分覆盖）——现为最大短板
-2. ~~**LLM 适配器 HTTP 层**~~：✅ 已解决（2026-08-18）17 个 URLProtocol 零网络桩测试，35.5% → 82.5%
-3. ~~**HarnessCore 66.7%**~~：✅ 已解决（2026-08-18）新增 HarnessCoreTests，48/48 = 100%
-4. **Notifications 67.1%**：剩余为真实系统通知中心包装层（测试进程限制，无法单测）
-5. **MCP 87.5%**：补 stdio 客户端异常分支
-6. **Spotlight / Shortcuts**：需正式 bundle 签名注册，debug 壳不适用，暂缓
+| 项 | 数值 |
+|----|------|
+| 源码（Packages+Apps，*.swift） | 18,236 行 |
+| 测试代码 | 10,012 行 |
+| SPM 目标 | 16 库/可执行 + 17 测试目标（单一 xctest 进程） |
+| 工具链 | Swift 6.3.3 / Xcode 26.6 / macOS arm64 / platforms .macOS(.v15) |
+
+## 六、提交链（本开发周期）
+
+```
+d890934  feat(llm): 多模型服务商抽象适配层（模块8）
+92be3b7  test(quality): 冷编译警告清零 + Skill 覆盖率补测（86.5%→95.8%）+ 基线 561 全绿
+68270a9  feat(skill): Skill 技能体系完整闭环（模块7）
+b800e91  feat(memory): 记忆系统（模块6）
+6fcd98d  feat(rag): RAG 检索增强系统（模块5）
+1ba4bb8  feat(mcp): MCP 标准协议完整对接（模块4）
+10f7f86  feat(tools): 工具调用完整链路（模块3）
+cf17f77  feat(subagent): 多Agent调度生命周期完善（模块2）
+b25582a  feat(prompt): 提示词工程层（模块1）
+```
+
+## 七、下一阶段（前端打磨，后端已全部闭环后启动）
+
+1. App 主聊天路径接 AgentLoop 工具循环（P2 接线项）
+2. UI 布局对标 Codex：二级设置菜单、子页面导航、按钮/面板对齐
+3. 保留 WWDC26 Liquid Glass 设计、动效、降级策略、无障碍
+4. 硬约束：纯 SwiftUI + AppKit，禁 WebView/Electron，macOS 25+
