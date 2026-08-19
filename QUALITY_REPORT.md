@@ -1,7 +1,7 @@
 # Swift Harness — 质量保障报告
 
 > 生成时间: 2026-08-19 16:30
-> 项目版本: v0.3.1（后端 8 模块闭环 + 前端阶段 1/2/3a/3b/3c 完成，HEAD `6ce51a0`）
+> 项目版本: v0.3.1（后端 8 模块闭环 + 前端阶段 1/2/3a/3b/3c 完成，HEAD `99ba131`）
 > 说明: 前端打磨阶段基线刷新；测试数、覆盖率、门禁结果均为当前 HEAD 实测。
 
 ---
@@ -96,6 +96,8 @@
 | local 画像默认关闭工具调用 | `c5bdc41`（按模型名白名单细分） |
 | 冷编译警告（RAG 测试 docs1 未使用） | `851a100` |
 | 测试固定 sleep 时序脆弱点 4 处（P1 根因候选） | `6ce51a0` |
+| Xcode 工程依赖漂移（xcodebuild job 编译/链接失败；5 处 target 依赖缺失 + 5 个 target 缺失 + CSQLite 注入） | `99ba131` |
+| lint 扫描范围被 ci-derived-data 污染（swiftlint LLVM 崩溃 / swiftformat 1545 文件） | `99ba131` |
 | AppViewModelToolLoopTests 两处既有 swiftformat 违规 | `58a13d9` |
 
 ## 五、代码统计
