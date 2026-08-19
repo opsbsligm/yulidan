@@ -265,18 +265,13 @@ struct MessageBubble: View {
 
     var body: some View {
         if message.role == .user {
-            // 用户消息：右对齐浅色气泡，无头像无姓名
-            HStack {
-                Spacer(minLength: 60)
-                Text(message.content)
-                    .font(.system(.body, design: .rounded))
-                    .foregroundStyle(HarnessTheme.textPrimary)
-                    .textSelection(.enabled)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 9)
-                    .background(HarnessTheme.userMessage)
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            }
+            // Codex 式：用户消息无气泡纯文本（通栏左对齐，medium 字重区分角色）
+            Text(message.content)
+                .font(.system(.body, design: .rounded, weight: .medium))
+                .foregroundStyle(HarnessTheme.textPrimary)
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
         } else if message.role == .tool {
             // 工具轨迹：Codex 式可折叠执行行（展开看入参/输出；无详情走简洁行）
             if let trace = message.toolTrace?.first {
