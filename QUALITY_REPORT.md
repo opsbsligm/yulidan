@@ -1,8 +1,8 @@
 # Swift Harness — 质量保障报告
 
-> 生成时间: 2026-08-19 16:30
-> 项目版本: v0.3.1（后端 8 模块闭环 + 前端阶段 1/2/3a/3b/3c 完成，HEAD `99ba131`）
-> 说明: 前端打磨阶段基线刷新；测试数、覆盖率、门禁结果均为当前 HEAD 实测。
+> 生成时间: 2026-08-19 22:30
+> 项目版本: v0.3.1（后端 8 模块闭环 + 前端阶段 1/2/3a/3b/3c 完成 + P1 瞬态停滞修复验证闭环，HEAD `50fb2be`）
+> 说明: P1 调度停滞修复验证闭环基线；覆盖率按 llvm-cov export lcov 口径重测（口径说明见第三节）；门禁结果均为当前 HEAD 实测。
 
 ---
 
@@ -43,32 +43,32 @@
 | F4 | 会话级 AgentLoop 持久化（LRU 上限 8/上下文指纹变化重建/跨轮热切/删除即回收 + 启动竞态修复） | `fbe5600` | ✅ 闭环 |
 | F5 | whenIdle 取消感知（OnceIdleContinuation + 任务取消立即唤醒，不中断运行中 turn） | `84c7b6f` | ✅ 闭环 |
 
-## 三、测试用例与行覆盖率（2026-08-19 全量实测，llvm-cov 当前工具链口径）
+## 三、测试用例与行覆盖率（2026-08-19 22:20 全量重测，llvm-cov export lcov 口径）
 
 | 模块 | 行覆盖（仅源文件，628 用例 run 实测） | 状态 |
 |------|--------|------|
-| Sandbox | 98.4%（63/64） | ✅ ≥90% |
-| Subagent | 97.5%（352/361） | ✅ ≥90% |
-| Skill | 96.7%（670/693） | ✅ ≥90% |
-| Tools | 95.7%（572/598） | ✅ ≥90% |
-| PluginXPC | 94.6%（297/314） | ✅ ≥90% |
-| RAG | 94.5%（659/697） | ✅ ≥90% |
-| Prompt | 94.5%（363/384） | ✅ ≥90% |
-| Terminal | 93.2%（206/221） | ✅ ≥90% |
-| LLM | 92.8%（1243/1339） | ✅ ≥90%；wire 格式零网络桩（tools/tool_calls/reasoning/SSE 聚合/归一化边界） |
-| MCP | 92.3%（728/789） | ✅ ≥90% |
-| WebUI | 92.1%（608/660） | ✅ ≥90% |
-| Session | 92.0%（412/448） | ✅ ≥90% |
-| Memory | 91.7%（521/568） | ✅ ≥90% |
-| ServiceContainer | 91.4%（687/752） | ✅ ≥90% |
-| Agent | 91.1%（494/542） | ✅ ≥90%（本阶段 toolTraces 补测 6 项） |
-| Notifications | 67.1%（49/73） | ⚠️ UNUserNotificationCenter 真实包装层测试进程不可达（系统限制） |
-| HarnessApp（UI 层） | 10.9%（1216/11138） | 说明：SwiftUI 视图层，不计入 90% 核心基线（ViewModel 逻辑已由 HarnessAppTests 覆盖） |
+| Skill | 98.3%（626/637） | ✅ ≥90% |
+| Sandbox | 98.2%（54/55） | ✅ ≥90% |
+| Prompt | 96.5%（329/341） | ✅ ≥90% |
+| RAG | 96.4%（596/618） | ✅ ≥90% |
+| Subagent | 96.3%（315/327） | ✅ ≥90%（含槽位门控转移语义修复代码 `50fb2be`） |
+| Tools | 96.1%（489/509） | ✅ ≥90% |
+| Terminal | 93.5%（157/168） | ✅ ≥90% |
+| LLM | 93.4%（937/1003） | ✅ ≥90%；wire 格式零网络桩（tools/tool_calls/reasoning/SSE 聚合/归一化边界） |
+| Memory | 93.1%（488/524） | ✅ ≥90% |
+| PluginXPC | 92.9%（197/212） | ✅ ≥90% |
+| Agent | 92.5%（418/452） | ✅ ≥90%（本阶段 toolTraces 补测 6 项） |
+| MCP | 92.3%（599/649） | ✅ ≥90% |
+| WebUI | 92.1%（499/542） | ✅ ≥90% |
+| Session | 92.0%（287/312） | ✅ ≥90% |
+| ServiceContainer | 91.8%（642/699） | ✅ ≥90% |
+| Notifications | 66.7%（48/72） | ⚠️ UNUserNotificationCenter 真实包装层测试进程不可达（系统限制） |
+| HarnessApp（UI 层） | 18.7%（925/4954） | 说明：SwiftUI 视图层，不计入 90% 核心基线（ViewModel 逻辑已由 HarnessAppTests 覆盖） |
 
 **总计: 628 个测试用例（XCTest 180 + Swift Testing 448），全部通过。**
-**15 个后端包行覆盖 93.2%（7924/8503）；14 个核心包（除 Notifications）93.4%（7875/8430）。**
+**15 个后端包行覆盖 93.8%（6681/7120）；14 个核心包（除 Notifications）均 ≥90%。**
 
-> 口径说明：行覆盖统计各模块 `Sources/` 源文件（不含测试），llvm-cov 可执行插桩行口径（当前工具链；与上一版报告"全代码行"口径分母不同，百分比可比）。`swift test` 末尾 "Test run with N" 只统计 Swift Testing，XCTest 计数看 "Executed N tests"。
+> 口径说明：行覆盖统计各模块 `Sources/` 源文件（不含测试），本版改用 `llvm-cov export --format=lcov` 按 DA 记录去重行统计（该 beta 工具链 `llvm-cov report/export --format=json` 不可用）；分母与上一版（llvm-cov report 口径）不同，**绝对值不可直接纵向比较，模块相对排序与 ≥90% 达标状态一致**。`swift test` 末尾 "Test run with N" 只统计 Swift Testing，XCTest 计数看 "Executed N tests"。
 
 ## 四、已知问题清单（按优先级）
 
@@ -78,13 +78,14 @@
 ### P1
 | 问题 | 现象/复现 | 状态 |
 |------|-----------|------|
-| XCTest 瞬态失败（根因已定位，修复验证中） | 单发全量偶发失败（本会话 14 轮抓到 1 轮 2 失败）。根因（高置信）：5 处测试「固定 sleep(100-150ms) 后断言异步回调已落盘」，事件循环抖动下回调未执行即断言；其中 MCP `testListChangedInvalidatesCache` 恰含 2 个此类断言，与『2 失败』特征吻合。已改 `eventually()` 条件轮询（`6ce51a0`）；修复后 6 轮全量 + 9 轮隔离全绿 | 观察中：下一观察周期零复现即闭环 |
+| macOS 27 beta 瞬态协作池调度停滞（`--parallel` 全量偶发失败） | 现象：`swift test --parallel`（或直接调 xctest）下 `CoordinatorLifecycleTests/testShutdownCancelsAllAndClears` 约 1/8~1/10 概率失败（blocker 10s 未 running → cancelCount=0）。**根因（现场 sample 实锤）**：新 xctest 进程偶发「协作池任务 ~10-13s 不派发，而池线程全部空闲」（证据：主线程阻塞于 XCTest async 桥接 mach_msg 等待、全部池/wq 线程 `__workq_kernreturn` 空闲、无任何线程执行排队的 Swift 任务；样本 /tmp/stall_sample_19.txt）。**环境故障，非协调器逻辑缺陷**：停滞解除后 run 任务立即执行且行为完全符合规范（排队取消不执行/运行取消/无僵尸残留）。排除链：最小 actor+Task 复现包 15/15 绿（非通用 actor 问题）；直接 xctest 调用 1/10 复现（与 SPM --parallel 无关）；串行 swift test 健康窗口 8/8 绿；AC 电源（非电池节流） | 修复双层：①测试层 — 前置等待 10s→30s、4 个 `eventually` helper 默认窗口 3s→5s（正常路径毫秒级返回，仅停滞时拉长）②CI 层 — pr/xcode/main/weekly 全量测试步骤加**有界单次重试**（停滞属环境故障，真实回归重试仍会失败）。**残留风险**：停滞超 30s，或其余固定 sleep 断言点（MCP 300-500ms / Agent 10-100ms / ServiceContainer 150ms 等）撞上停滞窗口仍可能偶发失败，由 CI 重试兜底；若 macOS 正式版仍复现再升级处理 | **修复已验证（观察期）**：Subagent 模块 15/15（其中 9 轮处于停滞窗口、11-12s 慢通过，测试内重试在真实窗口下全部存活）+ 全量 `--parallel` ×2（628）+ 串行 ×1（628）+ ci-local main ×2 + ci-local pr 全绿（`50fb2be` 提交前实测）。观察期：若 macOS 正式版仍复现再升级处理 |
 
 ### P2
 | 问题 | 说明 | 状态 |
 |------|------|------|
 | `dsh web` 与"非 Web 服务"约束边界 | 需用户确认约束口径（WebUI 为本地 127.0.0.1 调试服务，非对外 Web 服务） | 待确认 |
 | 冷 scratch 偶发 emit-module 工具链崩溃 | `no such module 'Agent'`，同 scratch 重试即过（环境坑非代码） | 已知 |
+| Apple LLVM 21（Xcode 26.6 / macOS 27 beta）`llvm-profdata merge -f` 参数 bug | `-f` 存在时（任意参数序）报 `error: <out>: No such file or directory` 且 rc=1；输出路径可写、输入 profraw 可读（`show` 正常）→ 工具自身 bug。三组实验实锤：`-f -o out files` 失败 / `files -f -o out` 失败 / `files -o out` 成功（覆盖已存在输出文件亦可）。曾致 `tools/ci-local.sh main` 覆盖率汇总步骤失败（测试门禁本身通过） | 已绕过（`50fb2be`）：merge 行改 `merge *.profraw -o out`（省略 -f、-o 置输入文件后），182 个 profraw 全量验证 + ci-local main 复跑全绿；官方工具链修复后可恢复 -f |
 
 ### 已闭环（本周期）
 | 问题 | 闭环提交 |
@@ -99,22 +100,30 @@
 | Xcode 工程依赖漂移（xcodebuild job 编译/链接失败；5 处 target 依赖缺失 + 5 个 target 缺失 + CSQLite 注入） | `99ba131` |
 | lint 扫描范围被 ci-derived-data 污染（swiftlint LLVM 崩溃 / swiftformat 1545 文件） | `99ba131` |
 | AppViewModelToolLoopTests 两处既有 swiftformat 违规 | `58a13d9` |
+| P1 macOS 27 beta 瞬态协作池调度停滞（根因定位 + 槽位门控竞态修复 + 测试加固 + CI 有界重试） | `50fb2be` |
+| Apple LLVM 21 llvm-profdata merge -f bug（ci-local 覆盖率汇总失败） | `50fb2be`（绕过） |
 
 ## 五、代码统计
 
 | 项 | 数值 |
 |----|------|
-| 源码（Packages，77 文件） | 11,681 行 |
+| 源码（Packages，77 文件） | 11,717 行 |
 | 源码（Apps/HarnessApp，21 文件） | 6,128 行 |
-| 源码合计（98 文件） | 17,809 行 |
-| 测试代码（Packages 9,934 + Apps 1,004） | 10,938 行 |
+| 源码（Apps 辅助 target：DSHCLI/HarnessCore/HarnessPluginWorker/MemProbe，10 文件） | 1,250 行 |
+| 源码合计（108 文件） | 19,095 行 |
+| 测试代码（Packages 10,070 + Apps 1,088） | 11,158 行 |
 | SPM 目标 | 16 库/可执行 + 17 测试目标（单一 xctest 进程） |
 | 工具链 | Swift 6.3.3 / Xcode 26.6 / macOS arm64 / platforms .macOS(.v15) |
-| 提交总数 | 75 |
+| 提交总数 | 84（含本报告提交） |
 
 ## 六、提交链（近期）
 
 ```
+50fb2be  fix(subagent): 槽位门控转移语义修复并发上限竞态 + 停滞窗口测试加固 + CI 有界重试 + profdata 参数序绕过
+c969827  docs(quality): Xcode 工程依赖漂移修复入册（99ba131）
+99ba131  fix(xcode): 修复 Xcode 工程依赖缺失（xcodebuild job 首次本地跑通）+ lint 排除 ci-derived-data
+7e91c5d  ci(local): 本地 CI 模拟脚本（对齐 GitHub Actions 四 job：pr/leaks/xcode/main）
+4ebd8c6  docs(quality): P1 瞬态失败根因定位与修复入册（6ce51a0 观察期）
 6ce51a0  fix(test): P1 瞬态失败根因修复 — 固定 sleep + 异步回调断言改条件轮询
 c386f55  docs(quality): 刷新质量报告 — 前端阶段3a/3b/3c 基线（628 全绿/llvm-cov 复测）
 851a100  fix(test): 冷编译警告清零（RAGEngineTests docs1 未使用变量）
@@ -132,9 +141,10 @@ cf0e230  docs(quality): 刷新质量报告 — 前端阶段1/2 基线
 
 ## 七、下一阶段
 
-已完成（本周期）：工具轨迹可折叠行端到端（`58a13d9`）、顶栏 Codex 式重排 + composer 限宽（`ead1742`）、冷编译警告清零（`851a100`）。
+已完成（本周期）：P1 调度停滞根因闭环验证 + 槽位门控竞态修复 + CI 有界重试 + profdata 参数序绕过（`50fb2be`）；覆盖率 lcov 口径重测全绿。
 
-1. XCTest 瞬态失败：持续观察，复现即定位（P1）
-2. `dsh web` 约束口径：待用户确认（P2）
-3. UI 细节打磨（如需要）：Sidebar/Welcome 已确认 Codex 对齐；剩余为微调用
-4. 收尾：全量门禁 + 阶段进度报告
+1. P1 观察期：后续每轮全量回归持续观察（CI 有界重试兜底）；macOS 正式版若仍复现再升级处理
+2. 8 大后端模块规格逐项对标审计：按目标模式清单（Prompt/多Agent/工具链/MCP/RAG/记忆/Skill/多模型适配）逐项核对代码+测试证据，登记差距并逐个闭环
+3. `dsh web` 约束口径：待用户确认（P2）
+4. UI 细节打磨（如需要）：Sidebar/Welcome 已确认 Codex 对齐；剩余为微调用
+5. 收尾：全量门禁 + 阶段进度报告
