@@ -12,16 +12,15 @@ struct AppViewModelSkillTests {
         AppViewModel.notificationServiceFactory = { NoopNotificationService() }
     }
 
-    /// 独立临时用户技能目录（先设覆盖，再建 VM，避免读到真实目录）
+    /// 独立临时用户技能目录（经 AppViewModel 实例参数注入隔离；
+    /// 不写全局 userSkillsDirectoryOverride——进程全局态会被并行的 Skill 测试目标
+    /// （SkillToolsExtended 保存失败分支）改写，跨 suite 竞态实锤过）
     private func freshDir() -> URL {
-        let url = URL(fileURLWithPath: NSTemporaryDirectory())
+        URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("harness-skill-test-\(UUID().uuidString)")
-        SkillStore.userSkillsDirectoryOverride = url
-        return url
     }
 
     private func cleanup(_ dir: URL) {
-        SkillStore.userSkillsDirectoryOverride = nil
         try? FileManager.default.removeItem(at: dir)
     }
 
