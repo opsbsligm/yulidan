@@ -321,6 +321,19 @@ final class AppViewModel: ObservableObject {
     private var generateTask: Task<Void, Never>?
     /// 当前生成所用的 AgentLoop（stopGenerating 时同步取消；nil = 无进行中生成）
     private var chatAgent: AgentLoop?
+    /// 会话级持久 AgentLoop 缓存（跨轮保留完整工具上下文：工具调用/结果 wire 历史）
+    private var sessionLoops: [SessionID: AgentLoop] = [:]
+    /// LRU 访问序（最旧在前）
+    private var sessionLoopOrder: [SessionID] = []
+    /// 创建时的上下文指纹（模型服务商/本地地址；变化则重建）
+    private var sessionLoopContext: [SessionID: String] = [:]
+    /// 缓存上限（超出按 LRU 释放，内存回收防无界增长）
+    private static let maxCachedLoops = 8
+    /// 测试观测
+    static var maxCachedLoopsForTesting: Int {
+        maxCachedLoops
+    }
+
     private var sessionTitles: [UUID: String] = [:]
     private nonisolated(unsafe) var configObserver: (any NSObjectProtocol)?
 
@@ -712,11 +725,21 @@ final class AppViewModel: ObservableObject {
         do {
             // 性能：列表只查元数据（单条 SQL），事件仅对选中会话按需拉取
             let loaded = try await db.loadSessions()
+            // 合并语义：启动加载是异步的，加载窗口内用户可能已新建会话/开始对话，
+            // 覆盖式赋值会把进行中的会话从列表与选中态清掉（P2 竞态）
+            let inMemoryOnly = sessions.filter { s in
+                !loaded.contains { $0.id == s.id }
+            }
+            sessions = inMemoryOnly + loaded
+            // 当前选中仍有效（加载窗口内新建、或 DB 已有）→ 保留用户操作，不拉事件（messages 已持有）
+            if let currentID = selectedSession?.id,
+               sessions.contains(where: { $0.id == currentID }) {
+                return
+            }
             var first: SessionRecord?
             if let head = loaded.first, let full = try? await db.load(head.id) {
                 first = full
             }
-            sessions = loaded
             selectedSession = first ?? loaded.first
             if let s = selectedSession {
                 loadMessages(for: s)
@@ -740,6 +763,7 @@ final class AppViewModel: ObservableObject {
     }
 
     func deleteSession(_ session: SessionRecord) {
+        dropChatLoop(sessionID: session.id)
         sessions.removeAll { $0.id == session.id }
         Task { [db = sessionDB] in
             if let db {
@@ -987,6 +1011,67 @@ final class AppViewModel: ObservableObject {
         }
     }
 
+    // MARK: - 会话级 AgentLoop 缓存（跨轮工具上下文 + LRU 内存回收）
+
+    /// 会话循环创建上下文（按值聚合，避免参数过多）
+    private struct ChatLoopContext {
+        let cfg: LLMConfig
+        let key: String
+        let seed: [LLM.Message]
+        let systemPrompt: String?
+    }
+
+    /// 获取（或创建）会话的 AgentLoop：上下文指纹未变则复用（保留工具调用/结果 wire 历史）；
+    /// 切换模型服务商/本地地址时重建并按文本种子重新播种
+    private func obtainChatLoop(sessionID: SessionID, contextStamp: String,
+                                context: ChatLoopContext) -> AgentLoop {
+        if let existing = sessionLoops[sessionID], sessionLoopContext[sessionID] == contextStamp {
+            touchSessionLoop(sessionID)
+            return existing
+        }
+        let loop = AgentLoop(
+            sessionID: sessionID,
+            llm: makeProvider(context.cfg, key: context.key),
+            tools: toolRegistry,
+            model: context.cfg.modelName,
+            systemPrompt: context.systemPrompt,
+            history: context.seed
+        )
+        sessionLoops[sessionID] = loop
+        sessionLoopContext[sessionID] = contextStamp
+        sessionLoopOrder.append(sessionID)
+        evictSessionLoops()
+        return loop
+    }
+
+    private func touchSessionLoop(_ sessionID: SessionID) {
+        if let idx = sessionLoopOrder.firstIndex(of: sessionID) {
+            sessionLoopOrder.remove(at: idx)
+            sessionLoopOrder.append(sessionID)
+        }
+    }
+
+    /// LRU 淘汰：释放最旧会话的循环（循环无其他强引用，释放即回收内存）
+    private func evictSessionLoops() {
+        while sessionLoopOrder.count > Self.maxCachedLoops, let oldest = sessionLoopOrder.first {
+            sessionLoopOrder.removeFirst()
+            sessionLoops.removeValue(forKey: oldest)
+            sessionLoopContext.removeValue(forKey: oldest)
+        }
+    }
+
+    /// 丢弃会话缓存的循环（会话删除 / 显式重置上下文）
+    func dropChatLoop(sessionID: SessionID) {
+        sessionLoops.removeValue(forKey: sessionID)
+        sessionLoopContext.removeValue(forKey: sessionID)
+        sessionLoopOrder.removeAll { $0 == sessionID }
+    }
+
+    /// 测试观测：当前缓存的会话循环数
+    var cachedLoopCountForTesting: Int {
+        sessionLoops.count
+    }
+
     private func performGeneration() async {
         let cfg = llmConfig
         let key = KeychainStorage.getAPIKey(forProvider: cfg.providerRaw) ?? ""
@@ -1001,7 +1086,7 @@ final class AppViewModel: ObservableObject {
             return
         }
 
-        // 种子历史：最近 20 条 user/assistant 文本（不含刚追加的新用户消息，它由 AgentLoop 入栈）
+        // 种子历史：最近 20 条 user/assistant 文本（仅新建循环时使用；复用的循环已持有完整 wire 历史）
         let newUserText = messages.last?.content ?? lastUserMessage
         let seed: [LLM.Message] = messages.dropLast().suffix(20).compactMap { m in
             guard m.status == .delivered, m.role == .user || m.role == .assistant else { return nil }
@@ -1010,22 +1095,19 @@ final class AppViewModel: ObservableObject {
         }
         // 提示词工程层 + 记忆系统：系统提示词（内置模板/用户配置 + 相关长期记忆注入 {{#context}}）
         let systemPrompt = await buildSystemPrompt(model: cfg.modelName, userConfigured: cfg.systemPrompt)
-        let provider = makeProvider(cfg, key: key)
 
-        // 主聊天路径：完整 AgentLoop 工具循环（工具注册表 → 参数校验 → 执行 → 结果回填 → 收敛）
-        let agent = AgentLoop(
-            sessionID: selectedSession?.id ?? SessionID(),
-            llm: provider,
-            tools: toolRegistry,
-            model: cfg.modelName,
-            systemPrompt: systemPrompt,
-            history: seed
-        )
+        // 主聊天路径：会话级持久 AgentLoop（跨轮保留工具上下文；工具注册表 → 参数校验 → 执行 → 结果回填 → 收敛）
+        let sessionID = selectedSession?.id ?? SessionID()
+        let agent = obtainChatLoop(sessionID: sessionID,
+                                   contextStamp: "\(cfg.providerRaw)|\(cfg.localBaseURL)",
+                                   context: ChatLoopContext(cfg: cfg, key: key, seed: seed, systemPrompt: systemPrompt))
         chatAgent = agent
         defer {
             chatAgent = nil
             activeToolName = nil
         }
+        // 每轮上下文刷新（模型切换 / 记忆注入变化）；历史完整保留
+        await agent.setTurnContext(model: cfg.modelName, systemPrompt: systemPrompt)
         attachToolProgress(agent)
 
         // AgentLoop 内部统一捕获 LLM/工具异常并收敛为 result.error，此处无需 do/catch

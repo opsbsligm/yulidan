@@ -44,8 +44,10 @@ public actor AgentLoop {
 
     private let llm: any LLMProvider
     private let tools: ToolRegistry
-    private let model: String
-    private let systemPrompt: String?
+    /// 当前模型（会话级持久循环可跨轮更新；历史为厂商中立 wire 消息，安全热切）
+    private var model: String
+    /// 系统提示词（每轮可刷新：记忆注入 / 用户配置变化）
+    private var systemPrompt: String?
     private let maxSteps: Int
     /// 上下文保留上限：每轮 turn 结束后裁剪到最近 N 条（防长会话内存无界增长）
     private let maxHistoryMessages: Int
@@ -93,6 +95,13 @@ public actor AgentLoop {
 
     public var currentStatus: AgentStatus {
         status
+    }
+
+    /// 跨轮更新本轮上下文（模型 / 系统提示词）；历史完整保留。
+    /// 会话级持久循环专用：切换模型或提示词配置后调用，工具上下文不丢失。
+    public func setTurnContext(model: String, systemPrompt: String?) {
+        self.model = model
+        self.systemPrompt = systemPrompt
     }
 
     public var lastTurnResult: AgentResult {

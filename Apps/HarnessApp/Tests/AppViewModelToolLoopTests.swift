@@ -103,6 +103,108 @@ struct AppViewModelToolLoopTests {
         #expect(vm.messages.last?.content == "你好！")
         #expect(!vm.messages.map(\.role).contains(.tool))
     }
+    // MARK: - 会话级 AgentLoop 持久化（跨轮工具上下文 + LRU 内存回收；并入本 .serialized suite 防全局工厂竞态）
+
+    private func makeVM(dbURL: URL) -> AppViewModel {
+        let skillDir = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("harness-looppersist-skills-\(UUID().uuidString)")
+        let vm = AppViewModel(skillUserDirectory: skillDir, sessionDBURL: dbURL)
+        vm.llmConfig.provider = .local
+        return vm
+    }
+
+    private func waitConvergence(_ vm: AppViewModel, index: Int) async {
+        let deadline = Date().addingTimeInterval(15)
+        while Date() < deadline {
+            if !vm.isGenerating, vm.messages.filter({ $0.role == .assistant && $0.status == .delivered }).count >= index {
+                break
+            }
+            try? await Task.sleep(for: .milliseconds(50))
+        }
+    }
+
+    @Test("跨轮工具上下文：第二轮 wire 历史保留第一轮的 tool_calls 与 tool 结果")
+    func crossTurnToolContextRetained() async {
+        let provider = CrossTurnProvider()
+        AppViewModel.providerFactory = { _, _ in provider }
+        defer { AppViewModel.providerFactory = nil }
+
+        let dbURL = tempDBURL()
+        defer { try? FileManager.default.removeItem(at: dbURL) }
+        let vm = makeVM(dbURL: dbURL)
+        defer { try? FileManager.default.removeItem(at: vm.skillUserDirectory) }
+        await vm.toolRegistry.register(EchoTool())
+
+        vm.sendMessage("请回显 hello")
+        await waitConvergence(vm, index: 1)
+        #expect(vm.messages.last?.content == "done: hello")
+        #expect(provider.requestCount == 2) // 第一轮：tool_calls + 终答
+
+        vm.sendMessage("请再回显一次")
+        await waitConvergence(vm, index: 2)
+        #expect(vm.messages.last?.content == "done: again")
+        // 第二轮只发起 1 次 LLM 请求（循环复用，无重新播种）
+        #expect(provider.requestCount == 3)
+        // 第二轮请求的 wire 历史 = 第一轮完整上下文（含工具调用/结果）+ 新用户消息
+        let req = provider.requests[2]
+        #expect(req.messages.contains { $0.role == .tool })
+        #expect(req.messages.contains { $0.role == .assistant && $0.content.contains { block in
+            if case let .toolCall(tc) = block {
+                return tc.name == "echo_tool"
+            }
+            return false
+        } })
+        #expect(req.messages.contains { $0.role == .user && $0.content.contains { block in
+            if case let .text(t) = block {
+                return t.contains("请再回显一次")
+            }
+            return false
+        } })
+        // 循环被缓存复用
+        #expect(vm.cachedLoopCountForTesting == 1)
+    }
+
+    @Test("LRU 回收：循环数超过上限后释放最旧会话")
+    func lruEviction() async {
+        let provider = PlainTextProvider()
+        AppViewModel.providerFactory = { _, _ in provider }
+        defer { AppViewModel.providerFactory = nil }
+
+        let dbURL = tempDBURL()
+        defer { try? FileManager.default.removeItem(at: dbURL) }
+        let vm = makeVM(dbURL: dbURL)
+        defer { try? FileManager.default.removeItem(at: vm.skillUserDirectory) }
+
+        for i in 0 ..< 9 {
+            vm.createNewSession(silent: true)
+            vm.sendMessage("第 \(i) 条")
+            await waitConvergence(vm, index: 1)
+            // 每轮结束后回到 1 条已交付助手消息的断言基线：切换会话会重置 messages
+            vm.messages.removeAll()
+        }
+        #expect(vm.cachedLoopCountForTesting == AppViewModel.maxCachedLoopsForTesting)
+    }
+
+    @Test("删除会话即回收其循环")
+    func deleteSessionReclaimsLoop() async {
+        let provider = PlainTextProvider()
+        AppViewModel.providerFactory = { _, _ in provider }
+        defer { AppViewModel.providerFactory = nil }
+
+        let dbURL = tempDBURL()
+        defer { try? FileManager.default.removeItem(at: dbURL) }
+        let vm = makeVM(dbURL: dbURL)
+        defer { try? FileManager.default.removeItem(at: vm.skillUserDirectory) }
+
+        vm.createNewSession(silent: true)
+        vm.sendMessage("你好")
+        await waitConvergence(vm, index: 1)
+        #expect(vm.cachedLoopCountForTesting == 1)
+
+        guard let session = vm.selectedSession else { return }
+        vm.deleteSession(session)
+        #expect(vm.cachedLoopCountForTesting == 0)
+    }
 }
 
 // MARK: - 测试桩
@@ -149,7 +251,7 @@ private final class ScriptedToolLoopProvider: LLMProvider, @unchecked Sendable {
 }
 
 /// 纯文本 LLM（无工具调用）
-private final class PlainTextProvider: LLMProvider, @unchecked Sendable {
+final class PlainTextProvider: LLMProvider, @unchecked Sendable {
     let id = "plain-text"
     let supportedModels = ["test-model"]
     private let lock = NSLock()
@@ -172,7 +274,7 @@ private final class PlainTextProvider: LLMProvider, @unchecked Sendable {
 }
 
 /// 记录执行次数的回显工具
-private final class EchoTool: Tool, @unchecked Sendable {
+final class EchoTool: Tool, @unchecked Sendable {
     let name = "echo_tool"
     let description = "回显文本（测试用）"
     let parameterSchema = #"{"type":"object","properties":{"text":{"type":"string"}},"required":["text"]}"#
@@ -186,5 +288,51 @@ private final class EchoTool: Tool, @unchecked Sendable {
     func execute(_ args: [String: String], context _: ToolRunContext) async throws -> ToolResult {
         lock.withLock { executions += 1 }
         return ToolResult(content: [.text("echo: \(args["text"] ?? "")")])
+    }
+}
+
+
+/// 脚本化 LLM：前两次请求走工具循环，之后（新轮次）直接作答
+private final class CrossTurnProvider: LLMProvider, @unchecked Sendable {
+    let id = "cross-turn"
+    let supportedModels = ["test-model"]
+    private let lock = NSLock()
+    private var count = 0
+    private var recorded: [LLMRequest] = []
+
+    var requestCount: Int {
+        lock.withLock { count }
+    }
+
+    var requests: [LLMRequest] {
+        lock.withLock { recorded }
+    }
+
+    func request(_ request: LLMRequest) async throws -> LLMResponse {
+        var n = 0
+        lock.withLock {
+            count += 1
+            n = count
+            recorded.append(request)
+        }
+        switch n {
+        case 1:
+            return LLMResponse(
+                model: "test-model",
+                content: [.text("我来回显。")],
+                toolCalls: [LLM.ToolCallBlock(id: "call-cross-1", name: "echo_tool", arguments: #"{"text":"hello"}"#)],
+                finishReason: .toolCalls
+            )
+        case 2:
+            return LLMResponse(model: "test-model", content: [.text("done: hello")], finishReason: .stop)
+        default:
+            return LLMResponse(model: "test-model", content: [.text("done: again")], finishReason: .stop)
+        }
+    }
+
+    func stream(_: LLMRequest) async throws -> AsyncThrowingStream<LLM.StreamChunk, Error> {
+        AsyncThrowingStream { continuation in
+            continuation.finish()
+        }
     }
 }
