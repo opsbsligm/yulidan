@@ -1,6 +1,6 @@
 # UI 对标 Codex 差距盘点（F7）
 
-> 生成：2026-08-20 ｜ HEAD 基线：`49d3626`（661 用例）
+> 生成：2026-08-20 ｜ HEAD 基线：`c32a856`（664 用例）
 > 范围：用户 5 项 UI 要求中「布局对标 Codex」「按钮/面板布局对齐 Codex 交互」两项的逐项差距盘点。
 > 方法：逐文件读当前实现（ContentView / SidebarView / ChatAreaView / ChatInputArea / WelcomeAreaView / SettingsView），与 Codex 桌面端布局/交互范式对照。
 
@@ -25,7 +25,7 @@
 | B3 | P2 | 会话行无相对时间 | Codex 任务行显示「2h」「昨天」等相对时间 | ✅ 已闭环 `171c881`：RelativeTime.format 纯函数（3 组单测）+ 行尾时间 |
 | B4 | P2 | 无全局键盘快捷键 | Codex：⌘N 新任务 / ⌘, 设置 / ⌘1-6 面板切换 | ✅ 已闭环 `171c881`：⌘N / ⌘, / ⌘1–⌘6（视觉验收待实机） |
 | B5 | P2 | 侧边栏不可折叠 | Codex 支持折叠侧边栏释放主区宽度 | ✅ 已闭环 `49d3626`：52pt 图标 rail + UserDefaults 持久化 + 主区展开按钮（视觉验收待实机） |
-| B6 | P2 | 无置顶会话 | Codex 支持 pinned 任务段 | **登记待办**（需 SessionMetadata 扩展 + DB 迁移，下轮） |
+| B6 | P2 | 无置顶会话 | Codex 支持 pinned 任务段 | ✅ 已闭环 `c32a856`：SessionMetadata.pinned（旧 JSON 兼容解码）+ 置顶段 + 持久化往返（3 项测试） |
 | B7 | P2 | SessionSidebarView.swift 死代码（仅自身 #Preview 引用，ContentView 已用 SidebarView） | — | ✅ 已闭环 `171c881`：删除（UI 层分母 -93 插桩行） |
 | B8 | P3 | 用户消息为气泡样式 | Codex 用户消息为无气泡纯文本 | **登记待办**（视觉微调，随视觉验收一并对齐） |
 
