@@ -24,6 +24,13 @@ public enum AgentError: Error, LocalizedError, Sendable {
 /// 每个 turn：把用户消息追加进上下文 → 循环调用 LLM →
 /// 若返回工具调用则经 ToolRegistry 真实执行并把结果回填上下文 →
 /// 直到模型给出最终回答或达到步数上限。
+/// Agent 实时进度事件（主聊天展示工具执行状态；nil 回调 = 无订阅）
+public enum AgentProgress: Sendable, Equatable {
+    case toolStarted(name: String)
+    case toolFinished(name: String, ok: Bool)
+    case finalAnswer
+}
+
 public actor AgentLoop {
     public let id: AgentID
     public let sessionID: SessionID
@@ -44,6 +51,8 @@ public actor AgentLoop {
     private let maxHistoryMessages: Int
     /// 工具执行器（参数校验/超时熔断/输出二次校验统一链路）
     private let executor: ToolExecutor
+    /// 实时进度回调（跨 actor 调用，仅用于 UI 展示；生产/测试默认 nil）
+    public nonisolated(unsafe) var onProgress: (@Sendable (AgentProgress) -> Void)?
 
     /// 对话上下文（LLM 侧消息）
     private var history: [LLM.Message] = []
@@ -190,6 +199,7 @@ public actor AgentLoop {
                 let calls = response.toolCalls ?? []
                 guard !calls.isEmpty else {
                     // 最终回答
+                    onProgress?(.finalAnswer)
                     await turn.complete()
                     let text = Self.text(from: response.content)
                     let assistant = AssistantMessage(
@@ -208,9 +218,11 @@ public actor AgentLoop {
                     return AgentResult(status: .idle, messages: [assistant], steps: stepMessages)
                 }
 
-                // 执行全部工具调用并把结果回填上下文
+                // 执行全部工具调用并把结果回填上下文（前后发射进度事件供 UI 实时展示）
                 for call in calls {
+                    onProgress?(.toolStarted(name: call.name))
                     let result = await executeToolCall(call, turn: turn)
+                    onProgress?(.toolFinished(name: call.name, ok: result.error == nil))
                     await turn.recordToolResult(result)
                     history.append(Self.toolResultMessage(callID: call.id, result: result))
                 }

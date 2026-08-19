@@ -223,7 +223,7 @@ public enum LLMResponseNormalizer {
                 if stack.last == ch {
                     stack.removeLast()
                 }
-                // 多余闭合括号不处理（无法安全修复）
+            // 多余闭合括号不处理（无法安全修复）
             default:
                 break
             }

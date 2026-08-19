@@ -20,7 +20,8 @@ struct ChatAreaView: View {
                 MessageScrollView(
                     messages: viewModel.messages,
                     isGenerating: viewModel.isGenerating,
-                    error: viewModel.generationError
+                    error: viewModel.generationError,
+                    activeToolName: viewModel.activeToolName
                 )
             }
             // 输入区域
@@ -204,6 +205,11 @@ struct MessageScrollView: View {
     let messages: [ChatMessage]
     let isGenerating: Bool
     let error: String?
+    /// 正在执行的工具名（nil = 思考中）
+    let activeToolName: String?
+    /// 是否贴近底部（Codex 式：仅贴底时新消息自动跟随，上翻阅读历史不强制回底）
+    @State private var isNearBottom = true
+    @State private var showJumpToBottom = false
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -216,14 +222,40 @@ struct MessageScrollView: View {
                         ErrorMessageView(error: error).id("error")
                     }
                     if isGenerating {
-                        GeneratingIndicator().id("generating")
+                        GeneratingIndicator(activeToolName: activeToolName).id("generating")
                     }
                 }
                 .padding(.horizontal, 24).padding(.vertical, 20)
                 .frame(maxWidth: 760, alignment: .leading)
             }
+            .onScrollGeometryChange(for: Bool.self) { geo in
+                geo.contentOffset.y + geo.containerSize.height >= geo.contentSize.height - 80
+            } action: { _, nearBottom in
+                isNearBottom = nearBottom
+                showJumpToBottom = !nearBottom
+            }
+            .overlay(alignment: .bottomTrailing) {
+                if showJumpToBottom {
+                    Button {
+                        if let lastId = messages.last?.id {
+                            withAnimation(.smooth) { proxy.scrollTo(lastId, anchor: .bottomTrailing) }
+                        }
+                    } label: {
+                        Image(systemName: "arrow.down")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(HarnessTheme.textPrimary)
+                            .padding(8)
+                            .background(Circle().fill(HarnessTheme.glassDark))
+                            .overlay(Circle().stroke(HarnessTheme.border, lineWidth: 0.5))
+                    }
+                    .buttonStyle(.plain)
+                    .padding(12)
+                    .accessibilityLabel("回到底部")
+                }
+            }
             .onChange(of: messages.count) {
-                if let lastId = messages.last?.id {
+                // 贴近底部才自动跟随；用户上翻阅读历史时不打断
+                if isNearBottom, let lastId = messages.last?.id {
                     withAnimation(.smooth) { proxy.scrollTo(lastId, anchor: .bottomTrailing) }
                 }
             }
@@ -399,6 +431,8 @@ struct RoleAvatar: View {
 }
 
 struct GeneratingIndicator: View {
+    /// 正在执行的工具名（nil = 模型思考中）
+    let activeToolName: String?
     @State private var pulse: CGFloat = 0.5
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -411,7 +445,13 @@ struct GeneratingIndicator: View {
                         .animation(.easeInOut(duration: 0.4).repeatForever(), value: pulse)
                 }
             }
-            Text("Harness 正在思考…").font(.system(size: 12)).foregroundStyle(HarnessTheme.textTertiary)
+            if let activeToolName {
+                Text("Harness 正在运行工具：\(activeToolName) …")
+                    .font(.system(size: 12, design: .rounded))
+                    .foregroundStyle(HarnessTheme.textTertiary)
+            } else {
+                Text("Harness 正在思考…").font(.system(size: 12)).foregroundStyle(HarnessTheme.textTertiary)
+            }
             Spacer()
         }
         .padding(.horizontal, 16).padding(.vertical, 14)

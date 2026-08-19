@@ -274,6 +274,8 @@ final class AppViewModel: ObservableObject {
     @Published var sessions: [SessionRecord] = []
     @Published var messages: [ChatMessage] = []
     @Published var isGenerating = false
+    /// 当前正在执行的工具名（Codex 式实时进度；nil = 无工具运行）
+    @Published var activeToolName: String?
     @Published var generationError: String?
     @Published var lastUserMessage = ""
     @Published var attachments: [FileAttachment] = []
@@ -968,6 +970,21 @@ final class AppViewModel: ObservableObject {
         generateTask = Task { await self.performGeneration() }
     }
 
+    /// 订阅 AgentLoop 实时工具进度（Codex 式：执行中显示当前工具名；完成/终答时清空）
+    private func attachToolProgress(_ agent: AgentLoop) {
+        agent.onProgress = { [weak self] progress in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                switch progress {
+                case let .toolStarted(name):
+                    activeToolName = name
+                case .toolFinished, .finalAnswer:
+                    activeToolName = nil
+                }
+            }
+        }
+    }
+
     private func performGeneration() async {
         let cfg = llmConfig
         let key = KeychainStorage.getAPIKey(forProvider: cfg.providerRaw) ?? ""
@@ -1003,7 +1020,11 @@ final class AppViewModel: ObservableObject {
             history: seed
         )
         chatAgent = agent
-        defer { chatAgent = nil }
+        defer {
+            chatAgent = nil
+            activeToolName = nil
+        }
+        attachToolProgress(agent)
 
         // AgentLoop 内部统一捕获 LLM/工具异常并收敛为 result.error，此处无需 do/catch
         await agent.followup(UserMessage(content: [.text(newUserText)]))

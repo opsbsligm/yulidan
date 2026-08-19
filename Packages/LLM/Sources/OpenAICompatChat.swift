@@ -255,10 +255,10 @@ public struct OpenAICompatChat: Sendable {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    let req = try self.makeRequest(model: model, messages: messages, systemPrompt: systemPrompt,
-                                                   tools: tools, maxTokens: maxTokens, temperature: temperature,
-                                                   extraHeaders: extraHeaders, stream: true)
-                    let (bytes, response) = try await self.session.bytes(for: req)
+                    let req = try makeRequest(model: model, messages: messages, systemPrompt: systemPrompt,
+                                              tools: tools, maxTokens: maxTokens, temperature: temperature,
+                                              extraHeaders: extraHeaders, stream: true)
+                    let (bytes, response) = try await session.bytes(for: req)
                     guard let http = response as? HTTPURLResponse else {
                         throw LLMError.networkError("无法解析 HTTP 响应")
                     }
@@ -274,7 +274,7 @@ public struct OpenAICompatChat: Sendable {
                         if Task.isCancelled {
                             break
                         }
-                        if let event = self.sseLineEvent(line, state: &state) {
+                        if let event = sseLineEvent(line, state: &state) {
                             continuation.yield(event)
                         }
                     }
@@ -404,15 +404,15 @@ public struct OpenAISSEPayload: Sendable {
     /// 由 wire delta DTO 构造（sseDelta 内部使用）
     init(choice: ChatDeltaChoiceDTO?, usage: ChatUsageDTO?) {
         let message = choice?.effectiveMessage
-        self.content = message?.content.flatMap { $0.isEmpty ? nil : $0 }
-        self.reasoningContent = message?.reasoningContent.flatMap { $0.isEmpty ? nil : $0 }
-        self.toolCallDeltas = (message?.toolCalls ?? []).map { tc in
+        content = message?.content.flatMap { $0.isEmpty ? nil : $0 }
+        reasoningContent = message?.reasoningContent.flatMap { $0.isEmpty ? nil : $0 }
+        toolCallDeltas = (message?.toolCalls ?? []).map { tc in
             OpenAISSEToolCallDelta(index: tc.index ?? 0,
                                    id: tc.id,
                                    name: tc.function?.name,
                                    argumentsFragment: tc.function?.arguments)
         }
-        self.finishReason = choice?.finishReason
+        finishReason = choice?.finishReason
         self.usage = usage.map {
             TokenUsage(promptTokens: $0.promptTokens ?? 0,
                        completionTokens: $0.completionTokens ?? 0,
