@@ -1140,15 +1140,14 @@ final class AppViewModel: ObservableObject {
         await notifyGeneration(error: nil)
     }
 
-    /// 追加本轮 Agent 结果到会话：工具轨迹（每个含调用的步骤一条 .tool，展示用，不进 LLM 历史）
+    /// 追加本轮 Agent 结果到会话：工具轨迹（每次工具调用一条可折叠 .tool 行，展示用，不进 LLM 历史）
     /// + 最终助手回答；无最终回答时返回 nil
     private func appendTurnResult(_ result: AgentResult) -> String? {
-        for step in result.steps {
-            let names = Self.toolNames(in: step.content)
-            guard !names.isEmpty else { continue }
-            messages.append(ChatMessage(id: UUID(), role: .tool,
-                                        content: "调用工具：\(names.joined(separator: "、"))",
-                                        timestamp: Date(), status: .delivered))
+        for trace in result.toolTraces {
+            let item = ToolTraceItem(id: trace.id, name: trace.name, arguments: trace.arguments,
+                                     output: trace.output, ok: trace.ok)
+            messages.append(ChatMessage(id: UUID(), role: .tool, content: "调用工具：\(trace.name)",
+                                        timestamp: Date(), status: .delivered, toolTrace: [item]))
         }
         guard let final = result.messages.last else { return nil }
         let content = Self.textContent(of: final.content)

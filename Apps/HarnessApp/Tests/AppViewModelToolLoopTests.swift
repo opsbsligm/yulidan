@@ -103,6 +103,7 @@ struct AppViewModelToolLoopTests {
         #expect(vm.messages.last?.content == "你好！")
         #expect(!vm.messages.map(\.role).contains(.tool))
     }
+
     // MARK: - 会话级 AgentLoop 持久化（跨轮工具上下文 + LRU 内存回收；并入本 .serialized suite 防全局工厂竞态）
 
     private func makeVM(dbURL: URL) -> AppViewModel {
@@ -290,7 +291,6 @@ final class EchoTool: Tool, @unchecked Sendable {
         return ToolResult(content: [.text("echo: \(args["text"] ?? "")")])
     }
 }
-
 
 /// 脚本化 LLM：前两次请求走工具循环，之后（新轮次）直接作答
 private final class CrossTurnProvider: LLMProvider, @unchecked Sendable {

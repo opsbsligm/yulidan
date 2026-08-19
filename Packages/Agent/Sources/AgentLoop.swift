@@ -223,6 +223,7 @@ public actor AgentLoop {
             history.append(Self.llmMessage(from: userMessage))
         }
         var stepMessages: [AssistantMessage] = []
+        var toolTraces: [ToolTraceEntry] = []
         do {
             var step = 0
             while step < maxSteps {
@@ -259,26 +260,39 @@ public actor AgentLoop {
                         }
                     )
                     trimHistory()
-                    return AgentResult(status: .idle, messages: [assistant], steps: stepMessages)
+                    return AgentResult(status: .idle, messages: [assistant], steps: stepMessages, toolTraces: toolTraces)
                 }
 
-                // 执行全部工具调用并把结果回填上下文（前后发射进度事件供 UI 实时展示）
-                for call in calls {
-                    onProgress?(.toolStarted(name: call.name))
-                    let result = await executeToolCall(call, turn: turn)
-                    onProgress?(.toolFinished(name: call.name, ok: result.error == nil))
-                    await turn.recordToolResult(result)
-                    history.append(Self.toolResultMessage(callID: call.id, result: result))
-                }
+                // 执行全部工具调用：回填上下文并收集轨迹（前后发射进度事件供 UI 实时展示）
+                await executeToolBatch(calls, turn: turn, traces: &toolTraces)
             }
             // 达到步数上限
             let error = AgentError.stepLimitExceeded(maxSteps)
             await turn.fail(with: error)
             trimHistory()
-            return AgentResult(status: .idle, error: error.localizedDescription, steps: stepMessages)
+            return AgentResult(status: .idle, error: error.localizedDescription, steps: stepMessages, toolTraces: toolTraces)
         } catch {
             await turn.fail(with: error)
-            return AgentResult(status: .idle, error: error.localizedDescription, steps: stepMessages)
+            return AgentResult(status: .idle, error: error.localizedDescription, steps: stepMessages, toolTraces: toolTraces)
+        }
+    }
+
+    /// 执行一批工具调用：逐条发射进度事件、回填历史、收集 UI 轨迹
+    private func executeToolBatch(_ calls: [LLM.ToolCallBlock], turn: Turn,
+                                  traces: inout [ToolTraceEntry]) async {
+        for call in calls {
+            onProgress?(.toolStarted(name: call.name))
+            let result = await executeToolCall(call, turn: turn)
+            onProgress?(.toolFinished(name: call.name, ok: result.error == nil))
+            await turn.recordToolResult(result)
+            history.append(Self.toolResultMessage(callID: call.id, result: result))
+            traces.append(ToolTraceEntry(
+                id: traces.count,
+                name: call.name,
+                arguments: call.arguments,
+                output: Self.traceOutput(from: result),
+                ok: result.error == nil
+            ))
         }
     }
 
@@ -312,6 +326,21 @@ public actor AgentLoop {
 
     private func trimHistory() {
         history = Self.trimHistory(history, max: maxHistoryMessages)
+    }
+
+    /// 工具输出 → UI 摘要文本（截断 2000 字符；错误优先展示）
+    static func traceOutput(from result: ToolResult) -> String {
+        let text = result.content.compactMap { block -> String? in
+            if case let .text(t) = block {
+                return t
+            }
+            return nil
+        }.joined(separator: "\n")
+        if let error = result.error {
+            let head = "错误（\(error.code)）：\(error.message)"
+            return text.isEmpty ? head : head + "\n" + String(text.prefix(800))
+        }
+        return String(text.prefix(2000))
     }
 
     /// 构造当前步的助手消息（content + 工具调用块按 id 去重合并，供执行过程展示/观测）

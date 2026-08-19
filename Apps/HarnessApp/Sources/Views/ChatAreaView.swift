@@ -281,26 +281,30 @@ struct MessageBubble: View {
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
         } else if message.role == .tool {
-            // 工具轨迹：Codex 式紧凑执行行（无头像无气泡，与助手文本列左对齐）
-            HStack(spacing: 6) {
-                Image(systemName: "wrench.and.screwdriver")
-                    .font(.system(size: 11))
-                    .foregroundStyle(HarnessTheme.textTertiary)
-                Text(message.content)
-                    .font(.system(size: 12, design: .rounded))
-                    .foregroundStyle(HarnessTheme.textSecondary)
-                    .textSelection(.enabled)
-                    .fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: 16)
+            // 工具轨迹：Codex 式可折叠执行行（展开看入参/输出；无详情走简洁行）
+            if let trace = message.toolTrace?.first {
+                ToolTraceRow(item: trace)
+            } else {
+                HStack(spacing: 6) {
+                    Image(systemName: "wrench.and.screwdriver")
+                        .font(.system(size: 11))
+                        .foregroundStyle(HarnessTheme.textTertiary)
+                    Text(message.content)
+                        .font(.system(size: 12, design: .rounded))
+                        .foregroundStyle(HarnessTheme.textSecondary)
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 16)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(HarnessTheme.surface.opacity(0.5))
+                .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                .padding(.leading, 34) // 对齐助手文本列（24 头像 + 10 间距）
+                .frame(maxWidth: 480, alignment: .leading)
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("工具执行：\(message.content)")
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 5)
-            .background(HarnessTheme.surface.opacity(0.5))
-            .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
-            .padding(.leading, 34) // 对齐助手文本列（24 头像 + 10 间距）
-            .frame(maxWidth: 480, alignment: .leading)
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel("工具执行：\(message.content)")
         } else {
             // 助手/系统：小头像 + 纯文本，去掉边框感
             HStack(alignment: .top, spacing: 10) {
@@ -502,10 +506,14 @@ struct ChatMessage: Identifiable, Equatable {
     let content: String
     let timestamp: Date
     let status: MessageStatus
+    /// 工具轨迹详情（.tool 消息专用；历史恢复的消息为 nil → 走简洁行）
+    let toolTrace: [ToolTraceItem]?
 
-    init(id: UUID, role: ChatRole, content: String, timestamp: Date, status: MessageStatus = .sent) {
+    init(id: UUID, role: ChatRole, content: String, timestamp: Date, status: MessageStatus = .sent,
+         toolTrace: [ToolTraceItem]? = nil) {
         self.id = id; self.role = role; self.content = content
         self.timestamp = timestamp; self.status = status
+        self.toolTrace = toolTrace
     }
 
     static func == (lhs: ChatMessage, rhs: ChatMessage) -> Bool {
