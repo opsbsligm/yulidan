@@ -68,3 +68,50 @@ struct PinnedSessionTests {
         #expect(loadedUnpinned == false, "取消置顶应持久化回 false")
     }
 }
+
+// MARK: - SessionGroups 分组纯函数（置顶段最顶 + 日分组 + 组内倒序）
+
+@Suite("SessionGroups 分组纯函数")
+struct SessionGroupsTests {
+    private var now: Date {
+        var c = Calendar.current.dateComponents([.year, .month, .day], from: Date())
+        c.hour = 18; c.minute = 0; c.second = 0
+        return Calendar.current.date(from: c) ?? Date()
+    }
+
+    private func record(daysAgo: Int, hourOffset: Double = 0, pinned: Bool = false) -> SessionRecord {
+        let createdAt = Calendar.current.date(byAdding: .day, value: -daysAgo, to: now)!
+            .addingTimeInterval(hourOffset)
+        return SessionRecord(metadata: SessionMetadata(cwd: URL(fileURLWithPath: "/tmp"),
+                                                       createdAt: createdAt,
+                                                       origin: .user,
+                                                       pinned: pinned))
+    }
+
+    @Test("置顶段在最顶；置顶项不重复出现在日分组")
+    func pinnedGroupFirst() {
+        let pinnedOld = record(daysAgo: 5, pinned: true) // 旧会话置顶
+        let today1 = record(daysAgo: 0, hourOffset: -3600)
+        let today2 = record(daysAgo: 0, hourOffset: -1800)
+        let groups = SessionGroups.group([today1, pinnedOld, today2], now: now)
+        #expect(groups.count == 2)
+        #expect(groups[0].label == "置顶")
+        #expect(groups[0].items.map(\.id) == [pinnedOld.id])
+        #expect(groups[1].label == "今天")
+        // 组内创建时间倒序（today2 更新）
+        #expect(groups[1].items.map(\.id) == [today2.id, today1.id])
+        // 置顶项不得重复出现在「今天/昨天/更早」
+        let all = groups.flatMap { $0.items.map(\.id) }
+        #expect(all.filter { $0 == pinnedOld.id }.count == 1)
+    }
+
+    @Test("今天/昨天/更早 分段；空输入返回空")
+    func dailyBucketsAndEmpty() {
+        let today = record(daysAgo: 0)
+        let yesterday = record(daysAgo: 1)
+        let earlier = record(daysAgo: 10)
+        let groups = SessionGroups.group([earlier, today, yesterday], now: now)
+        #expect(groups.map(\.label) == ["今天", "昨天", "更早"])
+        #expect(SessionGroups.group([], now: now).isEmpty)
+    }
+}

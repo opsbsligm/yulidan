@@ -44,31 +44,9 @@ struct SidebarView: View {
             : sessions.filter { titleFor($0).localizedCaseInsensitiveContains(searchText) }
     }
 
-    /// 分组：置顶（Codex 式 pinned 段，最顶）→ 今天 / 昨天 / 更早（组内按创建时间倒序）
+    /// 分组（纯函数见 SessionGroups）：置顶（最顶）→ 今天 / 昨天 / 更早
     private var groups: [(label: String, items: [SessionRecord])] {
-        let cal = Calendar.current
-        let today = cal.startOfDay(for: Date())
-        let yesterday = cal.date(byAdding: .day, value: -1, to: today) ?? today
-        var out: [(label: String, items: [SessionRecord])] = []
-        let sorted = filtered.sorted { $0.metadata.createdAt > $1.metadata.createdAt }
-        let pinnedItems = sorted.filter(\.metadata.pinned)
-        if !pinnedItems.isEmpty {
-            out.append(("置顶", pinnedItems))
-        }
-        let rest = sorted.filter { !$0.metadata.pinned }
-        let todayItems = rest.filter { $0.metadata.createdAt >= today }
-        let yesterdayItems = rest.filter { $0.metadata.createdAt >= yesterday && $0.metadata.createdAt < today }
-        let earlierItems = rest.filter { $0.metadata.createdAt < yesterday }
-        if !todayItems.isEmpty {
-            out.append(("今天", todayItems))
-        }
-        if !yesterdayItems.isEmpty {
-            out.append(("昨天", yesterdayItems))
-        }
-        if !earlierItems.isEmpty {
-            out.append(("更早", earlierItems))
-        }
-        return out
+        SessionGroups.group(filtered)
     }
 
     var body: some View {
@@ -469,6 +447,37 @@ struct NavShortcutModifier: ViewModifier {
         } else {
             content
         }
+    }
+}
+
+// MARK: - 会话分组（纯函数，可单测）
+
+enum SessionGroups {
+    /// 置顶（Codex 式 pinned 段，最顶）→ 今天 / 昨天 / 更早（组内按创建时间倒序）
+    static func group(_ filtered: [SessionRecord], now: Date = Date()) -> [(label: String, items: [SessionRecord])] {
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: now)
+        let yesterday = cal.date(byAdding: .day, value: -1, to: today) ?? today
+        var out: [(label: String, items: [SessionRecord])] = []
+        let sorted = filtered.sorted { $0.metadata.createdAt > $1.metadata.createdAt }
+        let pinnedItems = sorted.filter(\.metadata.pinned)
+        if !pinnedItems.isEmpty {
+            out.append(("置顶", pinnedItems))
+        }
+        let rest = sorted.filter { !$0.metadata.pinned }
+        let todayItems = rest.filter { $0.metadata.createdAt >= today }
+        let yesterdayItems = rest.filter { $0.metadata.createdAt >= yesterday && $0.metadata.createdAt < today }
+        let earlierItems = rest.filter { $0.metadata.createdAt < yesterday }
+        if !todayItems.isEmpty {
+            out.append(("今天", todayItems))
+        }
+        if !yesterdayItems.isEmpty {
+            out.append(("昨天", yesterdayItems))
+        }
+        if !earlierItems.isEmpty {
+            out.append(("更早", earlierItems))
+        }
+        return out
     }
 }
 
