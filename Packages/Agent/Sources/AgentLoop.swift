@@ -184,11 +184,12 @@ public actor AgentLoop {
             var step = 0
             while step < maxSteps {
                 step += 1
+                // 能力门控：provider 画像不支持工具调用时不下发 tools（如未细分的本地引擎），模型直接作答
                 let request = await LLMRequest(
                     model: model,
                     messages: history,
                     systemPrompt: systemPrompt,
-                    tools: tools.schemas()
+                    tools: llm.profile.supportsToolCalls ? tools.schemas() : nil
                 )
                 let response = try await llm.request(request)
 

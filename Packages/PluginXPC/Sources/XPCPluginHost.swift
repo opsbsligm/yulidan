@@ -34,9 +34,15 @@ public actor XPCPluginHost {
     private var connection: NSXPCConnection?
     private var endpoint: (any RemotePluginEndpoint)?
     private let runner: any CommandRunner
+    /// 最近一次成功注册的 worker 可执行文件路径（注销后用于清理残留进程）
+    private var registeredWorkerPath: String?
+    /// 进程终止注入（测试可替换；默认 SIGTERM）
+    private let terminate: @Sendable (Int32) -> Void
 
-    public init(runner: any CommandRunner = ProcessCommandRunner()) {
+    public init(runner: any CommandRunner = ProcessCommandRunner(),
+                terminate: @escaping @Sendable (Int32) -> Void = { pid in _ = kill(pid, SIGTERM) }) {
         self.runner = runner
+        self.terminate = terminate
     }
 
     /// 生成 worker 的 launchd plist（MachServices 声明是 machServiceName 可达的前提）
@@ -81,7 +87,9 @@ public actor XPCPluginHost {
         guard let plistPath = Self.writePlist(workerPath: workerPath) else { return false }
         do {
             let result = try runner.run(["/bin/launchctl", "bootstrap", "gui/\(uid)", plistPath])
-            return result.exitCode == 0
+            guard result.exitCode == 0 else { return false }
+            registeredWorkerPath = workerPath
+            return true
         } catch {
             return false
         }
@@ -175,10 +183,24 @@ public actor XPCPluginHost {
     }
 
     /// 从 launchd 注销 worker（bootout 会同时结束 worker 进程）
+    /// 并主动清理 bootout 后仍残留的 worker 进程（KeepAlive 竞态 / 历史崩溃遗留），杜绝僵尸进程。
     public func deregister() {
         let uid = getuid()
         _ = try? runner.run(["/bin/launchctl", "bootout", "gui/\(uid)/\(Self.serviceName)"])
+        terminateLeftoverWorkers()
         disconnect()
+    }
+
+    /// 按注册路径精确匹配残留 worker 并发送 SIGTERM（best-effort，失败静默）
+    private func terminateLeftoverWorkers() {
+        guard let path = registeredWorkerPath else { return }
+        registeredWorkerPath = nil
+        guard let out = try? runner.run(["/usr/bin/pgrep", "-f", path]) else { return }
+        let pids = out.output.split(whereSeparator: { $0.isNewline })
+            .compactMap { Int($0.trimmingCharacters(in: .whitespaces)) }
+        for pid in pids where pid > 0 {
+            terminate(Int32(pid))
+        }
     }
 
     private func markDisconnected() {

@@ -228,9 +228,9 @@ public struct OpenAICompatChat: Sendable {
         var usage: TokenUsage?
     }
 
-    /// 处理单条 SSE data 行：更新聚合状态，返回文本增量事件（无则 nil）
-    private func sseLineEvent(_ line: String, state: inout SSEAggregationState) -> OpenAIStreamEvent? {
-        guard let payload = Self.sseDelta(from: line) else { return nil }
+    /// 处理单条 SSE data 行：更新聚合状态，返回增量事件列表（reasoning 优先于 text，保持模型输出时序；无则空）
+    private func sseLineEvents(_ line: String, state: inout SSEAggregationState) -> [OpenAIStreamEvent] {
+        guard let payload = Self.sseDelta(from: line) else { return [] }
         if let finish = payload.finishReason {
             state.finishReason = Self.mapFinishReason(finish)
         }
@@ -240,8 +240,14 @@ public struct OpenAICompatChat: Sendable {
         for delta in payload.toolCallDeltas {
             state.accumulator.apply(delta)
         }
-        guard let content = payload.content else { return nil }
-        return .text(content)
+        var events: [OpenAIStreamEvent] = []
+        if let reasoning = payload.reasoningContent {
+            events.append(.reasoning(reasoning))
+        }
+        if let content = payload.content {
+            events.append(.text(content))
+        }
+        return events
     }
 
     /// 流式 chat completion — 结构化事件流：文本增量 + 终态事件（聚合 tool_calls / finishReason / usage）
@@ -274,7 +280,7 @@ public struct OpenAICompatChat: Sendable {
                         if Task.isCancelled {
                             break
                         }
-                        if let event = sseLineEvent(line, state: &state) {
+                        for event in sseLineEvents(line, state: &state) {
                             continuation.yield(event)
                         }
                     }
@@ -363,6 +369,8 @@ public struct CompletionResult: Sendable {
 /// OpenAI 兼容流式事件
 public enum OpenAIStreamEvent: Sendable {
     case text(String)
+    /// reasoning 增量（DeepSeek 等模型的推理过程流式转发）
+    case reasoning(String)
     case done(finishReason: LLMResponse.FinishReason, usage: TokenUsage?, toolCalls: [ToolCallBlock])
 }
 

@@ -80,6 +80,22 @@ public actor VectorStore {
         entries[documentID]?.count ?? 0
     }
 
+    /// 元数据等值匹配的全部文档 ID（如 content_hash 去重查询）
+    public func documentIDs(matchingMetadata key: String, value: String) -> [String] {
+        entries.filter { entry in
+            entry.value.contains { $0.metadata[key] == value }
+        }
+        .keys.sorted()
+    }
+
+    /// 指定来源的全部文档 ID（同源更新去重用）
+    public func documentIDs(withSource source: String) -> [String] {
+        entries.filter { entry in
+            entry.value.contains { $0.source == source }
+        }
+        .keys.sorted()
+    }
+
     /// 总切片数
     public func totalCount() -> Int {
         entries.values.reduce(0) { $0 + $1.count }

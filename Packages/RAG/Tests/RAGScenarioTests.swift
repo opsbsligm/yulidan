@@ -58,7 +58,7 @@ struct RAGToolExecutorScenarioTests {
         #expect(unknownR.error?.code == "unknown_tool")
     }
 
-    @Test func ingestSameFileTwiceCreatesTwoDocuments() async throws {
+    @Test func ingestSameFileTwiceDedupes() async throws {
         // 已知 P2：ingestPath 每次生成新文档 UUID，同文件重复入库不去重（内容重复但可移除）
         let registry = ToolRegistry()
         let engine = RAGEngine(store: VectorStore())
@@ -80,8 +80,9 @@ struct RAGToolExecutorScenarioTests {
         // 同路径二次入库：文档 id 不同（UUID）但内容相同 → 检索命中数不膨胀
         let searchR = await executor.execute(ToolCall(name: "search_knowledge", arguments: ["query": "重复入库测试"]),
                                              in: registry, context: ctx)
+        // 去重（P2 闭环）：同路径二次 ingest → 同 source 覆盖，不产生重复块
         let docs = await engine.documentIDs()
-        #expect(docs.count == 2) // 每次 ingestPath 生成新文档 id（与 add_knowledge 语义一致）
+        #expect(docs.count == 1)
         #expect(Self.text(searchR).contains("找到"))
         _ = docs
     }

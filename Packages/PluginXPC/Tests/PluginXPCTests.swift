@@ -164,6 +164,63 @@ struct XPCPluginHostTests {
     }
 }
 
+// MARK: - 注销残留进程清理（P1：进程泄漏）
+
+@Suite("XPCPluginHost deregister 残留清理")
+struct XPCPluginHostCleanupTests {
+    /// 线程安全的终止调用记录
+    private final class PIDBox: @unchecked Sendable {
+        private let lock = NSLock()
+        private var pids: [Int32] = []
+        func call(_ pid: Int32) {
+            lock.withLock { pids.append(pid) }
+        }
+
+        var all: [Int32] {
+            lock.withLock { pids }
+        }
+    }
+
+    @Test("注销时对 bootout 后残留的 worker 发送终止信号")
+    func deregisterTerminatesLeftovers() async {
+        let uid = getuid()
+        let runner = FakeRunner(results: [
+            (args: ["/bin/launchctl", "bootstrap", "gui/\(uid)"], exitCode: 0, output: ""),
+            (args: ["/usr/bin/pgrep", "-f", "/tmp/worker"], exitCode: 0, output: "123\n456"),
+        ])
+        let box = PIDBox()
+        let host = XPCPluginHost(runner: runner, terminate: { pid in box.call(pid) })
+        #expect(await host.ensureWorkerRegistered(workerPath: "/tmp/worker"))
+        await host.deregister()
+        #expect(box.all.sorted() == [123, 456])
+    }
+
+    @Test("未注册时注销不触发 pgrep")
+    func deregisterWithoutRegistration() async {
+        let runner = FakeRunner(results: [])
+        let host = XPCPluginHost(runner: runner)
+        await host.deregister()
+        #expect(runner.calls.allSatisfy { $0.first != "/usr/bin/pgrep" })
+    }
+
+    @Test("注销幂等：二次注销不再清理")
+    func deregisterIdempotent() async {
+        let uid = getuid()
+        let runner = FakeRunner(results: [
+            (args: ["/bin/launchctl", "bootstrap", "gui/\(uid)"], exitCode: 0, output: ""),
+            (args: ["/usr/bin/pgrep", "-f", "/tmp/worker"], exitCode: 0, output: ""),
+        ])
+        let box = PIDBox()
+        let host = XPCPluginHost(runner: runner, terminate: { _ in box.call(1) })
+        #expect(await host.ensureWorkerRegistered(workerPath: "/tmp/worker"))
+        await host.deregister()
+        await host.deregister()
+        let pgrepCalls = runner.calls.filter { $0.first == "/usr/bin/pgrep" }.count
+        #expect(pgrepCalls == 1)
+        #expect(box.all.isEmpty)
+    }
+}
+
 // MARK: - 端到端（真实 launchd + worker 进程，环境不支持时自动跳过）
 
 @Suite("XPC E2E Tests")
@@ -189,14 +246,22 @@ struct XPCEndToEndTests {
     func e2e() async throws {
         let workerPath = try #require(Self.workerPath)
         let host = XPCPluginHost()
-        defer {
-            Task { await host.deregister() }
-        }
 
-        // 清理残留注册
+        // 清理残留注册（含历史崩溃/中断遗留）
         let uid = getuid()
         _ = try? ProcessCommandRunner().run(["launchctl", "bootout", "gui/\(uid)/\(XPCPluginHost.serviceName)"])
 
+        do {
+            try await e2eBody(workerPath: workerPath, host: host)
+        } catch {
+            // 任意失败路径都同步注销（含 bootout 后残留进程的 SIGTERM 清理），杜绝进程泄漏
+            await host.deregister()
+            throw error
+        }
+    }
+
+    /// e2e 主体：注册 → 连接 → 跨进程插件启动/健康/停止 → 注销并断言进程退出
+    private func e2eBody(workerPath: String, host: XPCPluginHost) async throws {
         #expect(await host.ensureWorkerRegistered(workerPath: workerPath))
         #expect(await host.connect())
 

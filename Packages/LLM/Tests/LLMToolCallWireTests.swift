@@ -190,6 +190,59 @@ final class OpenAICompatToolWireTests: XCTestCase {
         XCTAssertTrue(body.contains("\"stream\":true") || body.contains("\"stream\": true"))
     }
 
+    /// P2：SSE 流式转发 reasoning 增量（DeepSeek 推理过程流式可见）
+    func testStreamEventsForwardsReasoningDeltas() async throws {
+        let body = """
+        data: {"choices":[{"delta":{"reasoning_content":"第一步："}}]}
+        data: {"choices":[{"delta":{"reasoning_content":"分析需求。"}}]}
+        data: {"choices":[{"delta":{"content":"最终"}}]}
+        data: {"choices":[{"delta":{"content":"答案"},"finish_reason":"stop"}]}
+        data: [DONE]
+        """
+        StubURLProtocol.handler = { _ in .init(status: 200, body: body, contentType: "text/event-stream") }
+        var events: [OpenAIStreamEvent] = []
+        for try await event in client().streamEvents(model: "m",
+                                                     messages: [Message(role: .user, content: [.text("hi")])]) {
+            events.append(event)
+        }
+        // reasoning 增量按序在前，text 在后，终态收尾
+        XCTAssertEqual(events.count, 5)
+        guard case let .reasoning(r1) = events[0] else { return XCTFail("第 1 个事件应为 reasoning") }
+        guard case let .reasoning(r2) = events[1] else { return XCTFail("第 2 个事件应为 reasoning") }
+        XCTAssertEqual(r1, "第一步：")
+        XCTAssertEqual(r2, "分析需求。")
+        guard case let .text(t) = events[2] else { return XCTFail("第 3 个事件应为 text") }
+        XCTAssertEqual(t, "最终")
+        guard case let .text(t2) = events[3] else { return XCTFail("第 4 个事件应为 text") }
+        XCTAssertEqual(t2, "答案")
+        guard case let .done(finish, _, _) = events[4] else { return XCTFail("末事件应为 done") }
+        XCTAssertEqual(finish, .stop)
+    }
+
+    /// 适配器层：reasoning 增量映射为 type="reasoning" 的 StreamChunk
+    func testAdapterStreamMapsReasoningChunks() async throws {
+        let body = """
+        data: {"choices":[{"delta":{"reasoning_content":"思考中"}}]}
+        data: {"choices":[{"delta":{"content":"回答"},"finish_reason":"stop"}]}
+        data: [DONE]
+        """
+        StubURLProtocol.handler = { _ in .init(status: 200, body: body, contentType: "text/event-stream") }
+        let request = LLMRequest(model: "m", messages: [Message(role: .user, content: [.text("hi")])],
+                                 systemPrompt: nil, tools: nil, maxTokens: nil, temperature: nil)
+        var types: [String] = []
+        var reasoningPayload = ""
+        let adapter = OpenAIAdapter(apiKey: "k", baseURL: base, session: makeStubSession())
+        let stream = try await adapter.stream(request)
+        for try await chunk in stream {
+            types.append(chunk.type)
+            if chunk.type == "reasoning" {
+                reasoningPayload += String(data: chunk.data, encoding: .utf8) ?? ""
+            }
+        }
+        XCTAssertEqual(types, ["reasoning", "text", "message_complete"])
+        XCTAssertEqual(reasoningPayload, "思考中")
+    }
+
     func testToolCallDeltaAccumulatorOrdering() {
         var acc = ToolCallDeltaAccumulator()
         // 乱序到达：index0 先到 → index1 → index0 续片（输出顺序 = index 首次出现顺序）
@@ -301,7 +354,7 @@ final class AdapterNormalizationTests: XCTestCase {
         XCTAssertEqual(DeepSeekAdapter(apiKey: "k").profile, ProviderProfile.deepSeek)
         XCTAssertEqual(LocalAdapter().profile, ProviderProfile.local)
         XCTAssertEqual(AnthropicAdapter(apiKey: "k").profile, ProviderProfile.anthropic)
-        // 协议默认画像（mock provider 兜底）
+        // 协议默认画像：mock/脚本化 provider 兜底为全能力画像
         struct MockProfileProvider: LLMProvider {
             let id = "p"
             let supportedModels: [String] = []
@@ -313,7 +366,7 @@ final class AdapterNormalizationTests: XCTestCase {
                 AsyncThrowingStream { $0.finish() }
             }
         }
-        XCTAssertEqual(MockProfileProvider().profile, ProviderProfile.local)
+        XCTAssertEqual(MockProfileProvider().profile, ProviderProfile.mock)
     }
 }
 

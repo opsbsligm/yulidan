@@ -935,7 +935,9 @@ final class AppViewModel: ObservableObject {
             return AnthropicAdapter(apiKey: key)
         case .local:
             let base = URL(string: cfg.localBaseURL) ?? URL(string: "http://localhost:11434/v1")!
-            return LocalAdapter(apiKey: key.isEmpty ? "local" : key, baseURL: base)
+            return LocalAdapter(apiKey: key.isEmpty ? "local" : key,
+                                baseURL: base,
+                                profile: ProviderProfile.local(forModel: cfg.modelName))
         }
     }
 

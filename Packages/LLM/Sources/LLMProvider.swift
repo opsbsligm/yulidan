@@ -4,6 +4,8 @@ import ServiceContainer
 public protocol LLMProvider: Sendable {
     var id: String { get }
     var supportedModels: [String] { get }
+    /// 能力画像（决定 tools 下发 / reasoning 门控 / max_tokens 默认值等 wire 差异）
+    var profile: ProviderProfile { get }
     func request(_ request: LLMRequest) async throws -> LLMResponse
     func stream(_ request: LLMRequest) async throws -> AsyncThrowingStream<StreamChunk, Error>
 }

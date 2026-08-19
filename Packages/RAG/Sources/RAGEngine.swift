@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 // MARK: - 检索结果（含来源溯源）
@@ -97,7 +98,11 @@ public actor RAGEngine {
         await ingest(DocumentLoader.loadText(text, source: source, title: title, metadata: metadata))
     }
 
-    /// 入库一个文档；返回切片数（同 id 覆盖）
+    /// 入库一个文档；返回切片数（同 id 覆盖）。
+    /// 去重语义（避免同文件重复入库产生重复块）：
+    /// - 来源（source）是知识库中文档的规范标识；同 source 再入库 → 覆盖旧版本，不产生重复切片；
+    /// - 异 source 即使内容相同也各自保留（允许同一内容挂不同来源标签）；
+    /// - 元数据写入 content_hash（SHA256）供溯源与外部去重查询。
     @discardableResult
     public func ingest(_ doc: LoadedDocument, metadata: [String: String]? = nil) async -> Int {
         let chunks = Chunker.chunk(doc.text, documentID: doc.id, options: chunking)
@@ -105,6 +110,12 @@ public actor RAGEngine {
             return 0
         }
         let merged = metadata ?? doc.metadata
+        var deduped = merged
+        deduped["content_hash"] = Self.sha256Hex(doc.text)
+        // 同来源旧版本（同文件重复 ingest / 文件内容更新）先移除再入库
+        for oldID in await store.documentIDs(withSource: doc.source) where oldID != doc.id {
+            await store.removeDocument(oldID)
+        }
         let stored: [StoredChunk] = chunks.map { chunk in
             StoredChunk(id: chunk.id,
                         documentID: doc.id,
@@ -114,7 +125,7 @@ public actor RAGEngine {
                         charEnd: chunk.charEnd,
                         source: doc.source,
                         title: doc.title,
-                        metadata: merged,
+                        metadata: deduped,
                         vector: vectorizer.embed(chunk.text))
         }
         await store.upsert(stored)
@@ -129,6 +140,11 @@ public actor RAGEngine {
     /// 清空
     public func clear() async {
         await store.clear()
+    }
+
+    /// 正文内容 SHA256（去重键）
+    static func sha256Hex(_ text: String) -> String {
+        SHA256.hash(data: Data(text.utf8)).map { String(format: "%02x", $0) }.joined()
     }
 
     // MARK: 检索

@@ -35,6 +35,11 @@ private enum OpenAICompatAdapters {
                                 continuation.yield(StreamChunk(type: "text", data: data, index: index))
                                 index += 1
                             }
+                        case let .reasoning(r):
+                            if let data = r.data(using: .utf8) {
+                                continuation.yield(StreamChunk(type: "reasoning", data: data, index: index))
+                                index += 1
+                            }
                         case let .done(finish, usage: u, toolCalls: calls):
                             finishReason = finish
                             usage = u
@@ -137,19 +142,21 @@ public struct DeepSeekAdapter: LLMProvider {
 public struct LocalAdapter: LLMProvider {
     public let id = "local"
     public let supportedModels: [String] = ["local"]
-    public let profile = ProviderProfile.local
+    public let profile: ProviderProfile
 
     private let apiKey: String
     private let baseURL: URL
     private let session: URLSession
 
-    /// 默认指向 Ollama 的 OpenAI 兼容端点
+    /// 默认指向 Ollama 的 OpenAI 兼容端点；profile 可按模型名细分（ProviderProfile.local(forModel:)）
     public init(apiKey: String = "ollama",
                 baseURL: URL = URL(string: "http://localhost:11434/v1")!,
-                session: URLSession = .shared) {
+                session: URLSession = .shared,
+                profile: ProviderProfile = .local) {
         self.apiKey = apiKey
         self.baseURL = baseURL
         self.session = session
+        self.profile = profile
     }
 
     private var chat: OpenAICompatChat {

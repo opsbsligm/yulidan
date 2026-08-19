@@ -122,6 +122,51 @@ struct RAGEngineTests {
         #expect(await engine.count(documentID: firstIDs[0]) >= 1)
     }
 
+    // MARK: - 去重（P2：同文件重复入库）
+
+    @Test func ingestSameSourceTwiceDoesNotDuplicate() async {
+        let engine = makeEngine()
+        _ = await engine.ingestText("重复入库测试：swift 并发 actor 隔离", source: "f.md", title: "F")
+        let (docs1, chunks1, _) = await engine.stats()
+        _ = await engine.ingestText("重复入库测试：swift 并发 actor 隔离", source: "f.md", title: "F")
+        let (docs2, chunks2, _) = await engine.stats()
+        #expect(docs2 == 1)
+        #expect(chunks2 == chunks1)
+        let hits = await engine.retrieve(query: "重复入库 测试")
+        #expect(hits.count == 1)
+    }
+
+    @Test func ingestSameSourceUpdatedContentReplaces() async {
+        let engine = makeEngine()
+        _ = await engine.ingestText("旧版本内容：苹果香蕉", source: "doc.md", title: "Doc")
+        _ = await engine.ingestText("新版本内容：量子计算突破", source: "doc.md", title: "Doc")
+        let (docs, _, _) = await engine.stats()
+        #expect(docs == 1)
+        // 旧内容不再命中，新内容命中
+        #expect(await engine.retrieve(query: "苹果 香蕉").isEmpty)
+        #expect(await !(engine.retrieve(query: "量子计算")).isEmpty)
+    }
+
+    @Test func differentSourceSameContentBothKept() async {
+        let engine = makeEngine()
+        _ = await engine.ingestText("相同正文两种来源", source: "a.md")
+        _ = await engine.ingestText("相同正文两种来源", source: "b.md")
+        let (docs, _, _) = await engine.stats()
+        #expect(docs == 2)
+    }
+
+    @Test func ingestPathTwiceDedupes() async throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("rag-dedup-\(UUID().uuidString).txt")
+        try "路径入库去重验证文本".write(to: url, atomically: true, encoding: .utf8)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let engine = makeEngine()
+        _ = try await engine.ingestPath(url.path)
+        _ = try await engine.ingestPath(url.path)
+        let (docs, _, _) = await engine.stats()
+        #expect(docs == 1)
+    }
+
     @Test func saveRoundTripThroughFile() async {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("rag-engine-\(UUID().uuidString).json")
         defer { try? FileManager.default.removeItem(at: url) }
