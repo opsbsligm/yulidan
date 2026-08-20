@@ -13,19 +13,25 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CFBundleName</key><string>HarnessApp</string>
+    <key>CFBundleName</key><string>Harness</string>
     <key>CFBundleDisplayName</key><string>Harness</string>
-    <key>CFBundleIdentifier</key><string>com.harness.app</string>
+    <key>CFBundleIdentifier</key><string>com.deepseek.harness</string>
     <key>CFBundleVersion</key><string>0.2.0</string>
     <key>CFBundleShortVersionString</key><string>0.2.0</string>
     <key>CFBundleExecutable</key><string>HarnessApp</string>
     <key>CFBundlePackageType</key><string>APPL</string>
-    <key>LSMinimumSystemVersion</key><string>15.0</string>
+    <key>LSMinimumSystemVersion</key><string>26.0</string>
     <key>NSHighResolutionCapable</key><true/>
+    <key>NSPrincipalClass</key><string>NSApplication</string>
+    <key>NSUbiquitousContainerIdentifiers</key>
+    <array>
+        <string>iCloud.com.deepseek.harness</string>
+    </array>
 </dict>
 </plist>
 PLIST
-codesign --force --sign - "$APP" >/dev/null 2>&1 || true
+# ad-hoc 签名带 entitlements（SSO/iCloud 描述文件就绪后真机生效；缺失时运行时优雅降级）
+codesign --force --sign - --entitlements Apps/HarnessApp/HarnessApp.ci.entitlements "$APP" >/dev/null 2>&1 || true
 echo "OK: $APP"
 
 if [ "${1:-}" = "relaunch" ]; then

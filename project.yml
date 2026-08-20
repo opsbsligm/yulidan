@@ -10,7 +10,7 @@ options:
 settings:
   base:
     SWIFT_VERSION: "6.0"
-    MACOSX_DEPLOYMENT_TARGET: "15.0"
+    MACOSX_DEPLOYMENT_TARGET: "26.0"
     CODE_SIGN_IDENTITY: "-"
     CODE_SIGN_STYLE: Manual
     CODE_SIGNING_REQUIRED: NO
@@ -51,6 +51,12 @@ targets:
         OTHER_SWIFT_FLAGS:
           - -Xcc
           - -fmodule-map-file=$(SRCROOT)/Support/CSQLite/module.modulemap
+  Account:
+    type: library.static
+    platform: macOS
+    sources: [Packages/Account/Sources]
+    dependencies:
+      - target: ServiceContainer
   LLM:
     type: library.static
     platform: macOS
@@ -286,15 +292,17 @@ targets:
       - target: Skill
       - target: Terminal
       - target: Sandbox
+      - target: Account
       - package: GRDB
         product: GRDB
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.harness.app
+        PRODUCT_BUNDLE_IDENTIFIER: com.deepseek.harness
         PRODUCT_NAME: Harness
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_CFBundleDisplayName: Harness
         INFOPLIST_KEY_NSHumanReadableCopyright: "MIT License"
+        CODE_SIGN_ENTITLEMENTS: Apps/HarnessApp/HarnessApp.ci.entitlements
   MemProbe:
     type: tool
     platform: macOS
@@ -340,6 +348,17 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.harness.LLMTests
+        GENERATE_INFOPLIST_FILE: YES
+  AccountTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources: [Packages/Account/Tests]
+    dependencies:
+      - target: Account
+      - target: ServiceContainer
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.harness.AccountTests
         GENERATE_INFOPLIST_FILE: YES
   ToolsTests:
     type: bundle.unit-test
@@ -392,6 +411,7 @@ schemes:
         - LLMTests
         - ToolsTests
         - AgentTests
+        - AccountTests
   All:
     build:
       targets:
@@ -406,3 +426,4 @@ schemes:
         - LLMTests
         - ToolsTests
         - AgentTests
+        - AccountTests

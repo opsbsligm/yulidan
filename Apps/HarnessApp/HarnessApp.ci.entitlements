@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- CI / ad-hoc 构建专用：不含 team 级能力（applesignin / icloud），
+	     避免 xcodebuild 在无描述文件时要求 provisioning profile。
+	     运行时探测到无容器 → 自动降级本地模式（P0.1 设计）。
+	     Apple 开发者 Team / 描述文件就绪后，切换为 HarnessApp.entitlements。 -->
+	<key>com.apple.security.get-task-allow</key>
+	<true/>
+</dict>
+</plist>

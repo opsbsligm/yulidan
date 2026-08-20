@@ -122,6 +122,17 @@
                ReferencedContainer = "container:swift-harness.xcodeproj">
             </BuildableReference>
          </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "A35D36C6F4F406309E9A115F"
+               BuildableName = "AccountTests.xctest"
+               BlueprintName = "AccountTests"
+               ReferencedContainer = "container:swift-harness.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
       <CommandLineArguments>
       </CommandLineArguments>

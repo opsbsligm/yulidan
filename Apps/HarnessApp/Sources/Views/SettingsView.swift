@@ -1,3 +1,4 @@
+import Account
 import SwiftUI
 
 // MARK: - 设置两级菜单模型
@@ -32,7 +33,7 @@ enum SettingsTab: CaseIterable, Identifiable {
     var children: [SettingsSubTab] {
         switch self {
         case .general:
-            [.preferences, .notifications, .sandbox]
+            [.preferences, .notifications, .sandbox, .account]
         case .llm:
             [.providers, .params, .connection]
         case .plugins:
@@ -49,7 +50,7 @@ enum SettingsTab: CaseIterable, Identifiable {
 
 /// 二级子页（子页面导航/跳转的目标）
 enum SettingsSubTab: CaseIterable, Identifiable, Hashable {
-    case preferences, notifications, sandbox
+    case preferences, notifications, sandbox, account
     case providers, params, connection
     case pluginManagement
     case about
@@ -66,6 +67,7 @@ enum SettingsSubTab: CaseIterable, Identifiable, Hashable {
         case .providers: "提供商与密钥"
         case .params: "请求参数"
         case .connection: "连接测试"
+        case .account: "账号与同步"
         case .pluginManagement: "插件管理"
         case .about: "关于 Harness"
         }
@@ -79,6 +81,7 @@ enum SettingsSubTab: CaseIterable, Identifiable, Hashable {
         case .providers: "brain"
         case .params: "cpu"
         case .connection: "link"
+        case .account: "icloud"
         case .pluginManagement: "puzzlepiece.extension"
         case .about: "info.circle"
         }
@@ -86,7 +89,7 @@ enum SettingsSubTab: CaseIterable, Identifiable, Hashable {
 
     var parentTab: SettingsTab {
         switch self {
-        case .preferences, .notifications, .sandbox: .general
+        case .preferences, .notifications, .sandbox, .account: .general
         case .providers, .params, .connection: .llm
         case .pluginManagement: .plugins
         case .about: .about
@@ -131,6 +134,8 @@ struct SettingsView: View {
     var onSandboxChange: ((String?) -> Void)?
     /// 系统通知开关变更回调（由 AppViewModel 消费，同步 NotificationCoordinator）
     var onNotificationsChange: ((Bool) -> Void)?
+    /// 账号与工作区服务（P0.1；nil = 未就绪）
+    var accountService: AccountService?
 
     /// 导航状态机（选中分类 + 子页栈）
     @State private var nav = SettingsNavigationState()
@@ -233,6 +238,17 @@ struct SettingsView: View {
         case .sandbox:
             SectionSubPage {
                 FileSandboxSection(onSandboxChange: onSandboxChange)
+            }
+        case .account:
+            if let accountService {
+                SectionSubPage {
+                    AccountSyncSection(accountService: accountService)
+                }
+            } else {
+                SectionSubPage {
+                    Text("账号服务未就绪")
+                        .foregroundStyle(HarnessTheme.textSecondary)
+                }
             }
         case .providers, .params, .connection:
             // 单一容器承载模型服务三个子页（共享 LLMSettingsViewModel，切换子页不丢失未保存输入）

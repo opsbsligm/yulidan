@@ -1,3 +1,4 @@
+import Account
 import Agent
 import AppKit
 import Foundation
@@ -317,6 +318,8 @@ final class AppViewModel: ObservableObject {
     let subagentToolRegistry: ToolRegistry = .init()
     /// 技能注册表（内置 + ~/.harness/skills 用户目录）
     let skillRegistry: SkillRegistry = .init()
+    /// 账号与工作区（P0.1：Apple SSO + iCloud 双模式状态机；设置页「账号与同步」观察此对象）
+    let accountService: AccountService
     /// 用户技能目录（构造时一次性捕获：长生命周期 VM 期间目录不漂移；
     /// 测试在构造前注入 SkillStore.userSkillsDirectoryOverride 即可隔离）
     let skillUserDirectory: URL
@@ -368,6 +371,9 @@ final class AppViewModel: ObservableObject {
         self.skillUserDirectory = skillUserDirectory ?? SkillStore.userSkillsDirectory
         sessionDB = try? SessionDB(dbURL: sessionDBURL ?? Self.sessionDBURLOverride)
         sessionTitles = Self.loadTitles()
+        // P0.1：账号与工作区（默认本地模式；SSO+iCloud 需 entitlements 就绪后自动升级）
+        accountService = AccountService()
+        accountService.restore()
         // 先占位（init 两阶段初始化限制），onEvent 由 registerSubagentRuntime 后置赋值
         subagentCoordinator = SubagentCoordinator(maxConcurrent: 4)
 

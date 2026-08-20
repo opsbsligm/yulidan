@@ -92,7 +92,8 @@ struct ContentView: View {
             )
         case .settings:
             SettingsView(onSandboxChange: { viewModel.setSandboxRoot($0) },
-                         onNotificationsChange: { viewModel.setNotificationsEnabled($0) })
+                         onNotificationsChange: { viewModel.setNotificationsEnabled($0) },
+                         accountService: viewModel.accountService)
         }
     }
 }
