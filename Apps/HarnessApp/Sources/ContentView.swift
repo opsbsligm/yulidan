@@ -2,7 +2,10 @@ import Session
 import SwiftUI
 
 struct ContentView: View {
-    @State private var viewModel = AppViewModel()
+    /// ⚠️ 必须 @StateObject（非 @State）：AppViewModel 是 ObservableObject，
+    /// @State 不订阅 objectWillChange，异步加载 sessions 后根视图不重算 body，
+    /// 侧边栏会话列表将永远停留在启动时的空状态（2026-08-20 实机验收发现，P0）
+    @StateObject private var viewModel = AppViewModel()
 
     var body: some View {
         HStack(spacing: 0) {
