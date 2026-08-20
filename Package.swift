@@ -1,9 +1,9 @@
-// swift-tools-version: 6.0
+// swift-tools-version: 6.3
 import PackageDescription
 
 let package = Package(
     name: "swift-harness",
-    platforms: [.macOS(.v15)],
+    platforms: [.macOS(.v26)],
     products: [
         .library(name: "HarnessCore", targets: ["HarnessCore"]),
         .library(name: "WebUI", targets: ["WebUI"]),
