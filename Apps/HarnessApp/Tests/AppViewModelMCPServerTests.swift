@@ -134,7 +134,19 @@ struct AppViewModelMCPServerTests {
         #expect(await vm.mcpManager.isConnected(name: "broken2") == false)
     }
 
-    // MARK: 用例 6：parseEnvPairs 纯函数（合法 / 多对 / 非法丢弃 / 值含等号）
+    // MARK: 用例 6：运行日志（无 stderr 输出 → 占位提示）
+
+    @Test("mcpServerLog：无 stderr 输出时返回占位提示")
+    func mcpServerLogPlaceholder() async {
+        let (vm, _) = makeVM()
+        defer { AppViewModel.mcpConfigURLOverride = nil }
+        let item = MCPDisplayItem(id: "log-none", name: "log-none", command: "/usr/bin/true",
+                                  arguments: [], isAvailable: false, toolCount: nil, serverInfo: nil)
+        let log = await vm.mcpServerLog(item)
+        #expect(log.contains("stderr"))
+    }
+
+    // MARK: 用例 7：parseEnvPairs 纯函数（合法 / 多对 / 非法丢弃 / 值含等号）
 
     @Test("parseEnvPairs：合法、多对、非法项丢弃、值含等号")
     func parseEnvPairsCases() {

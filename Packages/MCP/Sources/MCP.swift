@@ -247,6 +247,12 @@ public actor MCPServerManager {
         descriptors.values.sorted { $0.name < $1.name }
     }
 
+    /// 诊断：stdio 服务器最近的 stderr 输出（内存客户端/未注册名 → 空串）
+    public func recentStderr(name: String) async -> String {
+        guard let stdio = clients[name] as? StdioMCPClient else { return "" }
+        return await stdio.recentStderr
+    }
+
     /// 把全部客户端的全部工具生成为本地 Tool
     public func makeTools() async -> [any Tool] {
         var tools: [any Tool] = []

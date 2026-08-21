@@ -21,6 +21,8 @@ struct PluginListView: View {
     @State private var mcpFormCommand = ""
     @State private var mcpFormArguments = ""
     @State private var mcpFormEnvironment = ""
+    /// P0.4 运行日志面板（非 nil = 展示日志 sheet）
+    @State private var logServer: MCPDisplayItem?
 
     var filteredMarket: [MarketplaceDisplayItem] {
         if searchText.isEmpty {
@@ -166,6 +168,8 @@ struct PluginListView: View {
                             ForEach(filteredMCPServers, id: \.id) { server in
                                 MCPServerRow(server: server) {
                                     Task { await viewModel.retryMCPServer(server) }
+                                } onLogs: {
+                                    logServer = server
                                 } onRemove: {
                                     Task { await viewModel.removeMCPServer(server) }
                                 }
@@ -195,6 +199,9 @@ struct PluginListView: View {
         }
         .onChange(of: pane) { _, _ in
             selectedPluginId = nil
+        }
+        .sheet(item: $logServer) { server in
+            MCPServerLogSheet(viewModel: viewModel, server: server)
         }
     }
 
@@ -508,70 +515,5 @@ struct MarketplaceCard: View {
                 Button("安装", action: onInstall).buttonStyle(.borderedProminent).controlSize(.small)
             }
         }
-    }
-}
-
-// MARK: - P0.4 MCP stdio 服务器行
-
-struct MCPServerRow: View {
-    let server: MCPDisplayItem
-    let onRetry: () -> Void
-    let onRemove: () -> Void
-    @State private var isHovered = false
-
-    var body: some View {
-        HStack(spacing: 12) {
-            ZStack {
-                Circle().fill(server.isAvailable ? Color.green.opacity(0.2) : Color.red.opacity(0.2))
-                    .frame(width: 36, height: 36)
-                Circle().fill(server.isAvailable ? Color.green : Color.red)
-                    .frame(width: 10, height: 10)
-            }
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 6) {
-                    Text(server.name).font(.system(.body, design: .rounded)).fontWeight(.medium)
-                    Text(server.isAvailable ? "运行中" : "离线").font(.system(size: 11))
-                        .foregroundStyle(server.isAvailable ? Color.green : Color.red)
-                    if let count = server.toolCount {
-                        Text("\(count) 个工具").font(.system(size: 11))
-                            .foregroundStyle(HarnessTheme.textTertiary)
-                    }
-                    Spacer()
-                    if !server.isAvailable {
-                        Button {
-                            onRetry()
-                        } label: {
-                            Label("重启", systemImage: "arrow.clockwise").font(.system(size: 11))
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.mini)
-                    }
-                    Button {
-                        onRemove()
-                    } label: {
-                        Label("卸载", systemImage: "trash").font(.system(size: 11))
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.mini)
-                    .tint(.red)
-                }
-                Text(server.command +
-                    (server.arguments.isEmpty ? "" : " " + server.arguments.joined(separator: " ")))
-                    .font(.system(size: 12, design: .monospaced))
-                    .foregroundStyle(HarnessTheme.textSecondary)
-                    .lineLimit(1).truncationMode(.tail)
-                if !server.isAvailable, let info = server.serverInfo {
-                    Text(info).font(.system(size: 11)).foregroundStyle(HarnessTheme.textTertiary)
-                        .lineLimit(1).truncationMode(.tail)
-                }
-            }
-        }
-        .padding(12)
-        .background(isHovered ? Color(NSColor.controlBackgroundColor).opacity(0.4) : HarnessTheme.surface.opacity(0.5))
-        .cornerRadius(10)
-        .overlay(RoundedRectangle(cornerRadius: 10)
-            .stroke(isHovered ? HarnessTheme.accent.opacity(0.3) : HarnessTheme.border, lineWidth: 0.5))
-        .onHover { isHovered = $0 }
-        .contentShape(Rectangle())
     }
 }

@@ -1959,6 +1959,15 @@ final class AppViewModel: ObservableObject {
         }
     }
 
+    /// MCP 服务器运行日志（最近 stderr；供日志面板展示）
+    func mcpServerLog(_ item: MCPDisplayItem) async -> String {
+        let raw = await mcpManager.recentStderr(name: item.name)
+        guard !raw.isEmpty else {
+            return "（暂无 stderr 输出 — 连接正常时属常见；连接失败请检查命令路径与启动参数）"
+        }
+        return raw
+    }
+
     /// 导入（或同名更新）本地 MCP 服务器：写 servers.json → 即时连接 → 刷新工具
     func importMCPServer(name: String, command: String, arguments: String, environment: String) async {
         let trimmedName = name.trimmingCharacters(in: .whitespaces)
@@ -2199,7 +2208,10 @@ final class AppViewModel: ObservableObject {
             let result: String
             do {
                 guard let toolImpl = await self.toolRegistry.tool(named: tool.name) else {
-                    result = "⚠️ 工具 \(tool.name) 未注册"
+                    // 早退失败也回写完成态（原先直接 return，槽位永久卡在“执行中”）
+                    await MainActor.run {
+                        self.finishToolExecution(id: tool.id, result: "⚠️ 工具 \(tool.name) 未注册")
+                    }
                     return
                 }
                 let context = ToolRunContext(
@@ -2219,16 +2231,23 @@ final class AppViewModel: ObservableObject {
                 result = "❌ 执行异常：\(error.localizedDescription)"
             }
             await MainActor.run {
-                guard index < self.tools.count else { return }
-                let t = self.tools[index]
-                self.tools[index] = ToolDisplayItem(
-                    id: t.id, name: t.name, description: t.description,
-                    parameters: t.parameters, category: t.category,
-                    categoryDisplay: t.categoryDisplay, isExecuted: true,
-                    lastResult: result, executing: false
-                )
+                // 按身份（tool.id）回写：并发 refreshTools() 可能重建/重排展示数组，
+                // 裸 index 会过期把完成态写进错误槽位（2026-08-21 并发全量门禁实测串槽）
+                self.finishToolExecution(id: tool.id, result: result)
             }
         }
+    }
+
+    /// 工具执行完成回写（按 tool.id 定位槽位；工具已不在展示列表则丢弃）
+    private func finishToolExecution(id: String, result: String) {
+        guard let i = tools.firstIndex(where: { $0.id == id }) else { return }
+        let t = tools[i]
+        tools[i] = ToolDisplayItem(
+            id: t.id, name: t.name, description: t.description,
+            parameters: t.parameters, category: t.category,
+            categoryDisplay: t.categoryDisplay, isExecuted: true,
+            lastResult: result, executing: false
+        )
     }
 
     /// 解析用户输入的 JSON 参数（容错：非 JSON 时整体作为 cmd/path）

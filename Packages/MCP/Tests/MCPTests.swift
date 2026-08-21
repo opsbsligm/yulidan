@@ -121,6 +121,34 @@ final class MCPTests: XCTestCase {
         XCTAssertFalse(dead)
     }
 
+    func testManagerRecentStderrExposesCapture() async throws {
+        let manager = MCPServerManager()
+        // 未注册名 → 空串
+        let unknown = await manager.recentStderr(name: "no-such-server")
+        XCTAssertEqual(unknown, "")
+        // stdio 子进程 stderr 经管理器访问器可读（握手失败不影响捕获）
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("harness-mcp-stderr-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let script = dir.appendingPathComponent("stderr_server.py").path
+        try "import sys\nsys.stderr.write('mgr-log-marker\\n')\nsys.stderr.flush()\n".write(
+            toFile: script, atomically: true, encoding: .utf8
+        )
+        let client = StdioMCPClient(name: "err-src",
+                                    configuration: StdioMCPConfiguration(command: "/usr/bin/env",
+                                                                         arguments: ["python3", script],
+                                                                         startupTimeout: 5))
+        await manager.register(client)
+        _ = try? await client.listTools() // 启动子进程（脚本不响应 MCP → 握手失败，stderr 捕获已生效）
+        try await Task.sleep(nanoseconds: 500_000_000) // 等 stderr 泵落盘
+        let stderr = await manager.recentStderr(name: "err-src")
+        await manager.disconnect(name: "err-src")
+        let afterDisconnect = await manager.recentStderr(name: "err-src")
+        XCTAssertTrue(stderr.contains("mgr-log-marker"))
+        XCTAssertEqual(afterDisconnect, "")
+    }
+
     func testMCPErrorDescriptions() {
         XCTAssertTrue(MCPError.unknownTool("t").description.contains("t"))
         XCTAssertTrue(MCPError.unknownClient("c").description.contains("c"))
