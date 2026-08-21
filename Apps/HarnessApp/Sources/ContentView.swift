@@ -14,6 +14,9 @@ struct ContentView: View {
                 selectedTab: $viewModel.selectedTab,
                 selectedSession: $viewModel.selectedSession,
                 sessions: viewModel.searchResults ?? viewModel.sessions,
+                projects: viewModel.projects,
+                isSearching: viewModel.searchResults != nil,
+                searchProjectScope: viewModel.searchProjectScope,
                 generatingSessionId: viewModel.generatingSessionId,
                 isCollapsed: viewModel.isSidebarCollapsed,
                 onToggleCollapse: {
@@ -24,7 +27,17 @@ struct ContentView: View {
                 onSelectSession: { viewModel.selectSession($0) },
                 onTogglePin: { viewModel.togglePinSession($0) },
                 onDeleteSession: { viewModel.deleteSession($0) },
-                onSearch: { viewModel.handleSessionSearch($0) }
+                onSearch: { viewModel.handleSessionSearch($0) },
+                onSearchScope: { viewModel.setSearchProjectScope($0) },
+                onCreateProject: { viewModel.createProject(name: $0) },
+                onRenameProject: { viewModel.renameProject($0, to: $1) },
+                onDeleteProject: { viewModel.deleteProject($0, option: $1) },
+                onToggleProjectArchived: { viewModel.toggleProjectArchived($0) },
+                onToggleProjectCollapsed: { viewModel.toggleProjectCollapsed($0) },
+                onMoveSession: { viewModel.moveSession($0, to: $1) },
+                onToggleSessionArchived: { viewModel.toggleSessionArchived($0) },
+                onUnarchiveProject: { viewModel.unarchiveProject($0) },
+                onUnarchiveSession: { viewModel.unarchiveSession($0) }
             )
 
             Divider().frame(width: 1)

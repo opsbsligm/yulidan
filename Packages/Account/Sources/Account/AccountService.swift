@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import Workspace
 
 /// 账号与工作区服务（P0.1 事实源：Apple SSO + iCloud + 双模式状态机）。
 /// @MainActor：UI 直接观察 @Published 状态；探测 / Keychain / 小文件 IO 均为亚毫秒同步操作。
@@ -25,6 +26,7 @@ public final class AccountService: ObservableObject {
     private var activeSigner: (any AppleSigning)?
     private var syncService: MetadataSyncService?
     private var kvsObserver: (any NSObjectProtocol)?
+    private var workspaceEngine: WorkspaceSyncEngine?
 
     /// iCloud 容器标识
     public var containerIdentifier: String {
@@ -240,6 +242,7 @@ public final class AccountService: ObservableObject {
     }
 
     private func deactivateSync() {
+        workspaceEngine = nil
         syncService = nil
         if let observer = kvsObserver {
             NotificationCenter.default.removeObserver(observer)
@@ -282,7 +285,34 @@ public final class AccountService: ObservableObject {
             return true
         }
         isOnline = await sync.isOnline()
+        // 外部变更可能携带远端工作区载荷 → 引擎求差落库（无差异/坏数据 no-op）
+        if let engine = workspaceEngine, let value = await sync.value(forKey: WorkspaceSyncPayload.kvsKey) {
+            await engine.applyRemoteValue(value)
+        }
         return false
+    }
+
+    // MARK: - 工作区同步桥
+
+    /// App 层挂接工作区存储后返回同步引擎（icloudReady 之前调用返回 nil）。
+    /// - 幂等：重复挂接返回既有引擎
+    /// - 挂接时若云端已有工作区载荷，立即应用初始差异
+    /// - 注意：MetadataSyncService.configure 是整体替换语义，必须带上账号模式键
+    @discardableResult
+    public func attachWorkspaceStore(_ store: any WorkspaceStateStoring) -> WorkspaceSyncEngine? {
+        guard state.isICloudReady, let sync = syncService else { return nil }
+        if let existing = workspaceEngine {
+            return existing
+        }
+        let engine = WorkspaceSyncEngine(sync: sync, store: store)
+        workspaceEngine = engine
+        // 短生命周期任务：强捕获 sync/engine（actor 引用，不持有 self，无循环）
+        Task {
+            await sync.configure(managedKeys: [Self.keyAccountMode, WorkspaceSyncPayload.kvsKey])
+            guard let initial = await sync.value(forKey: WorkspaceSyncPayload.kvsKey) else { return }
+            await engine.applyRemoteValue(initial)
+        }
+        return engine
     }
 
     /// KVS 变更原因原始值 → 枚举（与 NSUbiquitousKeyValueStore.ChangeReason 声明顺序一致：0 server / 1 initialSync / 2 quota / 3 account）

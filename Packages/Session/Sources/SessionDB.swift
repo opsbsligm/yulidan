@@ -47,6 +47,16 @@ public actor SessionDB {
                 t.primaryKey(["session_id", "seq"])
             }
         }
+        migrator.registerMigration("v2") { db in
+            try db.create(table: "projects") { t in
+                t.column("id", .text).primaryKey()
+                t.column("name", .text).notNull()
+                t.column("created_at", .double).notNull()
+                t.column("archived", .integer).notNull().defaults(to: 0)
+                t.column("collapsed", .integer).notNull().defaults(to: 0)
+                t.column("sort_order", .double).notNull().defaults(to: 0)
+            }
+        }
         try migrator.migrate(dbQueue)
     }
 
@@ -204,6 +214,87 @@ public actor SessionDB {
             try db.execute(sql: "DELETE FROM events WHERE session_id = ?", arguments: [id.rawValue.uuidString])
             try db.execute(sql: "DELETE FROM sessions WHERE id = ?", arguments: [id.rawValue.uuidString])
         }
+    }
+
+    // MARK: - 项目（projects 表，域模型映射见 Workspace.Project）
+
+    /// 加载全部项目行（含归档；排序：sort_order 升序 → created_at 升序）
+    public func loadProjectRows() throws -> [ProjectRow] {
+        try dbQueue.read { db in
+            let req: SQLRequest<Row> = "SELECT * FROM projects ORDER BY sort_order ASC, created_at ASC"
+            let rows = try req.fetchAll(db)
+            return rows.compactMap { rd in
+                // 与 mapRow 一致：用类型化下标读取（Int?/Double? 由 GRDB 完成值转换）
+                let archivedInt: Int? = rd["archived"]
+                let collapsedInt: Int? = rd["collapsed"]
+                return ProjectRow(
+                    id: rd["id"] as? String ?? "",
+                    name: rd["name"] as? String ?? "",
+                    createdAt: Date(timeIntervalSince1970: rd["created_at"] as? Double ?? 0),
+                    archived: (archivedInt ?? 0) != 0,
+                    collapsed: (collapsedInt ?? 0) != 0,
+                    sortOrder: rd["sort_order"] as? Double ?? 0
+                )
+            }
+        }
+    }
+
+    /// 项目行 upsert（新建/重命名/归档/折叠/排序共用）
+    public func saveProjectRow(_ row: ProjectRow) throws {
+        try dbQueue.write { db in
+            try db.execute(
+                sql: """
+                INSERT INTO projects (id, name, created_at, archived, collapsed, sort_order)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    name = excluded.name,
+                    archived = excluded.archived,
+                    collapsed = excluded.collapsed,
+                    sort_order = excluded.sort_order
+                """,
+                arguments: [
+                    row.id, row.name, row.createdAt.timeIntervalSince1970,
+                    row.archived ? 1 : 0, row.collapsed ? 1 : 0, row.sortOrder,
+                ]
+            )
+        }
+    }
+
+    /// 删除项目行（仅项目本身；内部会话按删除策略另行处理）
+    public func deleteProjectRow(id: String) throws {
+        try dbQueue.write { db in
+            try db.execute(sql: "DELETE FROM projects WHERE id = ?", arguments: [id])
+        }
+    }
+
+    /// 项目行存在性（取消归档回落全局判定用）
+    public func projectRowExists(id: String) throws -> Bool {
+        try dbQueue.read { db in
+            let req: SQLRequest<Row> = SQLRequest(
+                sql: "SELECT 1 FROM projects WHERE id = ?",
+                arguments: [id]
+            )
+            return try req.fetchOne(db) != nil
+        }
+    }
+}
+
+/// 项目持久化行（Workspace.Project 域模型负责双向映射）
+public struct ProjectRow: Sendable, Codable, Equatable {
+    public let id: String
+    public var name: String
+    public var createdAt: Date
+    public var archived: Bool
+    public var collapsed: Bool
+    public var sortOrder: Double
+
+    public init(id: String, name: String, createdAt: Date, archived: Bool, collapsed: Bool, sortOrder: Double) {
+        self.id = id
+        self.name = name
+        self.createdAt = createdAt
+        self.archived = archived
+        self.collapsed = collapsed
+        self.sortOrder = sortOrder
     }
 }
 

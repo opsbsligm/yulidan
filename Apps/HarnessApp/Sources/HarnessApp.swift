@@ -154,6 +154,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// 帧监视器连续异常计数（主线程 Timer 回调使用）
     private var frameMismatch = OSAllocatedUnfairLock<Int>(initialState: 0)
+    /// 看门狗目标屏缓存：仅屏幕配置变化时重算，避免每 tick 动态打分造成目标屏振荡
+    private var watchdogTarget: NSScreen?
+    private var watchdogScreenSig: String?
 
     private func startFrameWatchdog(for window: NSWindow) {
         frameWatchdog = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak window] _ in
@@ -171,9 +174,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             window.deminiaturize(nil)
             return
         }
-        guard let target = NSScreen.screens.max(by: {
-            $0.frame.width * $0.frame.height < $1.frame.width * $1.frame.height
-        }) else { return }
+        // 目标屏与启动逻辑一致：用户实际面对的屏（按屏上应用窗口数打分）。
+        // 旧逻辑「面积最大屏」在双屏非主屏更大时（本机：4K 外屏 > 内置屏）会把窗口
+        // 推到用户看不到的屏，且该屏窗口服务器碎片化时窗口彻底不可见（P0.2 现场实测）
+        let sig = NSScreen.screens.map { "\($0.frame)" }.sorted().joined()
+        if watchdogTarget == nil || watchdogScreenSig != sig {
+            watchdogTarget = AppDelegate.pickUserFacingScreen()
+            watchdogScreenSig = sig
+        }
+        guard let target = watchdogTarget else { return }
 
         // 应用侧认为的 frame 已经在目标屏可见区 → 还需和窗口服务器实际边界对账
         let appSideOK = window.screen == target && target.visibleFrame.intersects(window.frame)
@@ -250,8 +259,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let base = screens.first(where: { $0.frame.minY == 0 }) ?? screens.max(by: { $0.frame.maxY < $1.frame.maxY })
         let c = base?.frame.maxY ?? 0
         var counts = Array(repeating: 0, count: screens.count)
+        // 排除本进程窗口：watchdog 每 tick 依此选屏，若计入自身窗口会形成反馈回路
+        // （移屏→计数翻转→再移屏），窗口服务器被反复 orderOut/setFrame 压成碎片（P0.2 现场实测）
+        let own = ProcessInfo.processInfo.processName
         for w in list {
-            guard let layer = w[kCGWindowLayer as String] as? Int,
+            guard let owner = w[kCGWindowOwnerName as String] as? String, owner != own,
+                  let layer = w[kCGWindowLayer as String] as? Int,
                   let bounds = w[kCGWindowBounds as String] as? [String: Any]
             else { continue }
             let cg = CGRect(dictionaryRepresentation: bounds as CFDictionary) ?? .zero

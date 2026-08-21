@@ -64,13 +64,19 @@ public struct SessionMetadata: Sendable, Codable {
     public let origin: SessionOrigin
     /// 置顶（Codex 式 pinned 段；默认 false）
     public let pinned: Bool
+    /// 项目归属（nil = 全局顶层列表；项目域模型见 Workspace.Project，此处用裸 UUID 保持包间零依赖）
+    public let projectId: UUID?
+    /// 归档（不在主侧边栏显示；归档管理入口查看/取消归档）
+    public let archived: Bool
 
-    public init(cwd: URL, createdAt: Date = Date(), forkedFrom: SessionID? = nil, origin: SessionOrigin = .user, pinned: Bool = false) {
+    public init(cwd: URL, createdAt: Date = Date(), forkedFrom: SessionID? = nil, origin: SessionOrigin = .user, pinned: Bool = false, projectId: UUID? = nil, archived: Bool = false) {
         self.cwd = cwd
         self.createdAt = createdAt
         self.forkedFrom = forkedFrom
         self.origin = origin
         self.pinned = pinned
+        self.projectId = projectId
+        self.archived = archived
     }
 
     /// 自定义解码：兼容不含 pinned 字段的旧 metadata_json（缺省 false）
@@ -81,12 +87,26 @@ public struct SessionMetadata: Sendable, Codable {
         forkedFrom = try c.decodeIfPresent(SessionID.self, forKey: .forkedFrom)
         origin = try c.decodeIfPresent(SessionOrigin.self, forKey: .origin) ?? .user
         pinned = try c.decodeIfPresent(Bool.self, forKey: .pinned) ?? false
+        projectId = try c.decodeIfPresent(UUID.self, forKey: .projectId)
+        archived = try c.decodeIfPresent(Bool.self, forKey: .archived) ?? false
     }
 
     /// 返回置顶态切换后的副本
     public func withPinned(_ pinned: Bool) -> SessionMetadata {
         SessionMetadata(cwd: cwd, createdAt: createdAt, forkedFrom: forkedFrom,
-                        origin: origin, pinned: pinned)
+                        origin: origin, pinned: pinned, projectId: projectId, archived: archived)
+    }
+
+    /// 返回项目归属变更后的副本（nil = 释放至全局）
+    public func withProject(_ projectId: UUID?) -> SessionMetadata {
+        SessionMetadata(cwd: cwd, createdAt: createdAt, forkedFrom: forkedFrom,
+                        origin: origin, pinned: pinned, projectId: projectId, archived: archived)
+    }
+
+    /// 返回归档态切换后的副本
+    public func withArchived(_ archived: Bool) -> SessionMetadata {
+        SessionMetadata(cwd: cwd, createdAt: createdAt, forkedFrom: forkedFrom,
+                        origin: origin, pinned: pinned, projectId: projectId, archived: archived)
     }
 }
 

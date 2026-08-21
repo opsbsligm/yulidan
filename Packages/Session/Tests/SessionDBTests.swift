@@ -224,4 +224,132 @@ final class SessionDBTests: XCTestCase {
             }
         }
     }
+
+    // MARK: - 项目行持久化（P0.2）
+
+    func testProjectRowRoundTripAndOrdering() async throws {
+        let now = Date()
+        let rowA = ProjectRow(id: "a", name: "项目A", createdAt: now,
+                              archived: false, collapsed: true, sortOrder: 2)
+        let rowB = ProjectRow(id: "b", name: "项目B", createdAt: now,
+                              archived: false, collapsed: false, sortOrder: 0)
+        let rowC = ProjectRow(id: "c", name: "项目C", createdAt: now,
+                              archived: true, collapsed: false, sortOrder: 1)
+        try await db.saveProjectRow(rowA)
+        try await db.saveProjectRow(rowC)
+        try await db.saveProjectRow(rowB)
+
+        let rows = try await db.loadProjectRows()
+        XCTAssertEqual(rows.map(\.id), ["b", "c", "a"]) // sort_order 升序
+        XCTAssertEqual(rows[0].name, "项目B")
+        XCTAssertEqual(rows[1].archived, true)
+        XCTAssertEqual(rows[2].collapsed, true)
+        XCTAssertEqual(rows[2].sortOrder, 2, accuracy: 0.001)
+        XCTAssertEqual(rows[0].createdAt.timeIntervalSince1970, now.timeIntervalSince1970, accuracy: 0.001)
+    }
+
+    func testProjectRowUpsertPreservesIDAndCreatedAt() async throws {
+        let now = Date()
+        let row = ProjectRow(id: "x", name: "原名", createdAt: now,
+                             archived: false, collapsed: false, sortOrder: 0)
+        try await db.saveProjectRow(row)
+        // 重命名 + 归档 + 折叠 + 排序：upsert 不新建行
+        var updated = row
+        updated.name = "新名"
+        updated.archived = true
+        updated.collapsed = true
+        updated.sortOrder = 5
+        try await db.saveProjectRow(updated)
+
+        let rows = try await db.loadProjectRows()
+        XCTAssertEqual(rows.count, 1)
+        XCTAssertEqual(rows[0].id, "x")
+        XCTAssertEqual(rows[0].name, "新名")
+        XCTAssertEqual(rows[0].archived, true)
+        XCTAssertEqual(rows[0].collapsed, true)
+        XCTAssertEqual(rows[0].sortOrder, 5, accuracy: 0.001)
+        XCTAssertEqual(rows[0].createdAt.timeIntervalSince1970, now.timeIntervalSince1970, accuracy: 0.001) // created_at 不被 upsert 改写
+    }
+
+    func testProjectRowDeleteAndExists() async throws {
+        let row = ProjectRow(id: "d", name: "D", createdAt: Date(),
+                             archived: false, collapsed: false, sortOrder: 0)
+        try await db.saveProjectRow(row)
+        let existsBefore = try await db.projectRowExists(id: "d")
+        XCTAssertTrue(existsBefore)
+        try await db.deleteProjectRow(id: "d")
+        let existsAfter = try await db.projectRowExists(id: "d")
+        XCTAssertFalse(existsAfter)
+        let rows = try await db.loadProjectRows()
+        XCTAssertEqual(rows.count, 0)
+    }
+
+    // MARK: - v1 → v2 迁移
+
+    func testV1ToV2Migration() async throws {
+        // 构造一个只含 v1 schema 的旧库（user_version=1），再经 SessionDB 打开应自动迁移 v2
+        let legacyURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("harness-v1-\(UUID().uuidString).sqlite")
+        defer { try? FileManager.default.removeItem(at: legacyURL) }
+        let legacy = try DatabaseQueue(path: legacyURL.path)
+        try await legacy.write { db in
+            try db.create(table: "sessions") { t in
+                t.column("id", .text).primaryKey()
+                t.column("metadata_json", .text).notNull()
+                t.column("turn", .integer).notNull().defaults(to: 0)
+                t.column("status", .text).notNull().defaults(to: "active")
+                t.column("created_at", .double).notNull()
+            }
+            try db.create(table: "events") { t in
+                t.column("session_id", .text).notNull()
+                t.column("seq", .integer).notNull()
+                t.column("payload", .text).notNull()
+                t.primaryKey(["session_id", "seq"])
+            }
+            // GRDB 6 迁移跟踪表（实测真实库 user_version 恒 0，迁移状态记录于此）
+            try db.create(table: "grdb_migrations") { t in
+                t.column("identifier", .text).primaryKey()
+            }
+            try db.execute(sql: "INSERT INTO grdb_migrations (identifier) VALUES ('v1')")
+        }
+        let migrated = try SessionDB(dbURL: legacyURL)
+        let rows = try await migrated.loadProjectRows()
+        XCTAssertEqual(rows.count, 0) // 迁移成功且无项目数据
+        let row = ProjectRow(id: "m", name: "迁移后新建", createdAt: Date(),
+                             archived: false, collapsed: false, sortOrder: 0)
+        try await migrated.saveProjectRow(row)
+        let after = try await migrated.loadProjectRows()
+        XCTAssertEqual(after.map(\.id), ["m"])
+    }
+
+    // MARK: - SessionMetadata 向后兼容（projectId / archived）
+
+    func testMetadataOldJSONDecodesWithoutNewFields() throws {
+        let oldJSON = """
+        {"cwd":"file:///tmp","createdAt":700000000,"origin":"user","pinned":true}
+        """
+        let meta = try JSONDecoder().decode(SessionMetadata.self, from: Data(oldJSON.utf8))
+        XCTAssertNil(meta.projectId)
+        XCTAssertFalse(meta.archived)
+        XCTAssertTrue(meta.pinned) // 旧字段不受影响
+    }
+
+    func testMetadataProjectFieldsRoundTripThroughDB() async throws {
+        let pid = UUID()
+        var meta = SessionMetadata(cwd: URL(fileURLWithPath: "/tmp"), projectId: pid, archived: true)
+        var session = SessionRecord(id: SessionID(), metadata: meta)
+        session.append(.userMessage(UserMessage(content: [.text("项目内会话")])))
+        try await db.save(session)
+
+        let loaded = try await db.loadSessions()
+        XCTAssertEqual(loaded.count, 1)
+        XCTAssertEqual(try XCTUnwrap(loaded.first).metadata.projectId, pid)
+        XCTAssertEqual(try XCTUnwrap(loaded.first).metadata.archived, true)
+
+        // withProject / withArchived 副本
+        meta = meta.withProject(nil).withArchived(false)
+        XCTAssertNil(meta.projectId)
+        XCTAssertFalse(meta.archived)
+        XCTAssertFalse(meta.pinned)
+    }
 }

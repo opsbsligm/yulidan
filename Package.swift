@@ -27,7 +27,7 @@ let package = Package(
                     path: "Packages/ServiceContainer/Tests"),
 
         .target(name: "Account",
-                dependencies: ["ServiceContainer"],
+                dependencies: ["ServiceContainer", "Workspace"],
                 path: "Packages/Account/Sources"),
         .testTarget(name: "AccountTests",
                     dependencies: ["Account", "ServiceContainer"],
@@ -136,6 +136,9 @@ let package = Package(
         .target(name: "Workspace",
                 dependencies: ["ServiceContainer", "Session"],
                 path: "Packages/Workspace/Sources"),
+        .testTarget(name: "WorkspaceTests",
+                    dependencies: ["Workspace", "Session"],
+                    path: "Packages/Workspace/Tests"),
         .target(name: "Goal",
                 dependencies: ["ServiceContainer", "Session"],
                 path: "Packages/Goal/Sources"),

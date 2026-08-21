@@ -1,12 +1,20 @@
 import Session
 import SwiftUI
+import Workspace
 
 /// Codex 风格单栏侧边栏：
-/// 品牌行（Harness ⌄ + 搜索图标）→ 导航（新对话⊕ / 对话 / 插件 / 工具）→ 会话列表（常显）→ 底部头像+姓名
+/// 品牌行（Harness ⌄ + 折叠 + 搜索 + 归档管理）→ 导航 → 搜索（可限定项目）
+/// → 项目分区（新建/展开收起/右键重命名归档删除/拖拽迁移）→ 全局会话 → 底部头像
 struct SidebarView: View {
     @Binding var selectedTab: AppTab
     @Binding var selectedSession: SessionRecord?
     let sessions: [SessionRecord]
+    /// 全部项目（含归档；主区只展示未归档）
+    let projects: [Project]
+    /// 搜索中（展示扁平搜索结果，不分区）
+    let isSearching: Bool
+    /// 搜索限定项目（nil = 全局）
+    let searchProjectScope: UUID?
     /// 正在生成的会话（Codex 式：列表行运行中指示）
     let generatingSessionId: SessionID?
     /// 折叠态（Codex 式：窄图标 rail）
@@ -20,14 +28,46 @@ struct SidebarView: View {
     let onDeleteSession: (SessionRecord) -> Void
     /// 搜索框输入变化回调（空串 = 清空）
     let onSearch: (String) -> Void
+    /// 切换搜索限定项目（nil = 全局）
+    let onSearchScope: (UUID?) -> Void
+    // 项目操作（P0.2）
+    let onCreateProject: (String) -> Void
+    let onRenameProject: (Project, String) -> Void
+    let onDeleteProject: (Project, DeleteProjectOption) -> Void
+    let onToggleProjectArchived: (Project) -> Void
+    let onToggleProjectCollapsed: (Project) -> Void
+    let onMoveSession: (SessionRecord, ProjectDropTarget) -> Void
+    let onToggleSessionArchived: (SessionRecord) -> Void
+    let onUnarchiveProject: (Project) -> Void
+    let onUnarchiveSession: (SessionRecord) -> Void
 
     @State private var searchText = ""
     @State private var showSearch = false
     @State private var newHover = false
+    /// 新建项目弹窗
+    @State private var showNewProject = false
+    @State private var newProjectName = ""
+    /// 归档管理面板
+    @State private var showArchiveManager = false
 
     /// 用户姓名首字（头像用）
     private var avatarInitial: String {
         String(NSFullUserName().prefix(1))
+    }
+
+    /// 侧栏分区模型（纯函数；主区排除归档项）
+    private var model: SidebarModel {
+        SidebarModelBuilder.build(projects: projects, sessions: sessions)
+    }
+
+    /// 活跃（未归档）项目
+    private var activeProjects: [Project] {
+        projects.filter { !$0.archived }
+    }
+
+    /// 归档管理数据
+    private var archiveModel: SidebarModel {
+        SidebarModelBuilder.build(projects: projects, sessions: sessions)
     }
 
     /// 新对话：切回对话页并创建会话
@@ -38,22 +78,32 @@ struct SidebarView: View {
         onNewSession()
     }
 
-    private var filtered: [SessionRecord] {
-        searchText.isEmpty
-            ? sessions
-            : sessions.filter { titleFor($0).localizedCaseInsensitiveContains(searchText) }
-    }
-
-    /// 分组（纯函数见 SessionGroups）：置顶（最顶）→ 今天 / 昨天 / 更早
-    private var groups: [(label: String, items: [SessionRecord])] {
-        SessionGroups.group(filtered)
-    }
-
     var body: some View {
-        if isCollapsed {
-            collapsedBody
-        } else {
-            expandedBody
+        Group {
+            if isCollapsed {
+                collapsedBody
+            } else {
+                expandedBody
+            }
+        }
+        // 新建项目
+        .alert("新建项目", isPresented: $showNewProject) {
+            TextField("项目名称", text: $newProjectName)
+            Button("创建") {
+                onCreateProject(newProjectName)
+                newProjectName = ""
+            }
+            Button("取消", role: .cancel) { newProjectName = "" }
+        }
+        // 归档管理
+        .sheet(isPresented: $showArchiveManager) {
+            ArchiveManagerView(
+                archivedProjects: archiveModel.archivedProjects,
+                archivedSessions: archiveModel.archivedSessions,
+                titleFor: titleFor,
+                onUnarchiveProject: { onUnarchiveProject($0) },
+                onUnarchiveSession: { onUnarchiveSession($0) }
+            )
         }
     }
 
@@ -61,7 +111,7 @@ struct SidebarView: View {
 
     private var expandedBody: some View {
         VStack(spacing: 0) {
-            // 顶部品牌行（Codex 式：名称 ⌄ + 折叠 + 搜索图标）
+            // 顶部品牌行（Codex 式：名称 ⌄ + 折叠 + 搜索 + 归档管理）
             HStack(spacing: 2) {
                 Menu {
                     Button {
@@ -75,6 +125,9 @@ struct SidebarView: View {
                         Label("设置", systemImage: "gear")
                     }
                     Divider()
+                    Button("归档管理") {
+                        showArchiveManager = true
+                    }
                     Button("关于 Harness") {
                         NSApp.orderFrontStandardAboutPanel(nil)
                     }
@@ -116,197 +169,150 @@ struct SidebarView: View {
                 }
                 .buttonStyle(.plain)
                 .help("搜索对话")
+
+                Button {
+                    showArchiveManager = true
+                } label: {
+                    Image(systemName: "archivebox")
+                        .font(.system(size: 13))
+                        .foregroundStyle(HarnessTheme.textSecondary)
+                        .frame(width: 26, height: 26)
+                        .background(Circle().fill(Color.secondary.opacity(0.08)))
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .help("归档管理（项目/会话）")
             }
             .padding(.horizontal, 14)
             .padding(.top, 14)
             .padding(.bottom, 8)
 
-            // 搜索（点击图标展开）
+            // 搜索（点击图标展开；可限定项目范围）
             if showSearch {
                 HStack(spacing: 6) {
+                    Menu(content: {
+                        Button("全部对话", action: { onSearchScope(nil) })
+                        if !activeProjects.isEmpty {
+                            Divider()
+                            ForEach(activeProjects) { project in
+                                Button(project.name) {
+                                    onSearchScope(project.id.rawValue)
+                                }
+                            }
+                        }
+                    }, label: {
+                        Image(systemName: "line.3.horizontal.decrease.circle")
+                            .font(.system(size: 11))
+                            .foregroundStyle(searchProjectScope == nil
+                                ? HarnessTheme.textTertiary : HarnessTheme.accent)
+                    })
+                    .menuIndicator(.hidden)
+                    .fixedSize()
+                    .help("搜索范围")
+
                     Image(systemName: "magnifyingglass")
                         .font(.system(size: 11))
                         .foregroundStyle(HarnessTheme.textTertiary)
                     TextField("搜索对话", text: $searchText)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 12))
+                        .onSubmit { onSearch(searchText) }
                         .onChange(of: searchText) { _, newValue in
                             onSearch(newValue)
                         }
-                        .font(.system(size: 12))
-                        .textFieldStyle(.plain)
-                        .disableAutocorrection(true)
-                    if !searchText.isEmpty {
-                        Button { searchText = "" } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.system(size: 11))
-                                .foregroundStyle(HarnessTheme.textTertiary)
-                        }
-                        .buttonStyle(.plain)
-                    }
                 }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 6)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
                 .background(HarnessTheme.surface)
                 .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
-                .padding(.horizontal, 12)
-                .padding(.bottom, 8)
+                .padding(.horizontal, 10)
+                .padding(.bottom, 6)
             }
 
-            // 导航区
-            VStack(spacing: 1) {
-                // 新对话（Codex 式：行尾 ⊕）
-                Button(action: startNewChat) {
-                    HStack(spacing: 9) {
-                        Image(systemName: "square.and.pencil")
-                            .font(.system(size: 14))
-                            .frame(width: 18)
-                            .foregroundStyle(newHover ? HarnessTheme.textPrimary : HarnessTheme.textSecondary)
-                        Text("新对话")
-                            .font(.system(size: 13))
-                            .foregroundStyle(newHover ? HarnessTheme.textPrimary : HarnessTheme.textSecondary)
-                        Spacer()
-                        Image(systemName: "plus")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(HarnessTheme.textTertiary)
+            // 导航（Codex 式：新对话 + 面板）
+            NavRow(tab: .chat, isSelected: selectedTab == .chat, action: startNewChat)
+                .overlay(alignment: .trailing) {
+                    if newHover {
+                        Button(action: startNewChat) {
+                            Image(systemName: "plus")
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(HarnessTheme.textSecondary)
+                                .frame(width: 18, height: 18)
+                                .background(Circle().fill(Color.secondary.opacity(0.12)))
+                        }
+                        .buttonStyle(.plain)
+                        .help("新建对话")
+                        .padding(.trailing, 8)
                     }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 7)
-                    .background(newHover ? HarnessTheme.sidebarHover.opacity(0.6) : .clear)
-                    .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
                 }
-                .buttonStyle(.plain)
                 .onHover { newHover = $0 }
-                .keyboardShortcut("n", modifiers: .command)
+            NavRow(tab: .agents, isSelected: selectedTab == .agents, action: { selectedTab = .agents })
+            NavRow(tab: .plugins, isSelected: selectedTab == .plugins, action: { selectedTab = .plugins })
+            NavRow(tab: .skills, isSelected: selectedTab == .skills, action: { selectedTab = .skills })
+            NavRow(tab: .tools, isSelected: selectedTab == .tools, action: { selectedTab = .tools })
                 .padding(.bottom, 4)
 
-                ForEach([AppTab.chat, .agents, .plugins, .skills, .tools], id: \.self) { tab in
-                    NavRow(tab: tab, isSelected: selectedTab == tab) {
-                        withAnimation(.smooth(duration: 0.18)) { selectedTab = tab }
-                    }
-                }
-            }
-            .padding(.horizontal, 8)
-            .padding(.top, 4)
-            .padding(.bottom, 10)
-
-            Divider().frame(height: 1).padding(.horizontal, 12)
-
-            // 会话列表（Codex 式：任务列表常显，按日分组）
+            // 会话列表（常显；搜索模式 = 扁平结果；否则 = 项目分区 + 全局）
             ScrollView {
-                VStack(alignment: .leading, spacing: 2) {
-                    if groups.isEmpty {
-                        Text(searchText.isEmpty ? "暂无对话，点击「新对话」开始" : "无匹配结果")
-                            .font(.system(size: 12))
-                            .foregroundStyle(HarnessTheme.textTertiary)
-                            .frame(maxWidth: .infinity, alignment: .center)
-                            .padding(.top, 20)
-                    }
-                    ForEach(groups, id: \.label) { group in
-                        Text(group.label)
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(HarnessTheme.textTertiary)
-                            .padding(.horizontal, 10)
-                            .padding(.top, 10)
-                            .padding(.bottom, 3)
-                        ForEach(group.items) { session in
-                            SessionListItem(
+                LazyVStack(alignment: .leading, spacing: 2) {
+                    if isSearching {
+                        ForEach(sessions) { session in
+                            SidebarSessionRow(
                                 session: session,
+                                inProject: SidebarModelBuilder.project(
+                                    for: session, in: projects
+                                )?.id,
                                 title: titleFor(session),
                                 isSelected: selectedSession?.id == session.id,
-                                isGenerating: session.id == generatingSessionId,
+                                isGenerating: generatingSessionId == session.id,
                                 onSelect: { onSelectSession(session) },
                                 onTogglePin: { onTogglePin(session) },
-                                onDelete: { onDeleteSession(session) }
+                                onDelete: { onDeleteSession(session) },
+                                onToggleArchive: { onToggleSessionArchived(session) }
                             )
-                            .padding(.horizontal, 4)
                         }
-                    }
-                    Spacer().frame(height: 8)
-                }
-                .padding(.horizontal, 8)
-            }
-
-            // 底栏：头像+姓名（可点菜单） | 设置齿轮
-            Divider().frame(height: 1).padding(.horizontal, 12)
-            HStack(spacing: 4) {
-                Menu {
-                    Button {
-                        selectedTab = .settings
-                    } label: {
-                        Label("设置", systemImage: "gear")
-                    }
-                    Button {
-                        onNewSession()
-                    } label: {
-                        Label("新建对话", systemImage: "plus")
-                    }
-                    Divider()
-                    Button("关于 Harness") {
-                        NSApp.orderFrontStandardAboutPanel(nil)
-                    }
-                } label: {
-                    HStack(spacing: 8) {
-                        ZStack {
-                            Circle().fill(HarnessTheme.surface)
-                            Text(avatarInitial)
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundStyle(HarnessTheme.accent)
+                        if sessions.isEmpty {
+                            Text("无匹配对话")
+                                .font(.system(size: 12))
+                                .foregroundStyle(HarnessTheme.textTertiary)
+                                .padding(.vertical, 12)
                         }
-                        .frame(width: 26, height: 26)
-                        Text(NSFullUserName())
-                            .font(.system(size: 13))
-                            .foregroundStyle(HarnessTheme.textSecondary)
-                            .lineLimit(1)
-                    }
-                    .contentShape(Rectangle())
-                }
-                .menuIndicator(.hidden)
-                .buttonStyle(.plain)
-                .help("账户菜单")
-
-                Spacer()
-
-                Button {
-                    selectedTab = .settings
-                } label: {
-                    Image(systemName: "gear")
-                        .font(.system(size: 14))
-                        .foregroundStyle(HarnessTheme.textSecondary)
-                        .frame(width: 26, height: 26)
-                        .background(
-                            selectedTab == .settings
-                                ? HarnessTheme.sidebarHover
-                                : Color.clear
+                    } else {
+                        SidebarProjectSections(
+                            model: model,
+                            sessions: sessions,
+                            selectedSession: selectedSession,
+                            generatingSessionId: generatingSessionId,
+                            titleFor: titleFor,
+                            onSelectSession: onSelectSession,
+                            onTogglePin: onTogglePin,
+                            onDeleteSession: onDeleteSession,
+                            onNewProject: {
+                                newProjectName = ""
+                                showNewProject = true
+                            },
+                            onToggleProjectCollapsed: onToggleProjectCollapsed,
+                            onRenameProject: onRenameProject,
+                            onArchiveProject: onToggleProjectArchived,
+                            onDeleteProject: onDeleteProject,
+                            onMoveSession: onMoveSession,
+                            onToggleSessionArchived: onToggleSessionArchived
                         )
-                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    }
                 }
-                .buttonStyle(.plain)
-                .help("设置（⌘,）")
-                .keyboardShortcut(",", modifiers: .command)
+                .padding(.horizontal, 6)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
+
+            Spacer(minLength: 4)
         }
         .frame(width: 260)
-        .glassSurface(.prominent, cornerRadius: 0)
+        .glassSurface(.regular, cornerRadius: 0)
     }
 
-    // MARK: - 折叠态（窄图标 rail，宽 52）
+    // MARK: - 折叠态（窄 rail，保持原有交互）
 
     private var collapsedBody: some View {
         VStack(spacing: 2) {
-            Button(action: onToggleCollapse) {
-                Image(systemName: "sidebar.left")
-                    .font(.system(size: 14))
-                    .foregroundStyle(HarnessTheme.textSecondary)
-                    .frame(width: 28, height: 28)
-                    .background(Circle().fill(Color.secondary.opacity(0.08)))
-                    .clipShape(Circle())
-            }
-            .buttonStyle(.plain)
-            .help("展开侧边栏")
-            .padding(.top, 14)
-            .padding(.bottom, 8)
-
             Button(action: startNewChat) {
                 Image(systemName: "square.and.pencil")
                     .font(.system(size: 14))
@@ -339,6 +345,19 @@ struct SidebarView: View {
             }
 
             Spacer()
+
+            Button {
+                showArchiveManager = true
+            } label: {
+                Image(systemName: "archivebox")
+                    .font(.system(size: 14))
+                    .foregroundStyle(HarnessTheme.textSecondary)
+                    .frame(width: 28, height: 28)
+                    .background(Circle().fill(Color.secondary.opacity(0.08)))
+                    .clipShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .help("归档管理（项目/会话）")
 
             Button {
                 withAnimation(.smooth(duration: 0.18)) { selectedTab = .settings }
@@ -376,111 +395,6 @@ struct SidebarView: View {
     }
 }
 
-// MARK: - 导航行（图标 + 文字）
-
-/// ⌘1–⌘6 面板快捷键索引（展开/折叠两态共用）
-enum NavRowShortcut {
-    static func index(for tab: AppTab) -> Int? {
-        switch tab {
-        case .chat: 1
-        case .agents: 2
-        case .plugins: 3
-        case .skills: 4
-        case .tools: 5
-        case .settings: 6
-        }
-    }
-}
-
-struct NavRow: View {
-    let tab: AppTab
-    let isSelected: Bool
-    let action: () -> Void
-    @State private var isHovered = false
-
-    /// ⌘1–⌘6 面板快捷键（Codex 式；settings 走 ⌘6 由底栏齿轮承载）
-    private var shortcutIndex: Int? {
-        NavRowShortcut.index(for: tab)
-    }
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 9) {
-                Image(systemName: tab.icon)
-                    .font(.system(size: 14, weight: isSelected ? .semibold : .regular))
-                    .frame(width: 18)
-                    .foregroundStyle(
-                        isSelected ? HarnessTheme.accent
-                            : isHovered ? HarnessTheme.textPrimary
-                            : HarnessTheme.textSecondary
-                    )
-                Text(tab.title)
-                    .font(.system(size: 13, weight: isSelected ? .medium : .regular))
-                    .foregroundStyle(
-                        isSelected ? HarnessTheme.textPrimary
-                            : isHovered ? HarnessTheme.textPrimary
-                            : HarnessTheme.textSecondary
-                    )
-                Spacer()
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 7)
-            .background(
-                isSelected ? HarnessTheme.sidebarHover
-                    : isHovered ? HarnessTheme.sidebarHover.opacity(0.6)
-                    : .clear
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
-        }
-        .buttonStyle(.plain)
-        .onHover { isHovered = $0 }
-        .modifier(NavShortcutModifier(index: shortcutIndex))
-    }
-}
-
-/// 条件键盘快捷键（index 为 nil 时不附加，避免与 ⌘6 齿轮重复绑定）
-struct NavShortcutModifier: ViewModifier {
-    let index: Int?
-    func body(content: Content) -> some View {
-        if let index {
-            content.keyboardShortcut(KeyEquivalent(Character(String(index))), modifiers: .command)
-        } else {
-            content
-        }
-    }
-}
-
-// MARK: - 会话分组（纯函数，可单测）
-
-enum SessionGroups {
-    /// 置顶（Codex 式 pinned 段，最顶）→ 今天 / 昨天 / 更早（组内按创建时间倒序）
-    static func group(_ filtered: [SessionRecord], now: Date = Date()) -> [(label: String, items: [SessionRecord])] {
-        let cal = Calendar.current
-        let today = cal.startOfDay(for: now)
-        let yesterday = cal.date(byAdding: .day, value: -1, to: today) ?? today
-        var out: [(label: String, items: [SessionRecord])] = []
-        let sorted = filtered.sorted { $0.metadata.createdAt > $1.metadata.createdAt }
-        let pinnedItems = sorted.filter(\.metadata.pinned)
-        if !pinnedItems.isEmpty {
-            out.append(("置顶", pinnedItems))
-        }
-        let rest = sorted.filter { !$0.metadata.pinned }
-        let todayItems = rest.filter { $0.metadata.createdAt >= today }
-        let yesterdayItems = rest.filter { $0.metadata.createdAt >= yesterday && $0.metadata.createdAt < today }
-        let earlierItems = rest.filter { $0.metadata.createdAt < yesterday }
-        if !todayItems.isEmpty {
-            out.append(("今天", todayItems))
-        }
-        if !yesterdayItems.isEmpty {
-            out.append(("昨天", yesterdayItems))
-        }
-        if !earlierItems.isEmpty {
-            out.append(("更早", earlierItems))
-        }
-        return out
-    }
-}
-
 #Preview {
     ZStack {
         HarnessTheme.bgPrimary
@@ -488,6 +402,9 @@ enum SessionGroups {
             selectedTab: .constant(.chat),
             selectedSession: .constant(nil),
             sessions: [],
+            projects: [],
+            isSearching: false,
+            searchProjectScope: nil,
             generatingSessionId: nil,
             isCollapsed: false,
             onToggleCollapse: {},
@@ -496,7 +413,17 @@ enum SessionGroups {
             onSelectSession: { _ in },
             onTogglePin: { _ in },
             onDeleteSession: { _ in },
-            onSearch: { _ in }
+            onSearch: { _ in },
+            onSearchScope: { _ in },
+            onCreateProject: { _ in },
+            onRenameProject: { _, _ in },
+            onDeleteProject: { _, _ in },
+            onToggleProjectArchived: { _ in },
+            onToggleProjectCollapsed: { _ in },
+            onMoveSession: { _, _ in },
+            onToggleSessionArchived: { _ in },
+            onUnarchiveProject: { _ in },
+            onUnarchiveSession: { _ in }
         )
     }
     .frame(width: 260, height: 500)

@@ -1,6 +1,7 @@
 import Account
 import Agent
 import AppKit
+import Combine
 import Foundation
 import HarnessCore
 import LLM
@@ -10,6 +11,7 @@ import PluginXPC
 import Prompt
 import RAG
 import Sandbox
+import Workspace
 
 // 技术债：本文件/类超过长度阈值，计划拆分为 会话管理 / 生成流程 / 设置 三个 ViewModel（见 docs/CODE_REVIEW.md）
 // swiftlint:disable file_length type_body_length
@@ -291,6 +293,16 @@ final class AppViewModel: ObservableObject {
     /// 会话搜索结果（nil = 未搜索；非 nil 时侧栏展示该列表）
     @Published var searchResults: [SessionRecord]?
     private var searchTask: Task<Void, Never>?
+    private var currentSearchQuery = ""
+    /// 搜索限定项目（nil = 全局搜索；P0.2 项目模块）
+    @Published var searchProjectScope: UUID?
+    /// 归档管理面板（P0.2 项目模块）
+    @Published var showArchiveManager = false
+
+    // 项目（P0.2 侧边栏项目模块）
+    @Published var projects: [Project] = []
+    private var workspaceEngine: WorkspaceSyncEngine?
+    private var accountObservation: AnyCancellable?
 
     /// 模型
     @Published var llmConfig: LLMConfig
@@ -396,6 +408,19 @@ final class AppViewModel: ObservableObject {
 
         // 加载持久化会话
         Task { await self.loadSessionsFromDB() }
+        // P0.2：加载项目 + 挂接工作区同步（iCloud 模式生效；本地模式 no-op）
+        Task { await self.loadProjectsFromDB() }
+        attachWorkspaceSyncIfNeeded()
+        accountObservation = accountService.objectWillChange.sink { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                // 降级/退出 iCloud：同步清掉引擎引用（防向已停用同步服务发布）
+                if !accountService.state.isICloudReady {
+                    workspaceEngine = nil
+                }
+                attachWorkspaceSyncIfNeeded()
+            }
+        }
 
         // 监听模型配置变更（设置页保存后同步）
         registerConfigObserver()
@@ -920,20 +945,29 @@ final class AppViewModel: ObservableObject {
     }
 
     /// 会话搜索：DB 正文检索 + 展示标题匹配（含改名，存 UserDefaults 不在 DB）并集，250ms 防抖
-    func handleSessionSearch(_ query: String) {
+    /// - Parameter projectScope: 限定项目（nil = 全局）
+    func handleSessionSearch(_ query: String, projectScope: UUID? = nil) {
+        currentSearchQuery = query
+        searchProjectScope = projectScope
         let q = query.trimmingCharacters(in: .whitespaces)
         searchTask?.cancel()
         guard !q.isEmpty else {
             searchResults = nil
             return
         }
+        let scope = projectScope
         searchTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: 250_000_000)
             guard !Task.isCancelled, let self, let db = sessionDB else { return }
             var hits: [SessionRecord] = await (try? db.search(query: q)) ?? []
+            if let scope {
+                hits = hits.filter { $0.metadata.projectId == scope }
+            }
             let hitIDs = Set(hits.map(\.id))
             let titleHits = sessions.filter { s in
-                !hitIDs.contains(s.id) && self.sessionTitle(for: s).localizedCaseInsensitiveContains(q)
+                (scope == nil || s.metadata.projectId == scope)
+                    && !hitIDs.contains(s.id)
+                    && self.sessionTitle(for: s).localizedCaseInsensitiveContains(q)
             }
             hits.append(contentsOf: titleHits)
             hits.sort { $0.metadata.createdAt > $1.metadata.createdAt }
@@ -941,6 +975,15 @@ final class AppViewModel: ObservableObject {
             DispatchQueue.main.async {
                 self.searchResults = hits
             }
+        }
+    }
+
+    /// 切换搜索限定项目（P0.2）；已有搜索词时立即按新范围重搜
+    func setSearchProjectScope(_ scope: UUID?) {
+        guard searchProjectScope != scope else { return }
+        searchProjectScope = scope
+        if !currentSearchQuery.isEmpty {
+            handleSessionSearch(currentSearchQuery, projectScope: scope)
         }
     }
 
@@ -980,6 +1023,209 @@ final class AppViewModel: ObservableObject {
         sessionTitles[session.id.rawValue] = name
         saveTitles()
         showToast("已重命名对话")
+    }
+
+    // MARK: - 项目（P0.2 侧边栏项目模块）
+
+    /// 从 DB 加载项目（启动/恢复用；持久层保证展示序）
+    func loadProjectsFromDB() async {
+        guard let db = sessionDB else { return }
+        do {
+            let rows = try await db.loadProjectRows()
+            projects = ProjectOperations.ordered(rows.map { Project(row: $0) })
+        } catch {
+            generationError = "项目数据库加载失败：\(error.localizedDescription)"
+        }
+    }
+
+    /// 新建项目（无上限；追加尾部展示序）
+    func createProject(name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        let project = Project(
+            name: trimmed,
+            sortOrder: ProjectOperations.nextSortOrder(after: projects)
+        )
+        projects.append(project)
+        persistProject(project)
+        showToast("已创建项目「\(trimmed)」")
+        publishWorkspaceChange()
+    }
+
+    func renameProject(_ project: Project, to newName: String) {
+        let trimmed = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty,
+              let idx = projects.firstIndex(where: { $0.id == project.id }) else { return }
+        projects[idx] = projects[idx].renamedTo(trimmed)
+        persistProject(projects[idx])
+        publishWorkspaceChange()
+    }
+
+    func toggleProjectCollapsed(_ project: Project) {
+        guard let idx = projects.firstIndex(where: { $0.id == project.id }) else { return }
+        projects[idx] = projects[idx].withCollapsed(!projects[idx].collapsed)
+        persistProject(projects[idx])
+        publishWorkspaceChange()
+    }
+
+    /// 项目归档/取消归档（归档项目移出主侧栏，入归档管理）
+    func toggleProjectArchived(_ project: Project) {
+        guard let idx = projects.firstIndex(where: { $0.id == project.id }) else { return }
+        let newArchived = !projects[idx].archived
+        projects[idx] = projects[idx].withArchived(newArchived)
+        persistProject(projects[idx])
+        if newArchived {
+            showToast("项目已归档")
+        }
+        publishWorkspaceChange()
+    }
+
+    /// 取消归档项目：回落展示尾部（展示序重排）
+    func unarchiveProject(_ project: Project) {
+        guard let idx = projects.firstIndex(where: { $0.id == project.id }) else { return }
+        projects[idx] = projects[idx]
+            .withArchived(false)
+            .withSortOrder(ProjectOperations.nextSortOrder(after: projects))
+        persistProject(projects[idx])
+        showToast("已恢复项目")
+        publishWorkspaceChange()
+    }
+
+    /// 删除项目（二选一：全部内部会话 / 释放至全局）
+    func deleteProject(_ project: Project, option: DeleteProjectOption) {
+        let plan = ProjectOperations.planDeletion(project: project, sessions: sessions, option: option)
+        switch option {
+        case .deleteAllSessions:
+            for rawID in plan.affectedSessionIDs {
+                let id = SessionID(rawValue: rawID)
+                dropChatLoop(sessionID: id)
+                sessionTitles[rawID] = nil
+                Task { [db = sessionDB] in
+                    try? await db?.delete(id)
+                }
+            }
+            saveTitles()
+            sessions.removeAll { $0.metadata.projectId == project.id.rawValue }
+        case .releaseToGlobal:
+            var released: [SessionRecord] = []
+            for idx in sessions.indices where sessions[idx].metadata.projectId == project.id.rawValue {
+                let updated = Self.patch(sessions[idx], metadata: sessions[idx].metadata.withProject(nil))
+                sessions[idx] = updated
+                released.append(updated)
+            }
+            if let selID = selectedSession?.id,
+               let moved = released.first(where: { $0.id == selID }) {
+                selectedSession = moved
+            }
+            for releasedSession in released {
+                Task { [db = sessionDB] in
+                    try? await db?.save(releasedSession)
+                }
+            }
+        }
+        projects.removeAll { $0.id == project.id }
+        Task { [db = sessionDB] in
+            try? await db?.deleteProjectRow(id: project.id.rawValue.uuidString)
+        }
+        showToast("已删除项目")
+        publishWorkspaceChange()
+    }
+
+    /// 会话归档/取消归档（侧栏右键菜单）
+    func toggleSessionArchived(_ session: SessionRecord) {
+        guard let idx = sessions.firstIndex(where: { $0.id == session.id }) else { return }
+        let newArchived = !sessions[idx].metadata.archived
+        let updated = Self.patch(sessions[idx], metadata: sessions[idx].metadata.withArchived(newArchived))
+        sessions[idx] = updated
+        if selectedSession?.id == session.id {
+            selectedSession = updated
+        }
+        Task { [db = sessionDB] in
+            try? await db?.save(updated)
+        }
+        publishWorkspaceChange()
+    }
+
+    /// 取消归档会话：原项目存在且未归档 → 恢复原项目；否则回落全局
+    func unarchiveSession(_ session: SessionRecord) {
+        guard let idx = sessions.firstIndex(where: { $0.id == session.id }) else { return }
+        let restore = ProjectOperations.resolveRestoreProject(session: session, projects: projects)
+        let updated = Self.patch(
+            sessions[idx],
+            metadata: sessions[idx].metadata
+                .withArchived(false)
+                .withProject(restore?.rawValue)
+        )
+        sessions[idx] = updated
+        if selectedSession?.id == session.id {
+            selectedSession = updated
+        }
+        Task { [db = sessionDB] in
+            try? await db?.save(updated)
+        }
+        showToast(restore != nil ? "已恢复至原项目" : "已恢复至全局")
+        publishWorkspaceChange()
+    }
+
+    /// 拖拽放置：全局⇄项目 / 跨项目迁移（载荷纯逻辑解析 + 持久化）
+    func moveSession(_ session: SessionRecord, to target: ProjectDropTarget) {
+        let payload = SessionDragPayload(
+            sessionID: session.id.rawValue,
+            fromProjectID: session.metadata.projectId
+        )
+        switch payload.resolution(target: target) {
+        case .noChange:
+            return
+        case let .assign(projectId):
+            guard let idx = sessions.firstIndex(where: { $0.id == session.id }) else { return }
+            let updated = Self.patch(sessions[idx], metadata: sessions[idx].metadata.withProject(projectId))
+            sessions[idx] = updated
+            if selectedSession?.id == session.id {
+                selectedSession = updated
+            }
+            Task { [db = sessionDB] in
+                try? await db?.save(updated)
+            }
+            if let projectId {
+                let name = projects.first(where: { $0.id.rawValue == projectId })?.name ?? "项目"
+                showToast("已移入「\(name)」")
+            } else {
+                showToast("已移至全局")
+            }
+            publishWorkspaceChange()
+        }
+    }
+
+    // MARK: - 工作区同步桥（iCloud 模式；本地模式 no-op）
+
+    /// 挂接工作区同步存储（幂等；账号进入 icloudReady 后由状态观察自动触发）
+    func attachWorkspaceSyncIfNeeded() {
+        guard workspaceEngine == nil, let db = sessionDB else { return }
+        workspaceEngine = accountService.attachWorkspaceStore(AppWorkspaceStore(db: db))
+    }
+
+    /// 本地项目/归属变更后发布云端载荷（本地模式静默 no-op）
+    private func publishWorkspaceChange() {
+        guard let engine = workspaceEngine else { return }
+        Task { await engine.publishLocalState() }
+    }
+
+    private func persistProject(_ project: Project) {
+        Task { [db = sessionDB] in
+            try? await db?.saveProjectRow(project.row)
+        }
+    }
+
+    /// 保持事件/轮次/状态不变，仅替换 metadata（save 为全量重写，防事件清空）
+    private static func patch(_ record: SessionRecord, metadata: SessionMetadata) -> SessionRecord {
+        SessionRecord(
+            id: record.id,
+            metadata: metadata,
+            events: record.events,
+            currentTurn: record.currentTurn,
+            currentStep: record.currentStep,
+            status: record.status
+        )
     }
 
     // MARK: - 模型 / LLM
