@@ -11,10 +11,6 @@ struct WelcomeAreaView: View {
         !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !viewModel.attachments.isEmpty
     }
 
-    private var modelName: String {
-        "\(viewModel.llmConfig.provider.displayName) · \(viewModel.llmConfig.modelName)"
-    }
-
     var body: some View {
         ZStack {
             HarnessTheme.bgPrimary
@@ -41,15 +37,16 @@ struct WelcomeAreaView: View {
 
             // 底部固定区：建议 chips（文本框上面）+ 文本框（最下面）
             VStack(spacing: 14) {
+                // P0.5.2 快捷提示：填充输入框（用户可编辑后再发送），不再直接发送
                 HStack(spacing: 8) {
                     SuggestionChip(icon: "terminal", text: "在 /tmp 运行 ls 并展示输出") {
-                        sendText("在 /tmp 运行 ls 并展示输出")
+                        fillPrompt("在 /tmp 运行 ls 并展示输出")
                     }
                     SuggestionChip(icon: "code", text: "写一个 Swift 函数判断素数") {
-                        sendText("帮我写一个 Swift 函数判断素数，并附单元测试思路")
+                        fillPrompt("帮我写一个 Swift 函数判断素数，并附单元测试思路")
                     }
                     SuggestionChip(icon: "doc.text.magnifyingglass", text: "解释这个项目的目录结构") {
-                        sendText("用中文简要解释 ~/code/swift-harness 项目的目录结构和各包职责")
+                        fillPrompt("用中文简要解释 ~/code/swift-harness 项目的目录结构和各包职责")
                     }
                     SuggestionChip(icon: "puzzlepiece.extension", text: "看看有哪些插件") {
                         Task { await viewModel.refreshPlugins() }
@@ -69,24 +66,17 @@ struct WelcomeAreaView: View {
                         .onSubmit(send)
 
                     HStack(spacing: 8) {
-                        // 附件（真实动作：打开文件选择器）
-                        Button(action: attachFile) {
-                            Image(systemName: "plus")
-                                .font(.system(size: 15, weight: .medium))
-                                .foregroundStyle(HarnessTheme.textSecondary)
-                                .frame(width: 24, height: 24)
-                                .background(Circle().fill(Color.secondary.opacity(0.08)))
-                                .clipShape(Circle())
-                        }
-                        .buttonStyle(.plain)
-                        .help("添加文件附件")
+                        // P0.5.2：加号=文件附件+插件工具入口；右下角=模型下拉
+                        PlusMenuButton(tools: viewModel.tools,
+                                       onAttach: { viewModel.attachFiles() },
+                                       onInsertTool: { tool in
+                                           prompt = AppViewModel.appendingToolMention(prompt, tool.name)
+                                           isInputFocused = true
+                                       })
 
                         Spacer()
 
-                        Text(modelName)
-                            .font(.system(size: 11))
-                            .foregroundStyle(HarnessTheme.textTertiary)
-                            .lineLimit(1)
+                        ModelSwitcherMenu(viewModel: viewModel)
 
                         // 发送（黑色实心圆↑，Codex 风格）
                         Button(action: send) {
@@ -121,8 +111,10 @@ struct WelcomeAreaView: View {
         .onAppear { isInputFocused = true }
     }
 
-    private func attachFile() {
-        viewModel.attachFiles()
+    /// 快捷提示填充输入框（P0.5.2）：聚焦输入框，用户确认/编辑后再发送
+    private func fillPrompt(_ text: String) {
+        prompt = text
+        isInputFocused = true
     }
 
     private func send() {

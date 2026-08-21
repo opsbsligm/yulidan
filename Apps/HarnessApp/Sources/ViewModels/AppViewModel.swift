@@ -2119,6 +2119,20 @@ final class AppViewModel: ObservableObject {
         })
     }
 
+    // MARK: - P0.5.2 输入框加号：插件工具入口（提及 token 纯函数）
+
+    /// 工具提及 token：`@toolName`（发送后进入用户消息，AgentLoop 工具循环已下发全部注册工具，提及用于指定优先调用）
+    nonisolated static func toolMention(_ name: String) -> String {
+        "@\(name)"
+    }
+
+    /// 追加提及 token（空文本无前导空格；已有内容补一个半角空格分隔）
+    nonisolated static func appendingToolMention(_ text: String, _ name: String) -> String {
+        let trimmed = text.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return toolMention(name) }
+        return trimmed + " " + toolMention(name)
+    }
+
     // MARK: - 多 Agent 协作（真实 SubagentCoordinator 编排）
 
     /// 历史文件路径覆盖（单元测试隔离用；生产为 nil）

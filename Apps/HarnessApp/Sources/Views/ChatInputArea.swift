@@ -7,7 +7,9 @@ struct ChatInputArea: View {
     let attachments: [FileAttachment]
     @Binding var isGenerating: Bool
     let error: String?
-    let modelName: String
+    let viewModel: AppViewModel
+    let tools: [ToolDisplayItem]
+    let onInsertTool: (ToolDisplayItem) -> Void
     let onSend: (String) -> Void
     let onStop: () -> Void
     let onRetry: () -> Void
@@ -73,25 +75,13 @@ struct ChatInputArea: View {
                         }
                     }
 
-                // 底行
+                // 底行（P0.5.2：加号=文件附件+插件工具入口；右下角=模型下拉切换）
                 HStack(spacing: 8) {
-                    Button(action: onAttach) {
-                        Image(systemName: "plus")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(HarnessTheme.textSecondary)
-                            .frame(width: 24, height: 24)
-                            .background(Circle().fill(Color.secondary.opacity(0.08)))
-                            .clipShape(Circle())
-                    }
-                    .buttonStyle(.plain)
-                    .help("添加文件附件")
+                    PlusMenuButton(tools: tools, onAttach: onAttach, onInsertTool: onInsertTool)
 
                     Spacer()
 
-                    Text(modelName)
-                        .font(.system(size: 11))
-                        .foregroundStyle(HarnessTheme.textTertiary)
-                        .lineLimit(1)
+                    ModelSwitcherMenu(viewModel: viewModel)
 
                     // 发送（实心圆↑）/ 停止（红■）
                     Button {

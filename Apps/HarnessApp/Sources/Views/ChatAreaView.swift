@@ -30,7 +30,12 @@ struct ChatAreaView: View {
                 attachments: viewModel.attachments,
                 isGenerating: $viewModel.isGenerating,
                 error: viewModel.generationError,
-                modelName: "\(viewModel.llmConfig.provider.displayName) / \(viewModel.llmConfig.modelName)",
+                viewModel: viewModel,
+                tools: viewModel.tools,
+                onInsertTool: { tool in
+                    messageText = AppViewModel.appendingToolMention(messageText, tool.name)
+                    isInputFocused = true
+                },
                 onSend: { viewModel.sendMessage($0) },
                 onStop: { viewModel.stopGenerating() },
                 onRetry: { viewModel.retryLastMessage() },
@@ -53,7 +58,6 @@ struct ChatTopBar: View {
     @ObservedObject var viewModel: AppViewModel
     let session: SessionRecord
     let draftText: String
-    @State private var modelHovered = false
     @State private var moreHovered = false
     @State private var renameText = ""
     @State private var showRenameAlert = false
@@ -82,52 +86,8 @@ struct ChatTopBar: View {
 
             Spacer()
 
-            // 模型选择（Codex 式：右侧紧凑 pill，提供商→模型）
-            Menu {
-                ForEach(ModelProvider.allCases, id: \.self) { provider in
-                    let models = provider.selectableModels.isEmpty
-                        ? [viewModel.llmConfig.modelName]
-                        : provider.selectableModels
-                    Section(provider.displayName) {
-                        ForEach(models, id: \.self) { model in
-                            Button {
-                                selectModel(provider: provider, model: model)
-                            } label: {
-                                if viewModel.llmConfig.provider == provider, viewModel.llmConfig.modelName == model {
-                                    Label(model, systemImage: "checkmark")
-                                } else {
-                                    Text(model)
-                                }
-                            }
-                        }
-                    }
-                }
-                Divider()
-                Button {
-                    viewModel.selectedTab = .settings
-                } label: {
-                    Label("模型设置…", systemImage: "gear")
-                }
-            } label: {
-                HStack(spacing: 5) {
-                    Image(systemName: viewModel.llmConfig.provider.icon)
-                        .font(.system(size: 11))
-                    Text(viewModel.llmConfig.modelName)
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
-                        .lineLimit(1)
-                    Image(systemName: "chevron.down").font(.system(size: 9))
-                }
-                .foregroundStyle(modelHovered ? HarnessTheme.textPrimary : HarnessTheme.textSecondary)
-                .padding(.horizontal, 10).padding(.vertical, 6)
-                .background(
-                    Capsule().fill(modelHovered ? Color.secondary.opacity(0.1) : .clear)
-                )
-                .overlay(Capsule().stroke(HarnessTheme.border, lineWidth: 0.5))
-            }
-            .menuIndicator(.hidden)
-            .buttonStyle(.plain)
-            .onHover { modelHovered = $0 }
-            .help("切换模型提供商与模型")
+            // 模型选择（Codex 式：右侧紧凑 pill，与 composer 底行共用 ModelSwitcherMenu）
+            ModelSwitcherMenu(viewModel: viewModel)
 
             // 更多（Codex 式：动作按钮收纳进溢出菜单）
             Menu {
@@ -182,17 +142,6 @@ struct ChatTopBar: View {
             }
         }
         .padding(.horizontal, 20).padding(.vertical, 10)
-    }
-
-    private func selectModel(provider: ModelProvider, model: String) {
-        var cfg = viewModel.llmConfig
-        cfg.provider = provider
-        cfg.modelName = model
-        if provider == .local, cfg.modelName == "local" {
-            viewModel.showToast("请在「设置 → 模型服务」填写本地模型名称（如 qwen2.5:7b）")
-        }
-        cfg.save()
-        viewModel.showToast("已切换：\(provider.displayName) / \(model)")
     }
 }
 
