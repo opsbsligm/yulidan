@@ -1,8 +1,10 @@
 # Swift Harness — 质量保障报告
 
-> 生成时间: 2026-08-20 17:20
-> 项目版本: v0.4.0（后端 8 模块闭环 + 前端打磨 F1–F11 完成 + **P0.1 Apple SSO + iCloud 工作区漫游基础层**，HEAD `6696bf1`）
+> 生成时间: 2026-08-21 11:05
+> 项目版本: v0.5.0（后端 8 模块闭环 + 前端打磨 F1–F11 + **P0.1 Apple SSO + iCloud 基础层 + P0.2 侧边栏【项目】模块**，HEAD 见 §六）
 > 说明: P0.1 交付轮 — ① 新增 `Packages/Account` 包（9 源文件 1,946 行，基于 ServiceContainer 扩展 DI，核心零重构）：SiA 登录请求/探测、Keychain 凭证存储、KVS 元数据离线优先同步、AccountService 状态机、工作区双根严格隔离、App「账号与同步」设置子页（最小 UI）；② API 取证（macOS 26.5 SDK / 27 运行时，编译+运行时双验证）：ASAuthorizationAppleIDProvider().createRequest() 唯一创建路径 / ASPresentationAnchor=NSWindow（macOS 无 ASPresentationContext）/ delegate 需 @objc 精确选择子 / KVS 无 accountStatus（账号状态三重判定）/ KVS setData= set(_:forKey:)；③ 双构建（SwiftPM/Xcode）bundle id 统一 com.deepseek.harness + 部署目标 15→26 + 双 entitlements 文件（Xcode ad-hoc 签名拒绝 team 级 entitlements → CI 用精简版）；④ 门禁 16:16–16:33 全量复跑（ci-local pr + xcode + main 全绿：SwiftLint 0 / SwiftFormat 0 / 编译 0 警告 / **711 用例全绿（XCTest 180 + Swift Testing 531，106 suites）**，Account 45/45）。SSO 真机验收待用户 Developer Team/描述文件（见 §四 P2），本轮按「无 entitlements 优雅降级」设计交付。
+
+> P0.2 交付轮（`97f45e9`，2026-08-21）：① 新增 `Packages/Workspace` 包（5 源文件 282 行）：Project 实体（id/name/createdAt/archived/collapsed/sortOrder）/ 删除二选一（.deleteAllSessions / .releaseToGlobal）/ 会话归属与归档迁移纯函数（SessionTransfer/ProjectOperations/reorder）/ SessionDragPayload Transferable（全局⇄项目⇄跨项目拖拽）/ SidebarModel 投影纯函数（主区=活跃项目按 sortOrder + 全局区，归档全部剔除）/ WorkspaceSyncPayload（KVS 同步载荷，顶层 SessionAssignment 类型）；② SessionDB v2 迁移（纯增量建 projects 表，grdb_migrations 跟踪；旧 metadata_json 向后兼容解码，projectId/archived 缺省 nil/false；**save 全量重写 events 表 → metadata patch 必须先 load 完整记录**）；③ Account 扩展 WorkspaceSyncEngine（actor，publishLocalState/applyRemoteValue，坏数据/读失败/无差异静默 no-op，本地状态不被污染）+ AccountService.attachWorkspaceStore 幂等接线 + KVS 外部变更分支接工作区同步；④ App 层：AppWorkspaceStore（WorkspaceStateStoring 生产实现）+ AppViewModel 项目模块（projects/searchProjectScope/项目 CRUD/折叠/归档/删除二选一/moveSession 拖拽/取消归档回落/项目限定搜索，11 项场景测试）+ 侧边栏 UI 重构拆分（SidebarProjectSections/SidebarSupportViews：项目头行右键菜单、悬停高亮 dropDestination、归档管理面板、搜索范围 Menu）；⑤ **看门狗选屏反馈回路修复（双屏窗口碎片化根因）**：pickUserFacingScreen 计入自身窗口 → 目标屏 tick 间振荡 → 每 2s orderOut/setFrame 捶打窗口服务器 → 主窗口被压成 30px 碎片不可见；修复 = 排除本进程窗口 + 目标屏按屏幕配置签名缓存（详见 §四已闭环）；⑥ xcode 工程三处静态库依赖缺失修复（HarnessApp +Workspace 链接 / AccountTests·WorkspaceTests +GRDB product+CSQLite modulemap flag，静态库不传递链接 + Xcode 26 不传播 SPM systemLibrary modulemap，详见 §四已闭环）；⑦ 门禁 763 用例全绿（XCTest 186 + Swift Testing 577，116 suites，ci-local pr+xcode+main 三门禁全绿，日志 /tmp/p02_ci_{pr3,xcode8,main2}.log）；⑧ 实机演示验证：新构建 App 启动后侧边栏项目分区/全局区/归档隐藏/搜索范围全部实机可见（截图 /tmp/dsh/p02_harness_win.png，演示数据：2 项目 + 2 会话归属 + 1 归档会话，可右键删除清理）。
 
 ---
 
@@ -10,11 +12,11 @@
 
 | 门禁 | 状态 | 详情 |
 |------|------|------|
-| SwiftFormat | ✅ 0 改动 | `swiftformat --lint . --config .swiftformat`（184 文件） |
-| SwiftLint | ✅ 0 违规 | `swiftlint lint --strict --config .swiftlint.yml`（184 文件） |
+| SwiftFormat | ✅ 0 改动 | `swiftformat --lint . --config .swiftformat`（195 文件） |
+| SwiftLint | ✅ 0 违规 | `swiftlint lint --strict --config .swiftlint.yml`（195 文件） |
 | 编译 | ✅ 0 警告 | 全量冷编译（450 targets 含测试目标，覆盖率构建实测） |
-| 单元测试 | ✅ 711/711 | XCTest 180 + Swift Testing 531（106 suites），0 失败（新增 Account 模块 45 用例：状态机全流程 16 + KVS 同步 7 + 判定矩阵/双根隔离/nonce/凭证存储；含 4 项跨模块场景 + 16 项 App 层场景端到端） |
-| 本地 CI 模拟 | ✅ pr+xcode+main 全绿 | `tools/ci-local.sh`（pr 16:16 / xcode 16:20 / main 16:33；日志 /tmp/p01_ci_{pr,xcode,main,main2}.log；本轮 0 次协作池停滞） |
+| 单元测试 | ✅ 763/763 | XCTest 186 + Swift Testing 577（116 suites），0 失败（P0.2 新增 46 ST 用例：Workspace 27 + WorkspaceSyncEngine 8 + 项目模块场景 11；+6 XCTest：SessionDB v2 迁移/项目行/删除；含跨实例持久化场景） |
+| 本地 CI 模拟 | ✅ pr+xcode+main 全绿 | `tools/ci-local.sh`（P0.2 终版：pr /tmp/p02_ci_pr3.log、xcode /tmp/p02_ci_xcode8.log、main /tmp/p02_ci_main2.log；本轮 0 次协作池停滞；xcode 门禁含 7 个测试 bundle 全跑） |
 | 本地镜像备份 | ✅ 每次提交后 | `git push --mirror /Users/liguangming/code/swift-harness-backup.git` |
 | GitHub 推送 | ⏸ 暂缓 | 按用户要求先本地版本控制，未推送远端（`.github/workflows/swift-ci.yml` 四 job 已就位；本地模拟 `tools/ci-local.sh [pr|leaks|xcode|main]` 可跑，leaks 门禁 0 leaks 实测） |
 
@@ -36,6 +38,7 @@
 | # | 模块 | 提交 | 状态 |
 |---|------|------|------|
 | P0.1 | Apple SSO + iCloud 工作区漫游基础层：SiA 请求（createRequest 唯一路径 / fullName+email scopes / nonce 32B）/ AppleCredentialStore（Keychain ThisDeviceOnly，与 API key 同 service）/ WorkspaceRoot 双根严格隔离（本地 ~/Library/Application Support/Harness vs iCloud 容器 /Documents，五目录契约 agents/rag/plugins-meta/themes/sync）/ MetadataSyncService（actor 离线优先、KVS 即写即同步、跨设备冲突 onConflict 裁决、accountChange 清态+信号）/ AccountService 状态机（restore 恢复 / 登录 / 撤销 / 凭证缺失 / 切换模式 / 登出）/ App「账号与同步」设置子页（最小 UI） | `6696bf1` | ✅ 基础层闭环（45/45 单测全绿；真机验收待描述文件，见 §四 P2） |
+| P0.2 | 侧边栏【项目】模块（Codex 项目模型对齐）：Workspace 包 5 文件（Project 实体 / 删除二选一 / SessionTransfer 归属·归档迁移纯函数 / reorder / SessionDragPayload Transferable / SidebarModel 投影 / WorkspaceSyncPayload KVS 载荷）/ SessionDB v2 纯增量迁移 + metadata 向后兼容 / Account WorkspaceSyncEngine 同步桥（actor，坏数据 no-op）/ App 项目模块（项目 CRUD·折叠·归档·删除二选一·取消归档回落·会话拖拽迁移·项目限定搜索·归档管理面板）/ 看门狗选屏反馈回路修复（双屏窗口碎片化根因） | `97f45e9` | ✅ 模块闭环（763/763 全绿；实机演示验证通过，演示数据见头部说明） |
 
 ### 前端打磨阶段（后端全部闭环后启动）
 
@@ -56,33 +59,34 @@
 | F10 | 用户消息 Codex 式无气泡纯文本（B8）：右对齐气泡 → 通栏左对齐 medium 字重 | `b5486ec` | ✅ 闭环（**B1–B8 差距清单全部闭环**，视觉验收待实机） |
 | F11 | 会话分组纯函数化：SessionGroups.group(_:now:)（置顶段最顶/今天/昨天/更早/组内倒序）+ 2 项单测 | `17a0fd8` | ✅ 闭环 |
 
-## 三、测试用例与行覆盖率（2026-08-20 16:33 全量重测，711 用例 run，llvm-cov export lcov DA 口径）
+## 三、测试用例与行覆盖率（2026-08-21 P0.2 全量重测，763 用例 run，llvm-cov DA 口径，main 门禁 /tmp/p02_ci_main2.log）
 
-| 模块 | 行覆盖（仅源文件，666 用例 run 实测） | 状态 |
+| 模块 | 行覆盖（仅源文件，P0.2 终版实测） | 状态 |
 |------|--------|------|
-| Sandbox | 98.2%（54/55） | ✅ ≥90% |
-| Skill | 98.3%（626/637） | ✅ ≥90%（与本上版相同，run-to-run 稳定） |
-| Prompt | 96.5%（329/341） | ✅ ≥90% |
-| RAG | 96.4%（596/618） | ✅ ≥90% |
-| Subagent | 96.3%（315/327） | ✅ ≥90%（含槽位门控转移语义修复代码 `50fb2be`） |
-| Tools | 96.1%（489/509） | ✅ ≥90% |
-| Memory | 93.5%（490/524） | ✅ ≥90% |
-| Terminal | 91.7%（154/168） | ✅ ≥90%（profraw union run-to-run 变异，测试全绿非代码回归） |
-| LLM | 93.4%（937/1003） | ✅ ≥90%；wire 格式零网络桩（tools/tool_calls/reasoning/SSE 聚合/归一化边界） |
-| MCP | 94.3%（612/649） | ✅ ≥90%（较上版 +6 行 run-to-run 变异，测试全绿非代码回归） |
-| PluginXPC | 92.9%（197/212） | ✅ ≥90% |
-| Agent | 92.5%（418/452） | ✅ ≥90%（本阶段 toolTraces 补测 6 项） |
-| WebUI | 92.1%（499/542） | ✅ ≥90% |
-| Session | 92.3%（300/325） | ✅ ≥90%（pinned 字段 + 向后兼容解码 + withPinned 全测） |
-| ServiceContainer | 92.1%（644/699） | ✅ ≥90%（+2 行 run-to-run 变异） |
-| Notifications | 82.7%（62/75） | ⚠️ 结构性上限：剩余 13 行为 `SystemNotificationCenter` UN 真实包装层（裸 xctest 进程调用实测 abort；授权状态映射已拆纯函数 `state(from:)` 全测） |
-| Account（新增） | 80.6%（501/622，9 文件） | ⚠️ 新平台包，不计入 90% 核心基线：AppleSignInService 15.2%（17/112）为 ASAuthorization 系统对话框包装层（NS_SWIFT_UI_ACTOR，无头结构性不可测，同类 Notifications UN 包装层）；其余 8 文件 94.9%（484/510）：AccountService 95.9 / MetadataSync 91.9 / CredentialStore 89.1 / Types·WorkspaceRoot·Storing·Probing·Provider 100 |
-| HarnessApp（UI 层） | 25.8%（1321/5113） | 说明：SwiftUI 视图层，不计入 90% 核心基线（ViewModel 逻辑已由 HarnessAppTests 覆盖）。较上版 25.3%（1296/5115）：分组纯函数 + 无气泡消息路径命中 +25 行（同口径：llvm-cov lcov 插桩行） |
+| Sandbox | 98.4%（63/64） | ✅ ≥90% |
+| Skill | 97.0%（672/693） | ✅ ≥90% |
+| Tools | 95.7%（572/598） | ✅ ≥90% |
+| Workspace（新增） | 95.4%（269/282） | ✅ ≥90%（Project 92.86 / ProjectOperations 100 / SidebarModel 90.74 / WorkspaceSyncPayload 98.78 / SessionTransfer 80.0） |
+| Subagent | 95.1%（367/386） | ✅ ≥90% |
+| PluginXPC | 94.6%（297/314） | ✅ ≥90% |
+| RAG | 94.5%（659/697） | ✅ ≥90% |
+| Prompt | 94.5%（363/384） | ✅ ≥90% |
+| Terminal | 93.2%（206/221） | ✅ ≥90% |
+| Session | 93.0%（584/628） | ✅ ≥90%（SessionDB 94.87，v2 迁移/项目行/删除二选一清事件表全测） |
+| LLM | 92.8%（1243/1339） | ✅ ≥90% |
+| MCP | 92.4%（729/789） | ✅ ≥90% |
+| Memory | 92.3%（524/568） | ✅ ≥90% |
+| WebUI | 92.1%（608/660） | ✅ ≥90% |
+| ServiceContainer | 91.4%（687/752） | ✅ ≥90% |
+| Agent | 91.1%（494/542） | ✅ ≥90% |
+| Notifications | 82.9%（63/76） | ⚠️ 结构性上限：剩余 13 行为 `SystemNotificationCenter` UN 真实包装层（裸 xctest 进程调用实测 abort；授权状态映射已拆纯函数 `state(from:)` 全测） |
+| Account | 79.1%（594/751，10 文件） | ⚠️ 新平台包，不计入 90% 核心基线：AppleSignInService 13.1%（18/137）为 ASAuthorization 系统对话框包装层（NS_SWIFT_UI_ACTOR，无头结构性不可测，同类 Notifications UN 包装层）；其余 9 文件 95.0%（576/608）：AccountService 93.77 / MetadataSync 90.62 / CredentialStore 89.29 / **WorkspaceSyncEngine 96.88（新增）** / Types·WorkspaceRoot·Storing·Probing·Provider 100 |
+| HarnessApp（UI 层） | 未计入表（SwiftUI 视图层，不计入 90% 核心基线；ViewModel 逻辑已由 AppViewModelProjectTests 等覆盖，项目模块 11 场景 + AppWorkspaceStore 2 场景全绿） | 说明 |
 
-**总计: 711 个测试用例（XCTest 180 + Swift Testing 531），全部通过。**
-**17 个后端包（含 WebUI + Account）行覆盖 93.1%（7223/7758）；不含 WebUI 16 包 93.2%（6724/7216）；14 个核心包（除 Notifications/WebUI/Account）94.5%（6161/6519）均 ≥90%。**（总覆盖较上版 94.1% 下降系新增 Account 包拉低，14 核心包 94.5% 较上版 94.3% 持平微升）
+**总计: 763 个测试用例（XCTest 186 + Swift Testing 577，116 suites），全部通过。**（并行门禁口径：XCTest 以 `[N/186] Testing` 计数、ST 以 "Test run with 577" 计数，两路全绿；非并行 `swift test` 顶层 "Executed 186 tests" 交叉验证一致）
+**14 个核心包（除 Notifications/WebUI/Account）93.57%（7432/7943）均 ≥90%；17 包全量 92.30%（8994/9744）。**（较 P0.1 的 14 核心 94.5%：口径相同，下降系 Workspace 新包 SessionTransfer 80% 与 Account 新增拉低分母，Workspace 自身 95.4% 达标）
 
-> 口径说明：行覆盖统计各模块 `Sources/` 源文件（不含测试），本版改用 `llvm-cov export --format=lcov` 按 DA 记录去重行统计（该 beta 工具链 `llvm-cov report/export --format=json` 不可用）；分母与上一版（llvm-cov report 口径）不同，**绝对值不可直接纵向比较，模块相对排序与 ≥90% 达标状态一致**。`swift test` 末尾 "Test run with N" 只统计 Swift Testing，XCTest 计数看 "Executed N tests"。
+> 口径说明：行覆盖统计各模块 `Sources/` 源文件（不含测试），`llvm-cov report` DA 行级口径（ci-local main 门禁产物 /tmp/ci_cov.profdata 聚合 182 个 profraw）；分母与上一版（llvm-cov export lcov 口径）不同，**绝对值不可直接纵向比较，模块相对排序与 ≥90% 达标状态一致**。`swift test` 末尾 "Test run with N" 只统计 Swift Testing，XCTest 计数看 "Executed N tests"（并行模式看 `[N/M] Testing`）。
 
 ## 四、已知问题清单（按优先级）
 
@@ -102,8 +106,11 @@
 | 冷 scratch 偶发 emit-module 工具链崩溃 | `no such module 'Agent'`，同 scratch 重试即过（环境坑非代码） | 已知 |
 | SSO + iCloud 真机验收待 Developer Team | 无描述文件时本地 ad-hoc 签名无法携带 applesignin/icloud entitlements（Xcode ad-hoc 拒绝 team 级 entitlements，实测）；已按「无 entitlements 优雅降级」设计交付（UI 显示「需配置 entitlement/描述文件」+ 重新申请入口 + retryICloud），真实 SSO 登录 / KVS 跨设备漫游验收待用户提供 Team | 待用户（不阻塞） |
 | KVS 跨设备冲突用户裁决 UI 未接 | MetadataSyncService.setOnConflict 回调已实现 + 测试（裁决胜出 / 无回调保留本地），但「账号与同步」子页暂无冲突裁决 UI | P0.2 或后续接入 |
-| AppleSignInService 低覆盖 15.2%（17/112） | ASAuthorizationController 系统对话框包装层（NS_SWIFT_UI_ACTOR），无头环境结构性不可测，同类 Notifications UN 包装层；纯逻辑（nonce 生成 / 错误归类 userCancelled / 凭证状态查询）已全测 | 设计面（已知） |
+| AppleSignInService 低覆盖 13.1%（18/137，P0.2 口径） | ASAuthorizationController 系统对话框包装层（NS_SWIFT_UI_ACTOR），无头环境结构性不可测，同类 Notifications UN 包装层；纯逻辑（nonce 生成 / 错误归类 userCancelled / 凭证状态查询）已全测 | 设计面（已知） |
 | Apple LLVM 21（Xcode 26.6 / macOS 27 beta）`llvm-profdata merge -f` 参数 bug | `-f` 存在时（任意参数序）报 `error: <out>: No such file or directory` 且 rc=1；输出路径可写、输入 profraw 可读（`show` 正常）→ 工具自身 bug。三组实验实锤：`-f -o out files` 失败 / `files -f -o out` 失败 / `files -o out` 成功（覆盖已存在输出文件亦可）。曾致 `tools/ci-local.sh main` 覆盖率汇总步骤失败（测试门禁本身通过） | 已绕过（`50fb2be`）：merge 行改 `merge *.profraw -o out`（省略 -f、-o 置输入文件后），182 个 profraw 全量验证 + ci-local main 复跑全绿；官方工具链修复后可恢复 -f |
+| KVS workspace 冲突裁决 UI 未接 | WorkspaceSyncEngine 的 onConflict 未设（= 保留本地，同 P0.1 accountMode 口径）；「账号与同步」子页暂无工作区冲突裁决 UI | P0.3 或后续接入 |
+| 项目手动重排 UI 未暴露 | `ProjectOperations.reorder` 纯函数已测（跨项目移动 sortOrder 计算 + 边界），但侧边栏未提供项目拖拽排序入口（会话拖拽已有） | 后续 UI 打磨项 |
+| 演示数据注入脚本 SQL 拼接 bug（一次性 /tmp 脚本，非工程代码） | seed 脚本 heredoc 内 `'..."'$P1'"'` 缺 `|| '...'` 结构 → sqlite 把 UUID 当标识符解析（首跑报 parse error）；修复后二次注入又漏闭合 `}` 致 2 行 metadata_json 非法 JSON（json_valid 校验捕获），已逐行从备份重建并全表 json_valid=1 复核 | 现场教训已处理；真实 DB 操作前必须 json_valid 全表校验 + 备份（本轮备份 /tmp/harness_sessions_backup_20260820_231140.sqlite） |
 
 ### 已闭环（本周期）
 | 问题 | 闭环提交 |
@@ -144,18 +151,21 @@
 | Xcode ad-hoc 签名（-）拒绝 team 级 entitlements（applesignin/icloud 需 provisioning profile） | `6696bf1`（双 entitlements 文件方案：完整版 HarnessApp.entitlements 待 Team 启用 / CI 精简版仅 get-task-allow） |
 | macOS KVS 账号状态无现成 API（无 accountStatus，35 方法实测枚举） | `6696bf1`（三重判定：url(forUbiquityContainerIdentifier:) nil=无容器 + ubiquityIdentityToken 属性非 nil + KVS 外部变更通知（reason raw 0/1/2/3 映射），探测脚本实机实测） |
 | SiA 请求对象直接 init 运行时 crash | `6696bf1`（取证：唯一创建路径 = ASAuthorizationAppleIDProvider().createRequest()，编译+运行时双验证） |
+| 双屏窗口服务器碎片化致主窗口不可见（P0.2 启动演示现场，复现 4 次） | `97f45e9`（根因链：watchdog 每 2s 调 pickUserFacingScreen 选目标屏，该函数按「屏上 layer0 窗口数」打分且**计入本 App 自身窗口** → 窗口被移屏后计数翻转 → 目标屏 tick 间振荡（内置⇄外屏）→ 每 2s orderOut/setFrame/makeKeyAndOrderFront 捶打窗口服务器 → 主窗口被压成 30px 碎片（CGWindowList 实测 4 片：1920x30×3 + 64x64）→ System Events 0 窗口、彻底不可见。修复：① pickUserFacingScreen 排除本进程窗口（断反馈回路）② watchdog 目标屏按屏幕配置签名缓存（仅屏幕增减/分辨率变化时重算）。修复后实机验证：20s+ watchdog 日志零 mismatch，窗口稳定内置屏全宽，System Events 正常枚举 1 窗口） |
+| xcode 工程静态库依赖三处缺失（P0.2 xcode 门禁 4 连败根因） | `97f45e9`（① HarnessApp 漏 `- target: Workspace` → ld symbol not found（AppViewModel/Sidebar 引用 Workspace.ProjectID 等）② AccountTests/WorkspaceTests 间接依赖 GRDB 但无直接 GRDB product → 拿不到自动 CSQLite modulemap flag → unable to resolve module dependency: 'CSQLite'（直接依赖 GRDB product 的 target 由 SPM 集成自动注入 checkout modulemap，间接者必须显式声明）③ 同两 target 补 GRDB product 后移除手动 flag 避免 CSQLite 模块双重声明；静态库不传递链接是 Xcode 既定行为，项目惯例=测试 target 显式列全所需 target + GRDB product。另清理两 scheme 误重复的 WorkspaceTests 条目（xcodebuild test 会跑两遍）） |
+| project.yml 重建事故（本轮现场，工程文件曾被截断） | 本轮 python 切片脚本 bug 误删 MemProbe 之后全部 target/scheme 段；用 HEAD 版本 + 本轮已知增量编辑重建，**xcodegen 再生成 pbxproj 与截断前备份逐行 diff 零差异（除预期新增 Workspace 链接）+ scheme 文件 diff 仅各减一条重复 WorkspaceTests** 双重校验后放行；教训：对工程清单文件做程序化编辑必须先备份 + 生成物 diff 校验 |
 
 ## 五、代码统计
 
 | 项 | 数值 |
 |----|------|
-| 源码（Packages，86 文件） | 12,808 行（含新增 Account 包 9 文件 1,946 行） |
-| 源码（Apps，33 文件：HarnessApp 23 + 辅助 target DSHCLI/HarnessCore/HarnessPluginWorker/MemProbe 10） | 7,819 行 |
-| 源码合计（119 文件） | 20,627 行 |
-| 测试代码（64 文件） | 13,850 行（含 AccountTests 6 文件 880 行） |
-| SPM 目标 | 21 库（17 后端包 + 4 辅助库 Workspace/Plan/Goal/HarnessCore）/ 4 可执行 + 19 测试目标（单一 xctest 进程） |
+| 源码（Packages，127 文件中源文件，含新增 Workspace 包 5 文件 282 行 + Account 包 10 文件） | 13,464 行 |
+| 源码（Apps，HarnessApp + 辅助 target DSHCLI/HarnessCore/HarnessPluginWorker/MemProbe） | 8,550 行 |
+| 源码合计（127 文件） | 22,014 行 |
+| 测试代码（67 文件） | 15,127 行（P0.2 新增：WorkspaceTests 307 行 / WorkspaceSyncEngineTests / AppViewModelProjectTests / SessionDB v2 扩展） |
+| SPM 目标 | 22 库（17 后端包 + 5 辅助库 Workspace/Plan/Goal/HarnessCore/Account 扩展）/ 4 可执行 + 20 测试目标（单一 xctest 进程） |
 | 工具链 | Swift 6.3.3 / Xcode 26.6 / macOS arm64 / platforms .macOS(.v26) |
-| 提交总数 | 112（含本轮 P0.1 提交 + 本次入册提交） |
+| 提交总数 | 114（含本轮 P0.2 代码提交 `97f45e9` + 本次入册提交） |
 
 ### 八大后端模块代码级需求审计（2026-08-20 跨会话核验轮）
 
@@ -209,6 +219,8 @@
 ## 六、提交链（近期）
 
 ```
+97f45e9  feat(workspace): P0.2 侧边栏【项目】模块（Workspace 包 + SessionDB v2 + WorkspaceSyncEngine + 项目模块 UI + 看门狗选屏反馈回路修复，763/763 全绿）
+da47c0d  docs(quality): P0.1 交付入册（SSO+iCloud 基础层 711 用例基线 + Account 模块覆盖率 DA 口径首测 + API 取证 4 项）（6696bf1）
 6696bf1  feat(account): P0.1 Apple SSO + iCloud 工作区漫游基础层（Packages/Account + 账号与同步子页 + 双构建统一，711/711 全绿）
 19f4961  chore(baseline): 部署目标 15→26 macOS Tahoe（WWDC25）+ tools-version 6.0→6.3
 ead0c45  fix(project): ToolsTests 补声明 Agent 依赖（xcodebuild 依赖扫描警告根除，双清单同步）
@@ -243,10 +255,10 @@ cf0e230  docs(quality): 刷新质量报告 — 前端阶段1/2 基线
 
 ## 七、下一阶段
 
-已完成（2026-08-20 P0.1 轮）：① Apple SSO + iCloud 工作区漫游基础层编译 + 45 用例全绿（子能力见 §二 P0.1 行）② 双构建 bundle id 统一 + 部署目标 26 + 双 entitlements 文件 ③ 711 用例门禁基线（16:16–16:33 ci-local pr + xcode + main 全绿，覆盖率 DA 口径重聚合）④ API 取证入册（SiA 唯一创建路径 / ASPresentationAnchor=NSWindow / KVS 三重判定，见头部说明）。
+已完成（2026-08-21 P0.2 轮）：① Workspace 包 5 文件 282 行（Project 实体 / 删除二选一 / SessionTransfer / reorder / SessionDragPayload / SidebarModel 投影 / WorkspaceSyncPayload）+ 27 单测 ② SessionDB v2 纯增量迁移（向后兼容解码 + save 全量重写 events 的 patch 先 load 后 save 约束）③ Account WorkspaceSyncEngine 同步桥 + 8 单测 ④ App 项目模块 UI（分区/折叠/归档管理面板/搜索限定范围/会话拖拽迁移，11 场景 + 2 投影单测）⑤ 看门狗选屏反馈回路修复（双屏窗口碎片化根因，实机 20s+ 零 mismatch 验证）⑥ xcode 工程静态库依赖三处修复 + scheme 重复条目清理 ⑦ 763/763 门禁基线（ci-local pr+xcode+main 三门禁全绿）⑧ 实机演示验证（新构建启动 + 侧边栏项目分区实机可见，截图 /tmp/dsh/p02_harness_win.png）。
 
-下一步：**P0.2 侧边栏【项目】模块** — 数据层先行：Project 实体 / 会话归属 / 归档 / 删除二选一确认 / 拖拽 Transferable / 搜索（纯逻辑先测后 UI），随后 UI 接入。
+下一步：**P0.3 侧边栏全部导航消除假 UI、对接后端真实业务** — ① 新对话（真实创建会话实例）② 对话（加载会话列表 + 异常 UI）③ 多 Agent（子母 Agent 实例管理，创建/销毁真实 Subagent）④ 插件（MCP 插件管理页面对接 PluginManager 真实状态，为 P0.4 MCP 插件闭环铺路）⑤ 技能（Skill 库对接 SkillStore）⑥ 工具（工具定义查看对接 ToolRegistry）；处理加载/空数据/加载失败三类异常 UI。随后 P0.4 MCP 插件完整闭环（导入→启用→对话调用→结果回显 + 主题插件机制）。
 
-1. 用户依赖（不阻塞）：① Apple Developer Team/描述文件（SSO + iCloud 真机验收；当前按「无 entitlements 优雅降级」设计，UI 显示「需配置 entitlement/描述文件」+ 重新申请入口）② 新「账号与同步」设置子页实机视觉验收 ③ KVS 跨设备冲突用户裁决 UI 接入（P0.2 或后续）④ GitHub Actions 远端仍暂缓（ci-local 四模式本地模拟）
+1. 用户依赖（不阻塞）：① Apple Developer Team/描述文件（SSO + iCloud 真机验收；当前按「无 entitlements 优雅降级」设计，UI 显示「需配置 entitlement/描述文件」+ 重新申请入口）② 「账号与同步」设置子页 + P0.2 项目模块实机视觉验收（演示数据已注入真实 DB，可右键删除项目清理）③ KVS 跨设备冲突用户裁决 UI 接入（P0.3 或后续）④ GitHub Actions 远端仍暂缓（ci-local 四模式本地模拟）
 2. 持续观察：P1 macOS 27 beta 协作池调度停滞（每轮全量回归观察，CI 有界重试兜底；macOS 正式版若复现再升级）
-3. 持续迭代候选（均不阻塞）：① in-flight LLM 调用 cancel 联动中断（P2，AgentLoop 架构扩展）② KVS 冲突裁决 UI ③ 覆盖率工具链口径统一（官方工具链修复 profdata -f bug 后恢复）
+3. 持续迭代候选（均不阻塞）：① in-flight LLM 调用 cancel 联动中断（P2，AgentLoop 架构扩展）② KVS 冲突裁决 UI（含 workspace 冲突）③ 项目拖拽排序 UI 暴露 ④ 覆盖率工具链口径统一（官方工具链修复 profdata -f bug 后恢复）
