@@ -92,6 +92,10 @@ struct PluginDisplayItem: Identifiable, Hashable {
     let description: String
     /// 提供主题能力（ThemeProviderPlugin；插件页“主题”徽章）
     let isTheme: Bool
+    /// 依赖（P0.4⑤：展示标签，如 “终端”）
+    var dependencies: [String] = []
+    /// 缺失的必需依赖（未安装或版本不满足；非空 = 红色提示）
+    var missingDependencies: [String] = []
 
     init(id: String, name: String, version: String, state: PluginState,
          isActive: Bool, permissions: [String], author: String?, description: String,
@@ -190,6 +194,10 @@ struct MarketplaceDisplayItem: Identifiable, Hashable {
     let isInstalled: Bool
     let hasUpdate: Bool
     let incompatibleReason: String?
+    /// 依赖（P0.4⑤：展示标签）
+    var dependencies: [String] = []
+    /// 缺失的必需依赖（未安装或版本不满足；非空 = 红色提示 + 安装禁用）
+    var missingDependencies: [String] = []
 
     init(entry: MarketplaceEntry) {
         id = entry.listing.id.rawValue
@@ -890,8 +898,16 @@ final class AppViewModel: ObservableObject {
         let themeIDs = await Set(pluginManager.activePluginInstances()
             .filter { $0 is ThemeProviderPlugin }
             .map(\.manifest.id.rawValue))
-        plugins = infos.map { PluginDisplayItem(info: $0, isTheme: themeIDs.contains($0.id.rawValue)) }
-            .sorted { !$0.isActive && $1.isActive }
+        var items = infos.map { PluginDisplayItem(info: $0, isTheme: themeIDs.contains($0.id.rawValue)) }
+        // P0.4⑤：依赖标签 + 缺失检测（展示名解析 + semver 满足度）
+        for i in items.indices {
+            let deps = infos[i].dependencies
+            items[i].dependencies = deps.map { Self.dependencyLabel($0, installed: infos) }
+            items[i].missingDependencies = deps
+                .filter { !Self.dependencySatisfied($0, installed: infos) }
+                .map { Self.dependencyLabel($0, installed: infos) }
+        }
+        plugins = items.sorted { !$0.isActive && $1.isActive }
         pluginsLoadState = .loaded
         // P0.4 主题插件：本地插件变更的唯一聚合刷新点（安装/卸载/停用/启动全部经此）
         await refreshThemes()
@@ -1975,7 +1991,33 @@ final class AppViewModel: ObservableObject {
     func refreshMarketplace() async {
         await marketplace.refresh()
         let entries = await marketplace.browse()
-        marketplaceEntries = entries.map { MarketplaceDisplayItem(entry: $0) }
+        let installed = await pluginManager.list()
+        var items = entries.map { MarketplaceDisplayItem(entry: $0) }
+        // P0.4⑤：依赖标签 + 缺失检测（展示名解析 + semver 满足度）
+        for i in items.indices {
+            let deps = entries[i].listing.dependencies
+            items[i].dependencies = deps.map { Self.dependencyLabel($0, installed: installed) }
+            items[i].missingDependencies = deps
+                .filter { !Self.dependencySatisfied($0, installed: installed) }
+                .map { Self.dependencyLabel($0, installed: installed) }
+        }
+        marketplaceEntries = items
+    }
+
+    // MARK: - P0.4⑤ 依赖缺失 UI（依赖标签解析 + semver 满足度纯函数）
+
+    /// 依赖展示标签：已安装 → 展示名；未安装 → 插件 id 原文
+    nonisolated static func dependencyLabel(_ dep: PluginDependency, installed: [PluginInfo]) -> String {
+        installed.first { $0.id.rawValue == dep.id.rawValue }?.name ?? dep.id.rawValue
+    }
+
+    /// 依赖是否满足：已安装且版本 ≥ minVersion；可选依赖未安装也算满足
+    nonisolated static func dependencySatisfied(_ dep: PluginDependency, installed: [PluginInfo]) -> Bool {
+        guard let info = installed.first(where: { $0.id.rawValue == dep.id.rawValue }) else {
+            return !dep.required
+        }
+        guard let v = PluginVersion(description: info.version) else { return !dep.required }
+        return v >= dep.minVersion
     }
 
     func installFromMarket(_ item: MarketplaceDisplayItem) {

@@ -200,6 +200,47 @@ struct PluginManagerTests {
         }
     }
 
+    private final class DepTestPlugin: Plugin, @unchecked Sendable {
+        var manifest: PluginManifest
+        var isActive: Bool = false
+
+        init() {
+            manifest = PluginManifest(
+                id: PluginID("com.harness.test.withdep"),
+                name: "WithDep",
+                version: PluginVersion(major: 1, minor: 0, patch: 0),
+                description: "Test",
+                minHarnessVersion: PluginVersion(major: 0, minor: 1, patch: 0),
+                dependencies: [PluginDependency(id: PluginID("terminal"), minVersion: PluginVersion(major: 1, minor: 0, patch: 0), required: true)]
+            )
+        }
+
+        func initialize(context _: PluginContext) async throws {}
+        func start(context _: PluginContext) async throws {
+            isActive = true
+        }
+
+        func stop(context _: PluginContext) async {
+            isActive = false
+        }
+    }
+
+    @Test("PluginInfo 暴露 manifest 依赖（P0.4⑤ UI 数据源）")
+    func pluginInfoExposesDependencies() async throws {
+        let manager = PluginManager(container: ServiceContainer(), eventBus: EventBus())
+        // 先装被依赖插件（否则 checkDependencies 抛 missingDependency — 依赖门禁真实生效）
+        try await manager.install(TestPlugin(id: "terminal", name: "终端"))
+        let plugin = DepTestPlugin()
+        try await manager.install(plugin)
+        guard let info = await manager.list().first(where: { $0.id == plugin.manifest.id }) else {
+            Issue.record("未找到 WithDep")
+            return
+        }
+        #expect(info.dependencies.count == 1)
+        #expect(info.dependencies.first?.id.rawValue == "terminal")
+        #expect(info.dependencies.first?.required == true)
+    }
+
     @Test("PluginInfo 暴露 manifest 真实权限（UI 数据源）")
     func pluginInfoExposesPermissions() async throws {
         let manager = PluginManager(container: ServiceContainer(), eventBus: EventBus())

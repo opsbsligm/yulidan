@@ -394,6 +394,26 @@ struct PluginDetailView: View {
                     Text("无需特殊权限").font(.system(size: 12)).foregroundStyle(HarnessTheme.textTertiary).italic()
                 }
             }
+            // P0.4⑤：依赖（缺失红色标注）
+            if !plugin.dependencies.isEmpty {
+                Divider()
+                Text("依赖").font(.system(.caption, design: .rounded)).fontWeight(.semibold)
+                    .foregroundStyle(HarnessTheme.textSecondary)
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(plugin.dependencies, id: \.self) { dep in
+                        HStack(spacing: 6) {
+                            let missing = plugin.missingDependencies.contains(dep)
+                            Image(systemName: missing ? "xmark.circle.fill" : "checkmark.circle.fill")
+                                .font(.system(size: 10))
+                                .foregroundStyle(missing ? Color.red : Color.green)
+                            Text(dep).font(.system(size: 12, design: .monospaced))
+                            if missing {
+                                Text("未安装 / 版本不满足").font(.system(size: 11)).foregroundStyle(.red)
+                            }
+                        }
+                    }
+                }
+            }
             Divider()
             Text("进程模型").font(.system(.caption, design: .rounded)).fontWeight(.semibold)
                 .foregroundStyle(HarnessTheme.textSecondary)
@@ -499,6 +519,20 @@ struct MarketplaceCard: View {
                             .foregroundStyle(HarnessTheme.textTertiary)
                     }
                 }
+                // P0.4⑤：依赖缺失红色提示 / 依赖满足灰色标注
+                if !item.missingDependencies.isEmpty {
+                    Text("缺少依赖：\(item.missingDependencies.joined(separator: "、"))（请先安装）")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.red)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                } else if !item.dependencies.isEmpty {
+                    Text("依赖：\(item.dependencies.joined(separator: "、"))")
+                        .font(.system(size: 10))
+                        .foregroundStyle(HarnessTheme.textTertiary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
             }
         }
         .padding(12)
@@ -518,7 +552,11 @@ struct MarketplaceCard: View {
             if item.isInstalled {
                 Button("卸载", action: onUninstall).buttonStyle(.bordered).controlSize(.small)
             } else {
-                Button("安装", action: onInstall).buttonStyle(.borderedProminent).controlSize(.small)
+                Button("安装", action: onInstall)
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .disabled(!item.missingDependencies.isEmpty)
+                    .help(item.missingDependencies.isEmpty ? "" : "缺少依赖插件，无法安装")
             }
         }
     }

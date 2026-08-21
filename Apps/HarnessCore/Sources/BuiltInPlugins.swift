@@ -76,6 +76,36 @@ public final class BuiltInSunsetThemePlugin: ThemeProviderPlugin, @unchecked Sen
     }
 }
 
+/// 依赖演示插件（P0.4⑤ 依赖缺失 UI）：声明依赖「终端」插件 ≥1.0.0。
+/// 仅上架本地市场（不随内置自动安装）：用户安装/卸载「终端」后可完整演示依赖满足/缺失两种 UI 状态。
+public final class BuiltInTerminalPlusPlugin: Plugin, @unchecked Sendable {
+    private let lock = NSLock()
+    private var _active = false
+    public let manifest = PluginManifest(
+        id: PluginID("terminal-plus"),
+        name: "终端增强（依赖演示）",
+        version: PluginVersion(major: 1, minor: 0, patch: 0),
+        description: "依赖演示插件：依赖「终端」插件 ≥1.0.0；卸载终端后安装/更新本插件会触发依赖缺失提示。",
+        minHarnessVersion: PluginVersion(major: 0, minor: 1, patch: 0),
+        dependencies: [PluginDependency(id: PluginID("terminal"), minVersion: PluginVersion(major: 1, minor: 0, patch: 0), required: true)],
+        permissions: [.clipboardAccess]
+    )
+    public init() {}
+
+    public var isActive: Bool {
+        lock.withLock { _active }
+    }
+
+    public func initialize(context _: PluginContext) async throws {}
+    public func start(context _: PluginContext) async throws {
+        lock.withLock { _active = true }
+    }
+
+    public func stop(context _: PluginContext) async {
+        lock.withLock { _active = false }
+    }
+}
+
 public final class BuiltInFilesystemPlugin: Plugin, @unchecked Sendable {
     private let lock = NSLock()
     private var _active = false
@@ -140,6 +170,10 @@ public enum BuiltInPluginCatalog {
         "terminal": (
             description: "通过 zsh 执行 Shell 命令并回传输出（具备真实执行能力）。",
             permissions: ["Shell 执行", "终端访问"]
+        ),
+        "terminal-plus": (
+            description: "依赖演示插件：依赖「终端」插件 ≥1.0.0（P0.4⑤ 依赖缺失 UI 演示）。",
+            permissions: ["剪贴板"]
         ),
     ]
 }

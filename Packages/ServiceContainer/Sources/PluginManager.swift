@@ -46,6 +46,8 @@ public struct PluginInfo: Sendable {
     public let stoppedAt: Date?
     /// manifest 声明的真实权限（P0.4 权限门禁 UI 数据源；不再依赖 App 层硬编码目录）
     public let permissions: [Permission]
+    /// manifest 声明的依赖（P0.4⑤ 依赖缺失 UI 数据源）
+    public let dependencies: [PluginDependency]
 
     init(entry: PluginEntry) {
         id = entry.manifest.id
@@ -55,6 +57,7 @@ public struct PluginInfo: Sendable {
         startedAt = entry.startedAt
         stoppedAt = entry.stoppedAt
         permissions = entry.manifest.permissions
+        dependencies = entry.manifest.dependencies
     }
 }
 

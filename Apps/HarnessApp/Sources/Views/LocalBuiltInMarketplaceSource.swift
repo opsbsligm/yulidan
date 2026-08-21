@@ -10,6 +10,8 @@ struct LocalBuiltInMarketplaceSource: PluginSource, Sendable {
         [
             PluginListing(plugin: BuiltInFilesystemPlugin()),
             PluginListing(plugin: BuiltInTerminalPlugin()),
+            // P0.4⑤ 依赖缺失 UI 演示条目（声明依赖 terminal ≥1.0.0）
+            PluginListing(plugin: BuiltInTerminalPlusPlugin()),
         ]
     }
 }
