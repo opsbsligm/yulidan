@@ -129,6 +129,26 @@ struct PendingPermissionInstall: Identifiable, Equatable {
 
 // MARK: - P0.4 MCP stdio 服务器（导入 / 重启 / 卸载；配置源 servers.json）
 
+/// 待裁决的 iCloud 同步冲突（P0.1.4：多设备冲突由用户选择保留版本）
+struct SyncConflictItem: Identifiable, Equatable {
+    let id: UUID
+    let key: String
+    let local: SyncedValue
+    let remote: SyncedValue
+
+    var keyDisplay: String {
+        AppViewModel.syncKeyDisplay(key)
+    }
+
+    var localPreview: String {
+        AppViewModel.syncValuePreview(local)
+    }
+
+    var remotePreview: String {
+        AppViewModel.syncValuePreview(remote)
+    }
+}
+
 struct MCPDisplayItem: Identifiable, Hashable {
     let id: String
     let name: String
@@ -357,6 +377,14 @@ final class AppViewModel: ObservableObject {
     private var workspaceEngine: WorkspaceSyncEngine?
     private var accountObservation: AnyCancellable?
 
+    // P0.1.4 iCloud 同步冲突裁决（多设备冲突 → UI 由用户选择保留版本）
+    /// 待裁决冲突列表（设置「账号与同步」展示）
+    @Published var pendingSyncConflicts: [SyncConflictItem] = []
+    private var conflictContinuations: [UUID: CheckedContinuation<SyncedValue, Never>] = [:]
+    private var conflictFallbackTasks: [UUID: Task<Void, Never>] = [:]
+    /// 安全网：超时未裁决自动保留本地（离线优先）；单测缩短
+    var conflictAutoResolveDelay: Duration = .seconds(600)
+
     /// 模型
     @Published var llmConfig: LLMConfig
 
@@ -498,6 +526,11 @@ final class AppViewModel: ObservableObject {
                 }
                 attachWorkspaceSyncIfNeeded()
             }
+        }
+        // P0.1.4：冲突交 UI 裁决（VM 已销毁时回落保留本地，离线优先）
+        accountService.setConflictHandler { [weak self] conflict in
+            guard let self else { return conflict.local }
+            return await awaitUserResolution(conflict)
         }
 
         // 监听模型配置变更（设置页保存后同步）
@@ -1399,6 +1432,58 @@ final class AppViewModel: ObservableObject {
     private func publishWorkspaceChange() {
         guard let engine = workspaceEngine else { return }
         Task { await engine.publishLocalState() }
+    }
+
+    // MARK: - P0.1.4 iCloud 同步冲突裁决（多设备冲突 → UI 用户选择保留版本）
+
+    /// 冲突回调入口（AccountService.setConflictHandler 挂接）：挂起等待用户裁决，返回胜者载荷
+    func awaitUserResolution(_ conflict: SyncConflict) async -> SyncedValue {
+        let item = SyncConflictItem(id: UUID(), key: conflict.key, local: conflict.local, remote: conflict.remote)
+        pendingSyncConflicts.append(item)
+        showToast("iCloud 同步冲突：\(item.keyDisplay)（设置 → 账号与同步中裁决）")
+        // 安全网：超时未裁决自动保留本地（离线优先原则）
+        let fallback = Task { [weak self] in
+            try? await Task.sleep(for: self?.conflictAutoResolveDelay ?? .seconds(600))
+            guard !Task.isCancelled else { return }
+            self?.resolveSyncConflict(id: item.id, keepLocal: true, autoResolved: true)
+        }
+        conflictFallbackTasks[item.id] = fallback
+        defer {
+            conflictFallbackTasks[item.id]?.cancel()
+            conflictFallbackTasks[item.id] = nil
+        }
+        return await withCheckedContinuation { continuation in
+            conflictContinuations[item.id] = continuation
+        }
+    }
+
+    /// 用户裁决：保留本地 / 保留云端（胜者写回 KVS 并解除同步回调挂起）
+    func resolveSyncConflict(id: UUID, keepLocal: Bool, autoResolved: Bool = false) {
+        guard let continuation = conflictContinuations.removeValue(forKey: id),
+              let idx = pendingSyncConflicts.firstIndex(where: { $0.id == id }) else { return }
+        let item = pendingSyncConflicts.remove(at: idx)
+        let winner = keepLocal ? item.local : item.remote
+        if !autoResolved {
+            showToast(keepLocal ? "已保留本地版本：\(item.keyDisplay)" : "已保留云端版本：\(item.keyDisplay)")
+        }
+        continuation.resume(returning: winner)
+    }
+
+    nonisolated static func syncKeyDisplay(_ key: String) -> String {
+        switch key {
+        case AccountService.keyAccountMode: "账号模式"
+        case WorkspaceSyncPayload.kvsKey: "项目与会话数据"
+        default: key
+        }
+    }
+
+    nonisolated static func syncValuePreview(_ value: SyncedValue) -> String {
+        let payload = value.value
+        if let text = String(data: payload, encoding: .utf8) {
+            let line = text.replacingOccurrences(of: "\n", with: " ")
+            return line.count > 80 ? String(line.prefix(80)) + "…" : line
+        }
+        return "二进制数据（\(payload.count) 字节）"
     }
 
     private func persistProject(_ project: Project) {

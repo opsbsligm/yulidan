@@ -2,13 +2,69 @@ import Account
 import SwiftUI
 
 /// 账号与同步（P0.1）：Apple SSO 状态 + 工作区模式切换 + iCloud 降级/重新申请
+/// P0.1.4：多设备同步冲突 → 待裁决列表（用户选择保留本地/云端版本）
 struct AccountSyncSection: View {
     @ObservedObject var accountService: AccountService
+    @ObservedObject var viewModel: AppViewModel
 
     var body: some View {
         VStack(spacing: 16) {
+            if !viewModel.pendingSyncConflicts.isEmpty {
+                conflictCard
+            }
             accountCard
             workspaceCard
+        }
+    }
+
+    // MARK: - 同步冲突裁决卡（P0.1.4）
+
+    private var conflictCard: some View {
+        SettingsCard(title: "同步冲突（需裁决）", icon: "exclamationmark.triangle") {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("以下数据在多台设备上同时修改，请逐项选择保留版本：")
+                    .font(.system(size: 12))
+                    .foregroundStyle(HarnessTheme.textSecondary)
+                ForEach(viewModel.pendingSyncConflicts) { item in
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(item.keyDisplay)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(HarnessTheme.textPrimary)
+                        VStack(alignment: .leading, spacing: 4) {
+                            syncSideLabel("本地", item.localPreview)
+                            syncSideLabel("云端", item.remotePreview)
+                        }
+                        HStack(spacing: 8) {
+                            Button("保留本地") {
+                                viewModel.resolveSyncConflict(id: item.id, keepLocal: true)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
+                            Button("保留云端") {
+                                viewModel.resolveSyncConflict(id: item.id, keepLocal: false)
+                            }
+                            .controlSize(.small)
+                        }
+                    }
+                    .padding(10)
+                    .background(HarnessTheme.surfaceHover)
+                    .cornerRadius(8)
+                }
+            }
+        }
+    }
+
+    private func syncSideLabel(_ side: String, _ preview: String) -> some View {
+        HStack(alignment: .top, spacing: 6) {
+            Text(side)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(HarnessTheme.textTertiary)
+                .frame(width: 30, alignment: .leading)
+            Text(preview.isEmpty ? "（空）" : preview)
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundStyle(HarnessTheme.textSecondary)
+                .lineLimit(2)
+                .truncationMode(.tail)
         }
     }
 

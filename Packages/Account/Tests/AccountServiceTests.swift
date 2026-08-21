@@ -267,3 +267,114 @@ struct AccountServiceTests {
         #expect(fx.service.state == .icloudReady)
     }
 }
+
+// MARK: - P0.1.4 冲突裁决 handler 转发链（setConflictHandler → sync → 冲突 → 裁决 → 胜者落 KVS）
+
+final class ConflictBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var _value: SyncConflict?
+
+    var value: SyncConflict? {
+        lock.withLock { _value }
+    }
+
+    func set(_ v: SyncConflict) {
+        lock.withLock { _value = v }
+    }
+}
+
+@MainActor
+@Suite("AccountService P0.1.4 冲突裁决转发")
+struct AccountServiceConflictTests {
+    private func settle(_ ms: Int = 200) async throws {
+        try await Task.sleep(for: .milliseconds(ms))
+    }
+
+    private static func encode(_ v: SyncedValue) -> Data {
+        (try? JSONEncoder().encode(v)) ?? Data()
+    }
+
+    private static func decode(_ d: Data?) -> SyncedValue? {
+        d.flatMap { try? JSONDecoder().decode(SyncedValue.self, from: $0) }
+    }
+
+    @Test("handler 转发生效：冲突触发 UI 裁决，胜者写回 KVS")
+    func conflictHandlerForwardsAndWinnerApplied() async throws {
+        let fx = try AccountServiceFixture()
+        defer { fx.cleanup() }
+        let kvs = FakeKVS()
+        let service = AccountService(
+            rootProvider: WorkspaceRootProvider(
+                localRoot: fx.tempDir.appendingPathComponent("LocalRootConflict", isDirectory: true),
+                probe: fx.probe
+            ),
+            probe: fx.probe,
+            credentialStore: fx.credentialStore,
+            signingFactory: { fx.signer },
+            settingsURL: fx.tempDir.appendingPathComponent("account-conflict.json"),
+            kvsStoreFactory: { kvs }
+        )
+        service.restore()
+        service.signInWithApple()
+        try await settle(300)
+        #expect(service.state == .icloudReady)
+
+        let box = ConflictBox()
+        // 用户裁决：保留云端
+        service.setConflictHandler { conflict in
+            box.set(conflict)
+            return conflict.remote
+        }
+        try await settle()
+
+        // 预埋异设备云端值（另一台设备已写入）
+        let foreign = SyncedValue(value: Data("remote-v".utf8), updatedAt: .now, deviceId: "dev-B")
+        kvs.set(Self.encode(foreign), forKey: AccountService.keyAccountMode)
+        // 本机新写入 → push 遇异设备值 → 冲突 → 裁决 handler
+        await service.testPublish(key: AccountService.keyAccountMode, value: Data("local-v2".utf8))
+        try await settle()
+
+        #expect(box.value != nil, "冲突回调应被触发")
+        #expect(box.value?.local.value == Data("local-v2".utf8))
+        #expect(box.value?.remote.value == Data("remote-v".utf8))
+        #expect(box.value?.key == AccountService.keyAccountMode)
+        // 裁决保留云端 → KVS 终值 = 云端载荷
+        #expect(Self.decode(kvs.data(forKey: AccountService.keyAccountMode))?.value == Data("remote-v".utf8))
+    }
+
+    @Test("handler 在 signIn 前设置：激活时同样下发生效")
+    func handlerSetBeforeSignIn() async throws {
+        let fx = try AccountServiceFixture()
+        defer { fx.cleanup() }
+        let kvs = FakeKVS()
+        let service = AccountService(
+            rootProvider: WorkspaceRootProvider(
+                localRoot: fx.tempDir.appendingPathComponent("LocalRootConflict2", isDirectory: true),
+                probe: fx.probe
+            ),
+            probe: fx.probe,
+            credentialStore: fx.credentialStore,
+            signingFactory: { fx.signer },
+            settingsURL: fx.tempDir.appendingPathComponent("account-conflict2.json"),
+            kvsStoreFactory: { kvs }
+        )
+        // 先设置 handler（未激活），再登录
+        let box = ConflictBox()
+        service.setConflictHandler { conflict in
+            box.set(conflict)
+            return conflict.local
+        }
+        service.restore()
+        service.signInWithApple()
+        try await settle(300)
+        #expect(service.state == .icloudReady)
+
+        let foreign = SyncedValue(value: Data("remote-x".utf8), updatedAt: .now, deviceId: "dev-B")
+        kvs.set(Self.encode(foreign), forKey: AccountService.keyAccountMode)
+        await service.testPublish(key: AccountService.keyAccountMode, value: Data("local-y".utf8))
+        try await settle()
+
+        #expect(box.value != nil)
+        #expect(Self.decode(kvs.data(forKey: AccountService.keyAccountMode))?.value == Data("local-y".utf8), "裁决保留本地")
+    }
+}

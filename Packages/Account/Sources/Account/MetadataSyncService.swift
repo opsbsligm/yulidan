@@ -27,6 +27,12 @@ public struct SyncConflict: Equatable, Sendable {
     public let key: String
     public let local: SyncedValue
     public let remote: SyncedValue
+
+    public init(key: String, local: SyncedValue, remote: SyncedValue) {
+        self.key = key
+        self.local = local
+        self.remote = remote
+    }
 }
 
 /// 离线优先元数据同步服务（KVS 层）。

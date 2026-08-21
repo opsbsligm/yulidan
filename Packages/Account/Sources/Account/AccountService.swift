@@ -25,6 +25,8 @@ public final class AccountService: ObservableObject {
 
     private var activeSigner: (any AppleSigning)?
     private var syncService: MetadataSyncService?
+    /// 冲突裁决 handler（P0.1.4：App 层挂 UI 裁决；sync 激活时即时下发，未激活则激活时下发）
+    private var conflictHandler: (@Sendable (SyncConflict) async -> SyncedValue)?
     private var kvsObserver: (any NSObjectProtocol)?
     private var workspaceEngine: WorkspaceSyncEngine?
 
@@ -39,18 +41,23 @@ public final class AccountService: ObservableObject {
     /// 元数据键：账号模式意图
     public static let keyAccountMode = "harness.meta.accountMode"
 
+    /// KVS store 工厂（单测注入 FakeKVS；生产 nil = 系统默认 NSUbiquitousKeyValueStore）
+    private let kvsStoreFactory: (@Sendable () -> any UbiquitousKeyValueStoring)?
+
     public init(
         rootProvider: WorkspaceRootProvider? = nil,
         probe: (any UbiquityProbing)? = nil,
         credentialStore: (any AppleCredentialStore)? = nil,
         signingFactory: (@MainActor () -> any AppleSigning)? = nil,
-        settingsURL: URL? = nil
+        settingsURL: URL? = nil,
+        kvsStoreFactory: (@Sendable () -> any UbiquitousKeyValueStoring)? = nil
     ) {
         let rootProvider = rootProvider ?? WorkspaceRootProvider()
         self.rootProvider = rootProvider
         self.probe = probe ?? DefaultUbiquityProbe()
         self.credentialStore = credentialStore ?? KeychainAppleCredentialStore()
         self.signingFactory = signingFactory ?? { RealAppleSignInService() }
+        self.kvsStoreFactory = kvsStoreFactory
         if let settingsURL {
             self.settingsURL = settingsURL
         } else {
@@ -227,10 +234,13 @@ public final class AccountService: ObservableObject {
     private func activateSync() {
         guard syncService == nil, state.isICloudReady, let icloudRoot = rootProvider.resolveICloud() else { return }
         let sync = MetadataSyncService(
-            store: DefaultUbiquitousKeyValueStore(),
+            store: kvsStoreFactory?() ?? DefaultUbiquitousKeyValueStore(),
             stagingDir: icloudRoot.url(for: WorkspaceLayout.syncStaging),
             deviceId: deviceId.uuidString
         )
+        if let handler = conflictHandler {
+            Task { await sync.setOnConflict(handler) }
+        }
         syncService = sync
         Task { [weak sync] in
             await sync?.configure(managedKeys: [Self.keyAccountMode])
@@ -290,6 +300,21 @@ public final class AccountService: ObservableObject {
             await engine.applyRemoteValue(value)
         }
         return false
+    }
+
+    // MARK: - 冲突裁决（P0.1.4：多设备冲突交 UI 用户选择保留版本）
+
+    /// 测试缝：驱动一次 KVS 发布（生产无外部调用方）
+    func testPublish(key: String, value: Data) async {
+        await syncService?.publish(key: key, value: value)
+    }
+
+    /// 设置冲突裁决 handler（幂等覆盖；sync 激活中则立即下发，未激活则 activateSync 时下发）
+    public func setConflictHandler(_ handler: (@Sendable (SyncConflict) async -> SyncedValue)?) {
+        conflictHandler = handler
+        if let sync = syncService {
+            Task { await sync.setOnConflict(handler) }
+        }
     }
 
     // MARK: - 工作区同步桥

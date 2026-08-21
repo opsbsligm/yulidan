@@ -244,7 +244,7 @@ struct SettingsView: View {
         case .account:
             if let accountService {
                 SectionSubPage {
-                    AccountSyncSection(accountService: accountService)
+                    AccountSyncSection(accountService: accountService, viewModel: viewModel)
                 }
             } else {
                 SectionSubPage {
