@@ -8,17 +8,19 @@
 
 > P0.2 收尾轮（`4beb21d`，2026-08-21 14:30）：看门狗在 macOS 27 beta 窗口服务器幻影报告下的现场拉锯彻底闭环（三层修复链完成）。现象：macOS 27 beta 窗口服务器对本 App 窗口**间歇性报告幻影 CGWindowList 边界**（Dock 缩略图尺寸 137-221×150-179 / 屏外 x=-255~-271，同窗口服务器侧报告 true/false 翻转，新窗口首启动即中 4/4 实测）→ 旧逻辑「服务器边界不一致→强制 remap」每 2s orderOut+setFrame+makeKeyAndOrderFront 撕裂**可见**窗口并抢焦点（用户可见闪烁）。修复：① 窗口用户可见（userManaged）时**禁止 remap**（信任应用侧报告，CG 报告有真相反转证据）② 仅掉屏/未映射走 remap（n≥2）→ recreate（n≥4，预算 2 次/30s）升级链 ③ 用户可见但服务器报幻影碎片持续 n≥8 才允许 recreate 自愈（ghost 渲染唯一可靠恢复手段）。实机验证（HARNESS_DEBUG=1 /tmp/harness-debug.log）：新实例首窗口启动 2s 即中幻影 → userManaged 期间**零 remap** → n≥8 recreate 自愈 → 预算耗尽（30s 间隔规则）后仅日志无破坏操作，全程零拉锯零抢焦点；现场同期旧二进制残留实例（win#40001）仍 2s REMAP 循环，前后对照互证。另记录三坑（§四 P2）：SCK ShareableContent 不列幻影窗口 / screencapture -l 对幻影窗口捕获失败 / 窗口服务器 clamp setFrame 结果（visibleFrame 全屏 → 实映射 (221,63,1249,860)，根因待定，不阻塞）。ci-local pr 复跑全绿（763 用例，/tmp/p03_ci_pr.log）。
 
+> P0.3 交付轮（`2ada315`，2026-08-21 17:10）：侧边栏全部导航项消除假 UI + **加载三态异常 UI（loading/loaded/failed + 重试）**闭环。范围裁定（按 goal 严格审计）：6 导航项（新对话/会话列表/多Agent/插件/技能/工具）**已全部真实对接后端**（createNewSession/SessionDB/SubagentCoordinator+View/PluginManager/SkillStore/ToolRegistry，零假 UI）；唯一缺口 = 加载无 loading 态、失败静默=空数据不可区分。本轮：① **NavLoadState 状态层**（AppViewModel 四 Tab 状态传播：会话 loadSessionsFromDB（DB 打不开/加载失败显式 failed + sessionDBURL 重开缝）/ 插件 loadPluginsInfrastructure（双内置安装全败=failed、单败=橙色警告）/ 技能 loadSkillRegistry（用户目录读取失败传播）/ 工具（**零工具集=子系统失败不变量**，替代 P0.3 改造后产生的两处死 catch——零警告基线）+ 四路 retry 重跑对应加载链路）② **SkillStore.loadThrowing**（用户技能目录被普通文件占用 = 显式 notDirectory 错误，不再静默吞成空列表；目录不存在仍=成功空）③ **三 UI 组件**（NavLoadingView 加载占位防空态闪烁 / NavErrorBanner 失败横幅+重试 / NavWarningBanner 部分失败橙色警告（MCP 服务器连接失败导致工具不全））④ **四视图接线**（PluginListView/SkillView/ToolListView/SidebarView：失败横幅+列表保留部分数据、加载中空列表=占位行、ContentView 四路 retry 接线；`let` 带默认值被成员初始化器排除的坑改用 `var` 落地）⑤ 3 项场景单测（四态启动全 loaded / 会话 DB 路径被文件占用 failed→重试仍 failed→移除文件恢复 / 技能目录被文件占用 failed（内置技能保留）→换目录恢复）。门禁：pr /tmp/p03_nav_ci_pr.log + main /tmp/p03_nav_ci_main.log 全绿（**766/766：XCTest 186 + ST 580，117 suites**，0 协作池停滞；xcode 复用 P0.2 基线——本轮零工程结构变更）。实机验证：新构建启动正常态渲染通过（会话真实数据列表/插件 2/2 运行中/窗口主屏正常帧零幻影，用户实机操作中截图 /tmp/p03_screen2.png）。P0.4 待办：MCP 插件完整闭环（导入/日志/重启/权限/依赖/主题，权限门禁落点=PluginManager.checkPermissions 目前仅 log warning）。
+
 ---
 
 ## 一、质量门禁（当前 HEAD 实测）
 
 | 门禁 | 状态 | 详情 |
 |------|------|------|
-| SwiftFormat | ✅ 0 改动 | `swiftformat --lint . --config .swiftformat`（195 文件） |
-| SwiftLint | ✅ 0 违规 | `swiftlint lint --strict --config .swiftlint.yml`（195 文件） |
+| SwiftFormat | ✅ 0 改动 | `swiftformat --lint . --config .swiftformat`（197 文件，P0.3 新增 2） |
+| SwiftLint | ✅ 0 违规 | `swiftlint lint --strict --config .swiftlint.yml`（197 文件，P0.3 新增 2） |
 | 编译 | ✅ 0 警告 | 全量冷编译（450 targets 含测试目标，覆盖率构建实测） |
-| 单元测试 | ✅ 763/763 | XCTest 186 + Swift Testing 577（116 suites），0 失败（P0.2 新增 46 ST 用例：Workspace 27 + WorkspaceSyncEngine 8 + 项目模块场景 11；+6 XCTest：SessionDB v2 迁移/项目行/删除；含跨实例持久化场景） |
-| 本地 CI 模拟 | ✅ pr+xcode+main 全绿 | `tools/ci-local.sh`（P0.2 终版：pr /tmp/p02_ci_pr3.log、xcode /tmp/p02_ci_xcode8.log、main /tmp/p02_ci_main2.log；本轮 0 次协作池停滞；xcode 门禁含 7 个测试 bundle 全跑；P0.2 收尾看门狗修复后 pr 复跑 /tmp/p03_ci_pr.log 全绿 0 停滞） |
+| 单元测试 | ✅ 766/766 | XCTest 186 + Swift Testing 580（117 suites），0 失败（P0.3 新增 3 ST 用例：导航加载三态——启动四态全 loaded / 会话 DB 文件占用 failed→恢复 / 技能目录占用 failed（内置保留）→恢复） |
+| 本地 CI 模拟 | ✅ pr+main 全绿（xcode 复用基线） | `tools/ci-local.sh`（P0.3：pr /tmp/p03_nav_ci_pr.log、main /tmp/p03_nav_ci_main.log，均 0 次协作池停滞；xcode 复用 P0.2 /tmp/p02_ci_xcode8.log 基线——本轮零工程结构变更（无新 target/依赖），结构变更时必复跑） |
 | 本地镜像备份 | ✅ 每次提交后 | `git push --mirror /Users/liguangming/code/swift-harness-backup.git` |
 | GitHub 推送 | ⏸ 暂缓 | 按用户要求先本地版本控制，未推送远端（`.github/workflows/swift-ci.yml` 四 job 已就位；本地模拟 `tools/ci-local.sh [pr|leaks|xcode|main]` 可跑，leaks 门禁 0 leaks 实测） |
 
@@ -41,6 +43,7 @@
 |---|------|------|------|
 | P0.1 | Apple SSO + iCloud 工作区漫游基础层：SiA 请求（createRequest 唯一路径 / fullName+email scopes / nonce 32B）/ AppleCredentialStore（Keychain ThisDeviceOnly，与 API key 同 service）/ WorkspaceRoot 双根严格隔离（本地 ~/Library/Application Support/Harness vs iCloud 容器 /Documents，五目录契约 agents/rag/plugins-meta/themes/sync）/ MetadataSyncService（actor 离线优先、KVS 即写即同步、跨设备冲突 onConflict 裁决、accountChange 清态+信号）/ AccountService 状态机（restore 恢复 / 登录 / 撤销 / 凭证缺失 / 切换模式 / 登出）/ App「账号与同步」设置子页（最小 UI） | `6696bf1` | ✅ 基础层闭环（45/45 单测全绿；真机验收待描述文件，见 §四 P2） |
 | P0.2 | 侧边栏【项目】模块（Codex 项目模型对齐）：Workspace 包 5 文件（Project 实体 / 删除二选一 / SessionTransfer 归属·归档迁移纯函数 / reorder / SessionDragPayload Transferable / SidebarModel 投影 / WorkspaceSyncPayload KVS 载荷）/ SessionDB v2 纯增量迁移 + metadata 向后兼容 / Account WorkspaceSyncEngine 同步桥（actor，坏数据 no-op）/ App 项目模块（项目 CRUD·折叠·归档·删除二选一·取消归档回落·会话拖拽迁移·项目限定搜索·归档管理面板）/ 看门狗选屏反馈回路修复（双屏窗口碎片化根因） | `97f45e9` | ✅ 模块闭环（763/763 全绿；实机演示验证通过，演示数据见头部说明） |
+| P0.3 | 侧边栏导航真实数据对接 + 加载三态异常 UI：6 导航项真实对接审计（零假 UI）/ NavLoadState 状态层（四 Tab loading·loaded·failed 传播 + 四路 retry 重跑链路：retryLoadSessions/Plugins/Skills/Tools）/ SkillStore.loadThrowing（目录被文件占用显式抛错）/ NavLoadingView·NavErrorBanner·NavWarningBanner 三组件（空态闪烁防护 / 失败横幅+部分数据保留 / 部分失败橙色警告）/ 四视图接线（PluginListView·SkillView·ToolListView·SidebarView）/ 零警告基线修复（P0.3 改造产生两处死 catch → 零工具集不变量 + 去壳） | `2ada315` | ✅ 模块闭环（766/766 全绿；实机正常态验证通过） |
 
 ### 前端打磨阶段（后端全部闭环后启动）
 
@@ -61,12 +64,12 @@
 | F10 | 用户消息 Codex 式无气泡纯文本（B8）：右对齐气泡 → 通栏左对齐 medium 字重 | `b5486ec` | ✅ 闭环（**B1–B8 差距清单全部闭环**，视觉验收待实机） |
 | F11 | 会话分组纯函数化：SessionGroups.group(_:now:)（置顶段最顶/今天/昨天/更早/组内倒序）+ 2 项单测 | `17a0fd8` | ✅ 闭环 |
 
-## 三、测试用例与行覆盖率（2026-08-21 P0.2 全量重测，763 用例 run，llvm-cov DA 口径，main 门禁 /tmp/p02_ci_main2.log）
+## 三、测试用例与行覆盖率（2026-08-21 P0.3 全量重测，766 用例 run，llvm-cov DA 口径，main 门禁 /tmp/p03_nav_ci_main.log）
 
 | 模块 | 行覆盖（仅源文件，P0.2 终版实测） | 状态 |
 |------|--------|------|
 | Sandbox | 98.4%（63/64） | ✅ ≥90% |
-| Skill | 97.0%（672/693） | ✅ ≥90% |
+| Skill | 96.9%（685/707） | ✅ ≥90%（P0.3 loadThrowing +14 行：notDirectory 抛出/目录不存在=成功空两分支全测） |
 | Tools | 95.7%（572/598） | ✅ ≥90% |
 | Workspace（新增） | 95.4%（269/282） | ✅ ≥90%（Project 92.86 / ProjectOperations 100 / SidebarModel 90.74 / WorkspaceSyncPayload 98.78 / SessionTransfer 80.0） |
 | Subagent | 95.1%（367/386） | ✅ ≥90% |
@@ -74,7 +77,7 @@
 | RAG | 94.5%（659/697） | ✅ ≥90% |
 | Prompt | 94.5%（363/384） | ✅ ≥90% |
 | Terminal | 93.2%（206/221） | ✅ ≥90% |
-| Session | 93.0%（584/628） | ✅ ≥90%（SessionDB 94.87，v2 迁移/项目行/删除二选一清事件表全测） |
+| Session | 93.2%（585/628） | ✅ ≥90%（SessionDB 94.87，v2 迁移/项目行/删除二选一清事件表全测） |
 | LLM | 92.8%（1243/1339） | ✅ ≥90% |
 | MCP | 92.4%（729/789） | ✅ ≥90% |
 | Memory | 92.3%（524/568） | ✅ ≥90% |
@@ -85,8 +88,8 @@
 | Account | 79.1%（594/751，10 文件） | ⚠️ 新平台包，不计入 90% 核心基线：AppleSignInService 13.1%（18/137）为 ASAuthorization 系统对话框包装层（NS_SWIFT_UI_ACTOR，无头结构性不可测，同类 Notifications UN 包装层）；其余 9 文件 95.0%（576/608）：AccountService 93.77 / MetadataSync 90.62 / CredentialStore 89.29 / **WorkspaceSyncEngine 96.88（新增）** / Types·WorkspaceRoot·Storing·Probing·Provider 100 |
 | HarnessApp（UI 层） | 未计入表（SwiftUI 视图层，不计入 90% 核心基线；ViewModel 逻辑已由 AppViewModelProjectTests 等覆盖，项目模块 11 场景 + AppWorkspaceStore 2 场景全绿） | 说明 |
 
-**总计: 763 个测试用例（XCTest 186 + Swift Testing 577，116 suites），全部通过。**（并行门禁口径：XCTest 以 `[N/186] Testing` 计数、ST 以 "Test run with 577" 计数，两路全绿；非并行 `swift test` 顶层 "Executed 186 tests" 交叉验证一致）
-**14 个核心包（除 Notifications/WebUI/Account）93.57%（7432/7943）均 ≥90%；17 包全量 92.30%（8994/9744）。**（较 P0.1 的 14 核心 94.5%：口径相同，下降系 Workspace 新包 SessionTransfer 80% 与 Account 新增拉低分母，Workspace 自身 95.4% 达标）
+**总计: 766 个测试用例（XCTest 186 + Swift Testing 580，117 suites），全部通过。**（并行门禁口径：XCTest 以 `[N/186] Testing` 计数、ST 以 "Test run with 580" 计数，两路全绿；P0.3 新增 3 ST = 116→117 suites 口径连续）
+**14 个核心包（除 LLM/Notifications/WebUI/Account）93.77%（6500/6932）均 ≥90%；18 包全量 92.31%（9008/9758）。**（P0.3 变动仅 Skill +14 行 96.9% / Session +1 行 93.2%，其余模块与 P0.2 逐项一致；全量 92.30→92.31 持平微升）
 
 > 口径说明：行覆盖统计各模块 `Sources/` 源文件（不含测试），`llvm-cov report` DA 行级口径（ci-local main 门禁产物 /tmp/ci_cov.profdata 聚合 182 个 profraw）；分母与上一版（llvm-cov export lcov 口径）不同，**绝对值不可直接纵向比较，模块相对排序与 ≥90% 达标状态一致**。`swift test` 末尾 "Test run with N" 只统计 Swift Testing，XCTest 计数看 "Executed N tests"（并行模式看 `[N/M] Testing`）。
 
@@ -163,13 +166,13 @@
 
 | 项 | 数值 |
 |----|------|
-| 源码（Packages，127 文件中源文件，含新增 Workspace 包 5 文件 282 行 + Account 包 10 文件） | 13,464 行 |
-| 源码（Apps，HarnessApp + 辅助 target DSHCLI/HarnessCore/HarnessPluginWorker/MemProbe） | 8,572 行（+22：看门狗反拉锯 `4beb21d`） |
-| 源码合计（127 文件） | 22,036 行 |
-| 测试代码（67 文件） | 15,127 行（P0.2 新增：WorkspaceTests 307 行 / WorkspaceSyncEngineTests / AppViewModelProjectTests / SessionDB v2 扩展） |
+| 源码（Packages，91 源文件） | 13,486 行（P0.3：SkillStore.loadThrowing +25） |
+| 源码（Apps，37 文件，HarnessApp + 辅助 target） | 8,855 行（P0.3：AppViewModel 三态层 +129 / NavLoadStateView 新文件 76 / 四视图接线 +96） |
+| 源码合计（128 文件） | 22,341 行 |
+| 测试代码（68 文件） | 15,245 行（P0.3 新增：AppViewModelNavLoadStateTests 124 行 3 场景） |
 | SPM 目标 | 22 库（17 后端包 + 5 辅助库 Workspace/Plan/Goal/HarnessCore/Account 扩展）/ 4 可执行 + 20 测试目标（单一 xctest 进程） |
 | 工具链 | Swift 6.3.3 / Xcode 26.6 / macOS arm64 / platforms .macOS(.v26) |
-| 提交总数 | 116（P0.2 收尾：看门狗反拉锯 `4beb21d` + 本次入册提交） |
+| 提交总数 | 118（P0.3：`2ada315` feat + 本次入册 docs 提交） |
 
 ### 八大后端模块代码级需求审计（2026-08-20 跨会话核验轮）
 
@@ -223,6 +226,7 @@
 ## 六、提交链（近期）
 
 ```
+2ada315  feat(app): P0.3 侧边栏导航真实数据对接 + 加载三态异常 UI（NavLoadState 四 Tab 状态层 + 四路 retry + 三 UI 组件 + SkillStore.loadThrowing + 3 场景单测，766/766 全绿）
 4beb21d  fix(app): 看门狗尊重用户可见窗口（macOS 27 beta 窗口服务器幻影报告反拉锯，763/763 复跑全绿）
 97f45e9  feat(workspace): P0.2 侧边栏【项目】模块（Workspace 包 + SessionDB v2 + WorkspaceSyncEngine + 项目模块 UI + 看门狗选屏反馈回路修复，763/763 全绿）
 da47c0d  docs(quality): P0.1 交付入册（SSO+iCloud 基础层 711 用例基线 + Account 模块覆盖率 DA 口径首测 + API 取证 4 项）（6696bf1）
@@ -260,9 +264,13 @@ cf0e230  docs(quality): 刷新质量报告 — 前端阶段1/2 基线
 
 ## 七、下一阶段
 
+已完成（2026-08-21 P0.3 轮，`2ada315`）：① 6 导航项真实对接审计（零假 UI）② NavLoadState 三态状态层 + 四路 retry 重跑链路 ③ SkillStore.loadThrowing（目录被文件占用显式抛错）④ 三 UI 组件 + 四视图接线（空态闪烁防护/失败横幅/部分失败警告）⑤ 零警告基线修复（两处死 catch 消除）⑥ 3 场景单测 + 766/766 门禁（pr+main 全绿 0 停滞）⑦ 实机正常态验证（会话真实数据/插件 2/2 运行/窗口零幻影）。
+
 已完成（2026-08-21 P0.2 轮）：① Workspace 包 5 文件 282 行（Project 实体 / 删除二选一 / SessionTransfer / reorder / SessionDragPayload / SidebarModel 投影 / WorkspaceSyncPayload）+ 27 单测 ② SessionDB v2 纯增量迁移（向后兼容解码 + save 全量重写 events 的 patch 先 load 后 save 约束）③ Account WorkspaceSyncEngine 同步桥 + 8 单测 ④ App 项目模块 UI（分区/折叠/归档管理面板/搜索限定范围/会话拖拽迁移，11 场景 + 2 投影单测）⑤ 看门狗选屏反馈回路修复（双屏窗口碎片化根因，实机 20s+ 零 mismatch 验证）⑥ xcode 工程静态库依赖三处修复 + scheme 重复条目清理 ⑦ 763/763 门禁基线（ci-local pr+xcode+main 三门禁全绿）⑧ 实机演示验证（新构建启动 + 侧边栏项目分区实机可见，截图 /tmp/dsh/p02_harness_win.png）。
 
-下一步：**P0.3 侧边栏全部导航消除假 UI、对接后端真实业务** — ① 新对话（真实创建会话实例）② 对话（加载会话列表 + 异常 UI）③ 多 Agent（子母 Agent 实例管理，创建/销毁真实 Subagent）④ 插件（MCP 插件管理页面对接 PluginManager 真实状态，为 P0.4 MCP 插件闭环铺路）⑤ 技能（Skill 库对接 SkillStore）⑥ 工具（工具定义查看对接 ToolRegistry）；处理加载/空数据/加载失败三类异常 UI。随后 P0.4 MCP 插件完整闭环（导入→启用→对话调用→结果回显 + 主题插件机制）。
+下一步：**P0.4 MCP 插件完整闭环** — ① 导入本地 MCP 包（servers.json 声明 + 安装流程 UI）② 运行日志（stdio 服务器输出回显）③ 重启故障插件（连接失败单服务器重连，区别于整页 retry）④ 权限授予/拒绝（PluginManager.checkPermissions 目前仅 log warning = P0.4 权限门禁落点）⑤ 依赖缺失提示（manifest 依赖检查 UI）⑥ 主题插件机制（主题包安装/应用/回退）。
+
+> P0.3 遗留观察（不阻塞 P0.4）：三态 UI 的**失败态实机视觉验收**待用户在场时演示（状态层 3 场景单测已锁定；正常态实机已通过）。
 
 1. 用户依赖（不阻塞）：① Apple Developer Team/描述文件（SSO + iCloud 真机验收；当前按「无 entitlements 优雅降级」设计，UI 显示「需配置 entitlement/描述文件」+ 重新申请入口）② 「账号与同步」设置子页 + P0.2 项目模块实机视觉验收（演示数据已注入真实 DB，可右键删除项目清理）③ KVS 跨设备冲突用户裁决 UI 接入（P0.3 或后续）④ GitHub Actions 远端仍暂缓（ci-local 四模式本地模拟）
 2. 持续观察：P1 macOS 27 beta 协作池调度停滞（每轮全量回归观察，CI 有界重试兜底；macOS 正式版若复现再升级）+ P2 macOS 27 beta 窗口服务器幻影 CGWindowList 报告（缓解已上线 `4beb21d`，实机渲染不受影响；macOS 官方正式版修复后复核并移除缓解逻辑）
