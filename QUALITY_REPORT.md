@@ -21,8 +21,8 @@
 | SwiftFormat | ✅ 0 改动 | `swiftformat --lint . --config .swiftformat`（197 文件，P0.3 新增 2） |
 | SwiftLint | ✅ 0 违规 | `swiftlint lint --strict --config .swiftlint.yml`（197 文件，P0.3 新增 2） |
 | 编译 | ✅ 0 警告 | 全量冷编译（450 targets 含测试目标，覆盖率构建实测） |
-| 单元测试 | ✅ 766/766 | XCTest 186 + Swift Testing 580（117 suites），0 失败（P0.3 新增 3 ST 用例：导航加载三态——启动四态全 loaded / 会话 DB 文件占用 failed→恢复 / 技能目录占用 failed（内置保留）→恢复） |
-| 本地 CI 模拟 | ✅ pr+main 全绿（xcode 复用基线） | `tools/ci-local.sh`（P0.3：pr /tmp/p03_nav_ci_pr.log、main /tmp/p03_nav_ci_main.log，均 0 次协作池停滞；xcode 复用 P0.2 /tmp/p02_ci_xcode8.log 基线——本轮零工程结构变更（无新 target/依赖），结构变更时必复跑） |
+| 单元测试 | ✅ 638/638 | Swift Testing 638（131 suites），0 失败（P0.1.5 新增 17：App 工作区路由 15（fakes 全套）+ RAG indexURL 路由 2） |
+| 本地 CI 模拟 | ✅ pr+main 全绿（xcode 复用基线） | `tools/ci-local.sh`（P0.1.5：pr /tmp/p015_ci_pr3.log 638/638 零停滞；xcode 复用 P0.2 /tmp/p02_ci_xcode8.log 基线——本轮零工程结构变更（无新 target/依赖），结构变更时必复跑） |
 | 本地镜像备份 | ✅ 每次提交后 | `git push --mirror /Users/liguangming/code/swift-harness-backup.git` |
 | GitHub 推送 | ⏸ 暂缓 | 按用户要求先本地版本控制，未推送远端（`.github/workflows/swift-ci.yml` 四 job 已就位；本地模拟 `tools/ci-local.sh [pr|leaks|xcode|main]` 可跑，leaks 门禁 0 leaks 实测） |
 
@@ -49,6 +49,8 @@
 | P0.4 | MCP 插件完整闭环（一切皆插件核心，6 项全落地）：① stdio 服务器导入/重启/卸载（servers.json 配置×实时状态合并、同名更新、防子进程泄漏、parseEnvPairs 纯函数）② 运行日志回显（MCPServerLogSheet 最近 stderr 等宽回显）+ **executeTool 串槽 P1 修复**（完成态按 tool.id 身份回写 finishToolExecution）③ 重启故障服务器 ④ 权限授予/拒绝门禁（grant/revoke、medium/high 显式授予、待裁决横幅）⑤ 依赖缺失 UI（PluginInfo 暴露 manifest.dependencies、dependencyLabel/dependencySatisfied semver 纯函数、市场卡缺少依赖红提示+安装禁用、详情面板依赖区、演示插件 terminal-plus 依赖 terminal ≥1.0.0）⑥ 主题插件机制（ThemeSpec 数据模型 + P1 玻璃参数预留 / ThemeProviderPlugin 协议 / activePluginInstances / ThemePluginManager 三源聚合（系统基准+本地主题插件+MCP get_theme_spec 约定工具）+ 来源消失自动回落 + UserDefaults 持久 + 内置演示主题 ocean/sunset + 设置主题 Picker + 气泡/tint 即时切换 + MCP 主题服务器真实 stdio e2e）+ **mcpConfigURLOverride static 缝→实例级 init 参数（P1：并行门禁跨套件互踩根除）** | `5e598b7` `74466cf` `f7d75d4` `2746b45` `62c5993` | ✅ 模块闭环（618/618 全绿；主题 e2e + 依赖满足度 e2e 真实 stdio/真实管理器验证） |
 | P0.1.4 | iCloud 多设备同步冲突裁决 UI（goal P0.1.4「多设备冲突弹出 UI，由用户选择保留版本」）：SyncConflict public init / AccountService.setConflictHandler（幂等覆盖，激活时下发）+ kvsStoreFactory 测试缝 + testPublish 缝 / AppViewModel 冲突状态机（awaitUserResolution 回调挂起 + 待裁决列表 + toast / resolveSyncConflict 保留本地·云端，胜者写回 KVS 并解除挂起 / 超时 10min 安全网自动保留本地=离线优先）/ 设置「账号与同步」冲突裁决卡（本地/云端双栏预览 + 保留本地/保留云端） | `de9bdc8` | ✅ 闭环（7 项新测：App 5 + Account 转发链 e2e 2，胜者写回 KVS 验证） |
 | P0.5 | 对话 composer 闭环（goal P0.5.2 三项缺口清零）：输入框加号 → PlusMenuButton 菜单（文件附件 + 插件工具入口，工具源=真实注册表按 categoryDisplay 分组，选中插入 @toolName 提及 token，发送后进入用户消息供 AgentLoop 工具循环保留优先调用）/ 快捷提示 chips 由直接发送改为**填充输入框 + 聚焦**（用户可编辑再发送）/ composer 底行右下角模型名 → ModelSwitcherMenu 下拉（提供商→模型两级，与顶栏 pill 复用同一共享组件，两套切换逻辑归一） | `bad57d0` | ✅ 闭环（3 项提及 token 纯函数测试） |
+| P0.1.5 | 工作区运行时接线（P0.1.2/1.3 真缺口：WorkspaceRootProvider 存在但 App 层零消费——会话 cwd=home 硬编码 / RAG=~/.harness/rag 硬编码 / 插件元数据与主题资源不落工作区容器）：WorkspaceRouter（current 根 / 五目录契约 agents·rag·plugins-meta·themes / sessionCwd(UUID) / refresh→根变化检测 / materialize）/ SharedRAGEngine indexURL 注入 + resetIndexURL（engine=nil 下次 get 重建）/ PluginMetadataStore（PluginMetaManifest v1：id·name·version·origin·enabled·localPath·mcpCommand，temp+delete+move 原子写，损坏→空）/ AppViewModel 全接线（新会话 cwd→工作区容器 / 根变化：RAG reset + memoryEngine 重挂 + 文件主题重建 + 对账 / persistPluginMetadata（active 态 + MCP 用户意图）/ reconcilePluginMetadata 跨设备对账（isICloud 守卫=生产语义：仅跨设备容器需恢复，防并行测试跨套件互写本地根）） | `70a40a2` | ✅ 闭环（15 项 App fakes 全套单测 + 2 项 RAG 路由单测；PR 门禁 638/638） |
+| P0.4.3 | DSH 社区文件型主题包导入（兼容缺口）：ThemePackageImporter（spec.json 文件\|目录双入口，nil 颜色=合法 / 非 nil 须 #RRGGBB 或 #AARRGGBB，sanitizeID ≤40，落 themes/\<id\>/spec.json）/ FileThemePackagePlugin（ThemeProviderPlugin，pluginID=theme-file-\<id\>）/ PluginListView「导入主题包…」按钮 + .fileImporter([.json, .folder]) + MCP 待重导橙色横幅 / PluginDetailComponents 拆出（600 行门禁）/ 文件主题包停用删 themes/ 目录 + 清单清除 | `70a40a2` | ✅ 闭环（P0.1.5 单测集内主题包场景：导入→安装+清单落盘→停用删除目录+清单清除） |
 
 ### 前端打磨阶段（后端全部闭环后启动）
 
@@ -167,18 +169,22 @@
 | xcode 工程静态库依赖三处缺失（P0.2 xcode 门禁 4 连败根因） | `97f45e9`（① HarnessApp 漏 `- target: Workspace` → ld symbol not found（AppViewModel/Sidebar 引用 Workspace.ProjectID 等）② AccountTests/WorkspaceTests 间接依赖 GRDB 但无直接 GRDB product → 拿不到自动 CSQLite modulemap flag → unable to resolve module dependency: 'CSQLite'（直接依赖 GRDB product 的 target 由 SPM 集成自动注入 checkout modulemap，间接者必须显式声明）③ 同两 target 补 GRDB product 后移除手动 flag 避免 CSQLite 模块双重声明；静态库不传递链接是 Xcode 既定行为，项目惯例=测试 target 显式列全所需 target + GRDB product。另清理两 scheme 误重复的 WorkspaceTests 条目（xcodebuild test 会跑两遍）） |
 | project.yml 重建事故（本轮现场，工程文件曾被截断） | 本轮 python 切片脚本 bug 误删 MemProbe 之后全部 target/scheme 段；用 HEAD 版本 + 本轮已知增量编辑重建，**xcodegen 再生成 pbxproj 与截断前备份逐行 diff 零差异（除预期新增 Workspace 链接）+ scheme 文件 diff 仅各减一条重复 WorkspaceTests** 双重校验后放行；教训：对工程清单文件做程序化编辑必须先备份 + 生成物 diff 校验 |
 | macOS 27 beta 幻影 visibleFrame → 看门狗重建窗口 frame 缩小（1920→1686，P0 实机验收现场发现） | `eb48909`（两层根因：① recreate 直接采用 target.visibleFrame（beta 窗口服务器报带 234px 幻影 dock inset 的缩小版）② NSWindow.setFrame 内部 constrainFrameRect 再用幻影 visibleFrame 二次裁剪；修复 = recreateRestoreFrame 纯函数（旧应用侧 frame 有效则原样恢复）+ UnconstrainedWindow 子类覆写 constrainFrameRect 为 no-op；实机验证两次重建 frame 保持 (-1663,956,1920,1050)；新增 3 项单测（屏内恢复/zero 回落/掉屏回落）；PR 门禁 621/621 全绿） |
+| App 运行时工作区未接 currentWorkspace（P0.1.2/1.3 缺口：会话 cwd=home / RAG=~/.harness/rag 硬编码，iCloud 模式无实际路由） | `70a40a2`（WorkspaceRouter + SharedRAGEngine.indexURL + PluginMetadataStore + AppViewModel 全接线，17 新单测） |
+| DSH 社区文件型主题包无 importer（P0.4.3 缺口） | `70a40a2`（ThemePackageImporter + FileThemePackagePlugin + PluginListView 导入入口 + 待重导横幅） |
+| AppViewModelToolPanelTests runRead 旧下标 latent bug（25s 等待期 refreshTools 按注册表字典序整体重建 tools 数组 → 旧 idx 越界致命崩溃，并发全量门禁 crash report 帧 runRead；既有 bug 被本轮启动刷新频率放大） | `70a40a2`（身份锁定：executeTool 前锁 tool.id，等待期按 id 重查；单套件 3/3 绿） |
+| 并发门禁另两处 flaky 点：① 缺参测试旧下标落错槽（lastResult nil——字典序重建使 read_file 显示位置漂移）② NavLoadState 技能目录占用测试在 refreshSkills 派发前读 skills 空列表（state 先于数据派发的顺序竞态，并行负载拉大窗口） | `70a40a2`（① 身份锁定 ② 双条件等待 state+数据落位） |
 
 ## 五、代码统计
 
 | 项 | 数值 |
 |----|------|
-| 源码（Packages，91 源文件） | 13,486 行（P0.3：SkillStore.loadThrowing +25） |
-| 源码（Apps，37 文件，HarnessApp + 辅助 target） | 8,855 行（P0.3：AppViewModel 三态层 +129 / NavLoadStateView 新文件 76 / 四视图接线 +96） |
-| 源码合计（128 文件） | 22,341 行 |
-| 测试代码（68 文件） | 15,245 行（P0.3 新增：AppViewModelNavLoadStateTests 124 行 3 场景） |
+| 源码（Packages，92 源文件） | 13,635 行（P0.1.5：RAGEngine SharedRAGEngine indexURL 注入 + resetIndexURL） |
+| 源码（Apps，44 文件，HarnessApp + 辅助 target） | 10,637 行（P0.1.5 新增 4 文件：WorkspaceRouter 73 / PluginMetadataStore 93 / FileThemePackage 198 / PluginDetailComponents 48 + AppViewModel 接线 + PluginListView 导入入口） |
+| 源码合计（136 文件） | 24,272 行 |
+| 测试代码（78 文件） | 17,069 行（P0.1.5 新增：WorkspaceRoutingTests 522 行 15 场景 + SharedRAGEngineRoutingTests 54 行 2 场景） |
 | SPM 目标 | 22 库（17 后端包 + 5 辅助库 Workspace/Plan/Goal/HarnessCore/Account 扩展）/ 4 可执行 + 20 测试目标（单一 xctest 进程） |
 | 工具链 | Swift 6.3.3 / Xcode 26.6 / macOS arm64 / platforms .macOS(.v26) |
-| 提交总数 | 118（P0.3：`2ada315` feat + 本次入册 docs 提交） |
+| 提交总数 | 130（P0.1.5：`70a40a2` feat + 本次入册 docs 提交） |
 
 ### 八大后端模块代码级需求审计（2026-08-20 跨会话核验轮）
 
@@ -270,13 +276,15 @@ cf0e230  docs(quality): 刷新质量报告 — 前端阶段1/2 基线
 
 ## 七、下一阶段
 
+已完成（2026-08-22 P0.1.5 轮，`70a40a2`）：① 工作区运行时接线（P0.1.2/1.3 真缺口：WorkspaceRootProvider 存在但 App 层零消费）— WorkspaceRouter（current 根 / 五目录契约 / sessionCwd / refresh 根变化检测 / materialize）+ SharedRAGEngine indexURL 注入与 resetIndexURL（根变化重建索引）+ PluginMetadataStore（v1 清单原子写）+ AppViewModel 全接线（会话 cwd 路由 / 根变化 RAG reset + memoryEngine 重挂 + 文件主题重建 + reconcile 对账（isICloud 守卫）/ persistPluginMetadata）② P0.4.3 文件型主题包导入（spec.json 文件|目录、颜色校验、sanitizeID、themes/ 持久化 + 安装为 ThemeProviderPlugin + 停用删除 + MCP 待重导横幅 + fileImporter 入口 + PluginDetailComponents 拆出）③ runRead 越界崩溃修复（身份锁定，3/3 绿）+ 并发门禁两处 flaky 点（旧下标错槽 / skills state-数据竞态）④ 17 新单测（App 15 fakes 全套 + RAG 2）⑤ PR 门禁 638/638（131 suites）0 警告 0 停滞。**P0 代码更完整闭环**（iCloud 存储分工 / 插件元数据跨设备同步 / 社区主题包兼容全部接线）。
+
 已完成（2026-08-21 P0.3 轮，`2ada315`）：① 6 导航项真实对接审计（零假 UI）② NavLoadState 三态状态层 + 四路 retry 重跑链路 ③ SkillStore.loadThrowing（目录被文件占用显式抛错）④ 三 UI 组件 + 四视图接线（空态闪烁防护/失败横幅/部分失败警告）⑤ 零警告基线修复（两处死 catch 消除）⑥ 3 场景单测 + 766/766 门禁（pr+main 全绿 0 停滞）⑦ 实机正常态验证（会话真实数据/插件 2/2 运行/窗口零幻影）。
 
 已完成（2026-08-21 P0 验收轮，`eb48909`）：看门狗重建窗口 frame 缩小缺陷两层修复（幻影 visibleFrame + setFrame 内部约束裁剪），实机两次重建保持 1920×1050、日志不再出现 1686，3 项新单测 + PR 门禁 621/621 全绿。**P0 代码至此全部闭环**，当前处于用户实机验收阶段。
 
 已完成（2026-08-21 P0.2 轮）：① Workspace 包 5 文件 282 行（Project 实体 / 删除二选一 / SessionTransfer / reorder / SessionDragPayload / SidebarModel 投影 / WorkspaceSyncPayload）+ 27 单测 ② SessionDB v2 纯增量迁移（向后兼容解码 + save 全量重写 events 的 patch 先 load 后 save 约束）③ Account WorkspaceSyncEngine 同步桥 + 8 单测 ④ App 项目模块 UI（分区/折叠/归档管理面板/搜索限定范围/会话拖拽迁移，11 场景 + 2 投影单测）⑤ 看门狗选屏反馈回路修复（双屏窗口碎片化根因，实机 20s+ 零 mismatch 验证）⑥ xcode 工程静态库依赖三处修复 + scheme 重复条目清理 ⑦ 763/763 门禁基线（ci-local pr+xcode+main 三门禁全绿）⑧ 实机演示验证（新构建启动 + 侧边栏项目分区实机可见，截图 /tmp/dsh/p02_harness_win.png）。
 
-下一步：**P0 实机验收 → P1 Liquid Glass**。P0 功能开发已全部闭环（P0.1 SSO/iCloud 基础层 + 冲突裁决 UI / P0.2 项目模块 / P0.3 导航真实对接 / P0.4 MCP 六项 / P0.5 composer 三项）。待办：① 用户在场实机验收（主题切换/冲突裁决卡/依赖缺失 UI/composer 插件工具菜单/项目拖拽，演示数据可右键清理）② Apple Developer Team/描述文件到位后 SSO+iCloud 真机验收（当前无 entitlements 优雅降级）③ 验收通过后按 goal 进入 P1：全局 glassEffect 玻璃化（GlassEffectContainer 同区域采样一致）+ Tab Morph 流动玻璃（@Namespace + glassEffectID）+ 主题插件玻璃参数（ThemeSpec.glassTint/blur/highlight 已预留）打通。
+下一步：**P0 实机验收 → P1 Liquid Glass**。P0 功能开发已全部闭环（P0.1 SSO/iCloud 基础层 + 冲突裁决 UI / P0.2 项目模块 / P0.3 导航真实对接 / P0.4 MCP 六项 / P0.5 composer 三项 / P0.1.5 工作区运行时接线 / P0.4.3 主题包导入）。待办：① 用户在场实机验收（主题切换/冲突裁决卡/依赖缺失 UI/composer 插件工具菜单/项目拖拽/**P0.1.5：主题包导入（spec.json→主题启用→停用删除）+ iCloud 模式 MCP 待重导横幅 + 新会话 cwd 路由**，演示数据可右键清理）② Apple Developer Team/描述文件到位后 SSO+iCloud 真机验收（当前无 entitlements 优雅降级）③ 验收通过后按 goal 进入 P1：全局 glassEffect 玻璃化（GlassEffectContainer 同区域采样一致）+ Tab Morph 流动玻璃（@Namespace + glassEffectID）+ 主题插件玻璃参数（ThemeSpec.glassTint/blur/highlight 已预留）打通。
 
 > P0.3 遗留观察（不阻塞 P0.4）：三态 UI 的**失败态实机视觉验收**待用户在场时演示（状态层 3 场景单测已锁定；正常态实机已通过）。
 
