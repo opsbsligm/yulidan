@@ -40,6 +40,10 @@ struct SidebarView: View {
     let onToggleSessionArchived: (SessionRecord) -> Void
     let onUnarchiveProject: (Project) -> Void
     let onUnarchiveSession: (SessionRecord) -> Void
+    /// 会话列表加载状态（P0.3 异常 UI；默认 .loaded 兼容 Preview 等静态调用方）
+    var sessionsLoadState: NavLoadState = .loaded
+    /// 会话列表加载失败重试
+    var onRetryLoadSessions: () -> Void = {}
 
     @State private var searchText = ""
     @State private var showSearch = false
@@ -278,6 +282,19 @@ struct SidebarView: View {
                                 .padding(.vertical, 12)
                         }
                     } else {
+                        // 加载异常态（P0.3：失败=错误行+重试；加载中空列表=占位行防空态闪烁）
+                        if case let .failed(msg) = sessionsLoadState {
+                            sessionsLoadFailureRow(msg)
+                        } else if sessionsLoadState.isLoading, sessions.isEmpty {
+                            HStack(spacing: 6) {
+                                ProgressView().controlSize(.mini)
+                                Text("会话加载中…")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(HarnessTheme.textTertiary)
+                            }
+                            .padding(.vertical, 12)
+                            .padding(.leading, 8)
+                        }
                         SidebarProjectSections(
                             model: model,
                             sessions: sessions,
@@ -307,6 +324,27 @@ struct SidebarView: View {
         }
         .frame(width: 260)
         .glassSurface(.regular, cornerRadius: 0)
+    }
+
+    /// 会话列表加载失败行（P0.3 异常 UI；已加载部分仍渲染在下方）
+    private func sessionsLoadFailureRow(_ message: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 11))
+                .foregroundStyle(HarnessTheme.error)
+            Text(message)
+                .font(.system(size: 12))
+                .foregroundStyle(HarnessTheme.error)
+                .lineLimit(1)
+                .truncationMode(.tail)
+            Spacer(minLength: 4)
+            Button("重试", action: onRetryLoadSessions)
+                .font(.system(size: 11, weight: .medium))
+                .buttonStyle(.bordered)
+                .controlSize(.mini)
+        }
+        .padding(.vertical, 8)
+        .padding(.leading, 8)
     }
 
     // MARK: - 折叠态（窄 rail，保持原有交互）

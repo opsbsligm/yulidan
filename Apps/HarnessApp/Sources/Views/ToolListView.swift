@@ -4,6 +4,11 @@ struct ToolListView: View {
     @Binding var tools: [ToolDisplayItem]
     let onExecute: (Int, String) -> Void
     let onClear: (Int) -> Void
+    /// 加载状态（P0.3 异常 UI）；.failed 时列表仍渲染已加载内容
+    var loadState: NavLoadState = .loaded
+    /// 部分失败警告（如个别 MCP 服务器连接失败导致工具不全）
+    var loadWarning: String?
+    var onRetry: () -> Void = {}
     @State private var searchText = ""
     @State private var selectedCategory: String = "全部"
 
@@ -42,6 +47,14 @@ struct ToolListView: View {
             }
             .padding(.horizontal, 20).padding(.vertical, 16)
             Divider()
+            // 加载状态（P0.3 异常 UI）
+            if case let .failed(msg) = loadState {
+                NavErrorBanner(message: msg, onRetry: onRetry)
+                Divider()
+            } else if let warning = loadWarning {
+                NavWarningBanner(message: warning)
+                Divider()
+            }
 
             HStack(spacing: 8) {
                 ForEach(categories, id: \.self) { cat in
@@ -65,8 +78,12 @@ struct ToolListView: View {
                         ToolCard(tool: tool, index: idx, onExecute: onExecute, onClear: onClear)
                     }
                     if filtered.isEmpty {
-                        ContentUnavailableView("未找到工具", systemImage: "wrench.and.screwdriver",
-                                               description: Text("尝试其他搜索或分类")).padding(.top, 40)
+                        if loadState.isLoading {
+                            NavLoadingView().padding(.vertical, 40)
+                        } else {
+                            ContentUnavailableView("未找到工具", systemImage: "wrench.and.screwdriver",
+                                                   description: Text("尝试其他搜索或分类")).padding(.top, 40)
+                        }
                     }
                 }
                 .padding(20)

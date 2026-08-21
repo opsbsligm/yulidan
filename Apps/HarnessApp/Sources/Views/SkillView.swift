@@ -71,6 +71,13 @@ struct SkillView: View {
             }
             .padding(.horizontal, 20).padding(.vertical, 16)
             Divider()
+            // 加载状态（P0.3 异常 UI：用户技能目录加载失败横幅 + 重试）
+            if case let .failed(msg) = viewModel.skillsLoadState {
+                NavErrorBanner(message: msg) {
+                    Task { await viewModel.retryLoadSkills() }
+                }
+                Divider()
+            }
             // 新建技能表单
             if showForm {
                 newSkillForm
@@ -90,12 +97,16 @@ struct SkillView: View {
                         }
                     }
                     if viewModel.skills.isEmpty {
-                        ContentUnavailableView(
-                            "暂无技能",
-                            systemImage: "book",
-                            description: Text("新建第一个技能，Agent 即可在对话中按需加载")
-                        )
-                        .padding(.top, 40)
+                        if viewModel.skillsLoadState.isLoading {
+                            NavLoadingView().padding(.vertical, 40)
+                        } else {
+                            ContentUnavailableView(
+                                "暂无技能",
+                                systemImage: "book",
+                                description: Text("新建第一个技能，Agent 即可在对话中按需加载")
+                            )
+                            .padding(.top, 40)
+                        }
                     }
                 }
                 .padding(16)

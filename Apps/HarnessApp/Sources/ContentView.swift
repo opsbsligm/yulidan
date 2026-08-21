@@ -37,7 +37,9 @@ struct ContentView: View {
                 onMoveSession: { viewModel.moveSession($0, to: $1) },
                 onToggleSessionArchived: { viewModel.toggleSessionArchived($0) },
                 onUnarchiveProject: { viewModel.unarchiveProject($0) },
-                onUnarchiveSession: { viewModel.unarchiveSession($0) }
+                onUnarchiveSession: { viewModel.unarchiveSession($0) },
+                sessionsLoadState: viewModel.sessionsLoadState,
+                onRetryLoadSessions: { Task { await viewModel.retryLoadSessions() } }
             )
 
             Divider().frame(width: 1)
@@ -101,7 +103,10 @@ struct ContentView: View {
             ToolListView(
                 tools: $viewModel.tools,
                 onExecute: { viewModel.executeTool(at: $0, withParams: $1) },
-                onClear: { viewModel.clearToolResult(at: $0) }
+                onClear: { viewModel.clearToolResult(at: $0) },
+                loadState: viewModel.toolsLoadState,
+                loadWarning: viewModel.toolsLoadWarning,
+                onRetry: { Task { await viewModel.retryLoadTools() } }
             )
         case .settings:
             SettingsView(onSandboxChange: { viewModel.setSandboxRoot($0) },

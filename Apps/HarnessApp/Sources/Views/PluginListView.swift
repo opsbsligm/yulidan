@@ -75,6 +75,16 @@ struct PluginListView: View {
                 }
                 .padding(.horizontal, 20).padding(.vertical, 16)
                 Divider()
+                // 加载状态（P0.3 异常 UI：失败横幅 / 部分失败警告）
+                if case let .failed(msg) = viewModel.pluginsLoadState {
+                    NavErrorBanner(message: msg) {
+                        Task { await viewModel.retryLoadPlugins() }
+                    }
+                    Divider()
+                } else if let warning = viewModel.pluginsLoadWarning {
+                    NavWarningBanner(message: warning)
+                    Divider()
+                }
                 ScrollView {
                     LazyVStack(spacing: 8) {
                         if pane == .installed {
@@ -88,8 +98,12 @@ struct PluginListView: View {
                                 }
                             }
                             if filtered.isEmpty {
-                                ContentUnavailableView("未找到插件", systemImage: "puzzlepiece.extension",
-                                                       description: Text("尝试其他搜索词")).padding(.top, 40)
+                                if viewModel.pluginsLoadState.isLoading {
+                                    NavLoadingView().padding(.vertical, 40)
+                                } else {
+                                    ContentUnavailableView("未找到插件", systemImage: "puzzlepiece.extension",
+                                                           description: Text("尝试其他搜索词")).padding(.top, 40)
+                                }
                             }
                         } else {
                             ForEach(filteredMarket, id: \.id) { item in

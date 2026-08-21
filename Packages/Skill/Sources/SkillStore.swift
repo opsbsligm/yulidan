@@ -123,15 +123,37 @@ public enum SkillStore {
         }
     }
 
+    /// 技能库目录级读取错误（P0.3：传播到技能页异常 UI）
+    public enum SkillStoreError: LocalizedError, Equatable {
+        case notDirectory(String)
+
+        public var errorDescription: String? {
+            switch self {
+            case let .notDirectory(name): "技能目录 \"\(name)\" 不是一个目录"
+            }
+        }
+    }
+
     /// 从目录加载全部技能（每个子目录含一个 SKILL.md；无效条目跳过）
     /// - Returns: 按 name 排序的技能列表
     public static func load(from directory: URL) -> [Skill] {
+        (try? loadThrowing(from: directory)) ?? []
+    }
+
+    /// 抛出式加载：目录级读取失败（路径是文件 / 无读权限 / I/O 错误）抛错给调用方；
+    /// 目录不存在按「无技能」处理（非失败）；单个无效文件条目仍跳过
+    public static func loadThrowing(from directory: URL) throws -> [Skill] {
         let fm = FileManager.default
-        guard let entries = try? fm.contentsOfDirectory(at: directory,
-                                                        includingPropertiesForKeys: [.isDirectoryKey],
-                                                        options: [.skipsHiddenFiles]) else {
+        var isDir: ObjCBool = false
+        guard fm.fileExists(atPath: directory.path, isDirectory: &isDir) else {
             return []
         }
+        guard isDir.boolValue else {
+            throw SkillStoreError.notDirectory(directory.lastPathComponent)
+        }
+        let entries = try fm.contentsOfDirectory(at: directory,
+                                                 includingPropertiesForKeys: [.isDirectoryKey],
+                                                 options: [.skipsHiddenFiles])
         let skills = entries.compactMap { entry -> Skill? in
             let isDir = (try? entry.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false
             let fileURL = isDir ? entry.appendingPathComponent("SKILL.md") : entry

@@ -264,6 +264,29 @@ struct ToolDisplayItem: Identifiable, Hashable {
     }
 }
 
+// MARK: - 导航 Tab 加载状态（P0.3 异常 UI：加载中 / 已加载 / 加载失败）
+
+enum NavLoadState: Equatable {
+    case loading
+    case loaded
+    case failed(String)
+
+    var isLoading: Bool {
+        self == .loading
+    }
+
+    var isLoaded: Bool {
+        self == .loaded
+    }
+
+    var errorMessage: String? {
+        if case let .failed(msg) = self {
+            return msg
+        }
+        return nil
+    }
+}
+
 // MARK: - 主视图模型
 
 @MainActor
@@ -312,8 +335,19 @@ final class AppViewModel: ObservableObject {
     @Published var marketplaceEntries: [MarketplaceDisplayItem] = []
     @Published var tools: [ToolDisplayItem] = []
 
+    /// 各导航 Tab 加载状态（P0.3：加载中 / 已加载 / 加载失败 三态异常 UI）
+    @Published var sessionsLoadState: NavLoadState = .loading
+    @Published var pluginsLoadState: NavLoadState = .loading
+    @Published var skillsLoadState: NavLoadState = .loading
+    @Published var toolsLoadState: NavLoadState = .loading
+    /// 部分失败警告（列表仍展示已加载内容；如个别 MCP 服务器连接失败导致工具不全）
+    @Published var pluginsLoadWarning: String?
+    @Published var toolsLoadWarning: String?
+
     /// 基础设施（真实组件）
-    let sessionDB: SessionDB?
+    var sessionDB: SessionDB?
+    /// 会话 DB 路径（加载失败后重试时重新打开）
+    private var sessionDBURL: URL?
     /// 测试钩子：指定会话数据库路径（nil = 默认 ~/Library/Application Support/Harness/sessions.sqlite）
     static var sessionDBURLOverride: URL?
     let pluginManager: PluginManager
@@ -381,7 +415,9 @@ final class AppViewModel: ObservableObject {
         )
         llmConfig = LLMConfig.load()
         self.skillUserDirectory = skillUserDirectory ?? SkillStore.userSkillsDirectory
-        sessionDB = try? SessionDB(dbURL: sessionDBURL ?? Self.sessionDBURLOverride)
+        let dbURL = sessionDBURL ?? Self.sessionDBURLOverride
+        self.sessionDBURL = dbURL
+        sessionDB = try? SessionDB(dbURL: dbURL)
         sessionTitles = Self.loadTitles()
         // P0.1：账号与工作区（默认本地模式；SSO+iCloud 需 entitlements 就绪后自动升级）
         accountService = AccountService()
@@ -392,18 +428,9 @@ final class AppViewModel: ObservableObject {
         // 启动工具：内置工具（沙箱）+ MCP 演示服务器 + 技能系统
         Task { await self.registerStartupTools() }
 
-        // 安装真实内置插件
+        // 安装真实内置插件（P0.3：失败不阻塞启动但传播到插件页异常 UI）
         Task {
-            do {
-                try await self.pluginManager.install(BuiltInFilesystemPlugin())
-                try await self.pluginManager.install(BuiltInTerminalPlugin())
-            } catch {
-                // 安装失败不阻塞启动，列表仍会展示真实状态
-            }
-            await self.refreshPlugins()
-            await self.refreshMarketplace()
-            await self.restoreIsolatedPlugins()
-            await self.refreshPlugins()
+            await self.loadPluginsInfrastructure()
         }
 
         // 加载持久化会话
@@ -478,6 +505,7 @@ final class AppViewModel: ObservableObject {
     }
 
     /// 启动工具装配：内置工具（按设置注入文件沙箱）+ MCP 演示服务器（内存客户端）+ 技能系统
+    /// （P0.3：各子链路错误在内部单独捕获并传播到对应 Tab 状态；零工具集 = 工具子系统失败）
     private func registerStartupTools() async {
         for tool in BuiltinTools.makeAll(sandbox: Self.makeSandboxFromSettings()) {
             await toolRegistry.register(tool)
@@ -501,14 +529,21 @@ final class AppViewModel: ObservableObject {
             await toolRegistry.register(tool)
         }
         // 服务发现：连接 ~/.harness/mcp/servers.json 中声明的 stdio 服务器，工具自动注册进主 Agent 注册表
-        // （后台进行，不阻塞启动；连接失败不影响其它服务器）
+        // （后台进行，不阻塞启动；P0.3：连接失败的服务器在工具页展示警告 + 可重试）
         let configs = MCPDiscovery.loadConfigs()
-        for config in configs {
-            Task { [weak self] in
-                guard let self else { return }
-                _ = await mcpManager.connectStdio(config, into: toolRegistry)
-                await refreshTools()
+        Task { [weak self] in
+            guard let self else { return }
+            var failedServers: [String] = []
+            for config in configs {
+                let server = await mcpManager.connectStdio(config, into: toolRegistry)
+                if !server.isAvailable {
+                    failedServers.append(config.name)
+                }
             }
+            if !failedServers.isEmpty {
+                toolsLoadWarning = "以下 MCP 服务器连接失败（相关工具不可用）：\(failedServers.joined(separator: "、"))"
+            }
+            await refreshTools()
         }
         // RAG 知识库：注册 search_knowledge / add_knowledge / list_knowledge 工具
         // （进程级共享索引 ~/.harness/rag/index.json，与 CLI 同一份库）
@@ -524,20 +559,59 @@ final class AppViewModel: ObservableObject {
         }
         self.memoryEngine = memoryEngine
         await refreshTools()
+        // 注册不变量：零工具 = 工具子系统不可用（P0.3 失败态 + 重试）
+        if tools.isEmpty {
+            toolsLoadState = .failed("无可用工具（工具注册结果为空）")
+        } else {
+            toolsLoadState = .loaded
+        }
+    }
+
+    /// 工具页失败重试：重跑启动工具注册链路
+    func retryLoadTools() async {
+        toolsLoadState = .loading
+        toolsLoadWarning = nil
+        await registerStartupTools()
     }
 
     /// 技能系统：加载内置技能 + 用户目录技能，注册 list_skills / use_skill 工具
     private func registerSkillRuntime() async {
-        for skill in BuiltInSkills.makeAll() {
-            await skillRegistry.register(skill)
-        }
-        for skill in SkillStore.load(from: skillUserDirectory) {
-            await skillRegistry.register(skill)
+        if let err = await loadSkillRegistry() {
+            skillsLoadState = .failed(err)
+        } else {
+            skillsLoadState = .loaded
         }
         await toolRegistry.register(ListSkillsTool(registry: skillRegistry))
         await toolRegistry.register(UseSkillTool(registry: skillRegistry))
         await toolRegistry.register(SaveSkillTool(registry: skillRegistry))
         await toolRegistry.register(DebugSkillTool(registry: skillRegistry))
+        await refreshSkills()
+    }
+
+    /// 加载技能库（内置 + 用户目录）；返回失败描述（nil = 成功）。
+    /// 用户目录读取失败不再静默吞掉（P0.3：传播到技能页异常 UI）
+    private func loadSkillRegistry() async -> String? {
+        for skill in BuiltInSkills.makeAll() {
+            await skillRegistry.register(skill)
+        }
+        do {
+            for skill in try SkillStore.loadThrowing(from: skillUserDirectory) {
+                await skillRegistry.register(skill)
+            }
+            return nil
+        } catch {
+            return "用户技能加载失败：\(error.localizedDescription)"
+        }
+    }
+
+    /// 技能页失败重试
+    func retryLoadSkills() async {
+        skillsLoadState = .loading
+        if let err = await loadSkillRegistry() {
+            skillsLoadState = .failed(err)
+        } else {
+            skillsLoadState = .loaded
+        }
         await refreshSkills()
     }
 
@@ -704,10 +778,52 @@ final class AppViewModel: ObservableObject {
 
     // MARK: - 基础设施刷新
 
+    /// 安装内置插件，返回失败列表（空 = 全部成功）
+    @discardableResult
+    func installBuiltInPlugins() async -> [String] {
+        var errors: [String] = []
+        do {
+            try await pluginManager.install(BuiltInFilesystemPlugin())
+        } catch {
+            errors.append("文件系统插件：\(error.localizedDescription)")
+        }
+        do {
+            try await pluginManager.install(BuiltInTerminalPlugin())
+        } catch {
+            errors.append("终端插件：\(error.localizedDescription)")
+        }
+        return errors
+    }
+
     func refreshPlugins() async {
         let infos = await pluginManager.list()
         plugins = infos.map { PluginDisplayItem(info: $0) }
             .sorted { !$0.isActive && $1.isActive }
+        pluginsLoadState = .loaded
+    }
+
+    /// 插件基础设施加载（启动与失败重试共用）：
+    /// 安装内置插件 → 刷新市场/隔离恢复/列表 → 按安装失败情况设置加载状态
+    func loadPluginsInfrastructure() async {
+        let errors = await installBuiltInPlugins()
+        await refreshMarketplace()
+        await restoreIsolatedPlugins()
+        await refreshPlugins()
+        if errors.count >= 2 {
+            // 双内置插件全部失败 = 插件子系统不可用
+            pluginsLoadState = .failed("内置插件安装失败：\(errors.joined(separator: "；"))")
+            pluginsLoadWarning = nil
+        } else if !errors.isEmpty {
+            pluginsLoadWarning = errors.joined(separator: "；")
+        } else {
+            pluginsLoadWarning = nil
+        }
+    }
+
+    /// 插件页失败重试
+    func retryLoadPlugins() async {
+        pluginsLoadState = .loading
+        await loadPluginsInfrastructure()
     }
 
     // MARK: - 文件沙箱
@@ -759,7 +875,13 @@ final class AppViewModel: ObservableObject {
     // MARK: - 会话（GRDB 持久化）
 
     private func loadSessionsFromDB() async {
-        guard let db = sessionDB else { return }
+        if sessionDB == nil, let url = sessionDBURL {
+            sessionDB = try? SessionDB(dbURL: url)
+        }
+        guard let db = sessionDB else {
+            sessionsLoadState = .failed("无法打开会话数据库")
+            return
+        }
         do {
             // 性能：列表只查元数据（单条 SQL），事件仅对选中会话按需拉取
             let loaded = try await db.loadSessions()
@@ -769,6 +891,7 @@ final class AppViewModel: ObservableObject {
                 !loaded.contains { $0.id == s.id }
             }
             sessions = inMemoryOnly + loaded
+            sessionsLoadState = .loaded
             // 当前选中仍有效（加载窗口内新建、或 DB 已有）→ 保留用户操作，不拉事件（messages 已持有）
             if let currentID = selectedSession?.id,
                sessions.contains(where: { $0.id == currentID }) {
@@ -783,8 +906,14 @@ final class AppViewModel: ObservableObject {
                 loadMessages(for: s)
             }
         } catch {
-            generationError = "会话数据库加载失败：\(error.localizedDescription)"
+            sessionsLoadState = .failed("会话列表加载失败：\(error.localizedDescription)")
         }
+    }
+
+    /// 会话列表页失败重试（P0.3 异常 UI）
+    func retryLoadSessions() async {
+        sessionsLoadState = .loading
+        await loadSessionsFromDB()
     }
 
     func createNewSession(silent: Bool = false) {
