@@ -111,9 +111,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         startFrameWatchdog(for: window)
     }
 
+    /// 主窗口：不启用 constrainFrameRect 裁剪。
+    /// macOS 27 beta 窗口服务器对副屏报幻影 visibleFrame（带 234px 幻影 dock inset），
+    /// 默认 constrainFrameRect 会把用户窗口 frame 裁到幻影可见区（现场实测 1920→1686）；
+    /// 看门狗负责掉屏/碎片恢复，frame 约束交还给应用侧。
+    private final class UnconstrainedWindow: NSWindow {
+        override func constrainFrameRect(_ frameRect: NSRect, to _: NSScreen?) -> NSRect {
+            frameRect
+        }
+    }
+
     /// 创建标准主窗口（启动与重建共用）
     private func makeWindow() -> NSWindow {
-        let window = NSWindow(
+        let window = UnconstrainedWindow(
             contentRect: NSRect(x: 0, y: 0, width: 1100, height: 750),
             styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered,
@@ -131,20 +141,36 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     /// 顺序讲究：先建新窗口挂好 VC 并映射，再释放旧窗口，避免 use-after-free
     func recreateWindow(target: NSScreen) {
         guard let old = window, let contentVC = hosting else { return }
-        AppDelegate.debugLog("recreateWindow: replacing fragmented win#\(old.windowNumber)")
+        AppDelegate.debugLog("recreateWindow: replacing fragmented win#\(old.windowNumber) oldFrame=\(old.frame)")
         frameWatchdog?.invalidate()
         let newWindow = makeWindow()
         old.contentViewController = nil
         newWindow.contentViewController = contentVC
-        newWindow.setFrame(target.visibleFrame, display: true)
+        // 优先恢复旧窗口应用侧 frame（用户真实 frame；碎片化是窗口服务器映射问题，
+        // 应用侧 frame 是可信事实源）；target.visibleFrame 在 beta 窗口服务器下可能
+        // 携带幻影 dock/菜单栏 inset，直接采用会缩小用户窗口（现场实测 1920→1686）
+        let frame = AppDelegate.recreateRestoreFrame(
+            oldFrame: old.frame,
+            targetVisible: target.visibleFrame,
+            screenFrames: NSScreen.screens.map(\.frame)
+        )
+        newWindow.setFrame(frame, display: true)
         newWindow.makeKeyAndOrderFront(nil)
         old.isReleasedWhenClosed = false
         old.orderOut(nil)
         old.close()
         window = newWindow
         NSApp.activate(ignoringOtherApps: true)
-        AppDelegate.debugLog("recreateWindow: new win#\(newWindow.windowNumber) frame=\(newWindow.frame)")
+        AppDelegate.debugLog("recreateWindow: new win#\(newWindow.windowNumber) frame=\(newWindow.frame) (restored old=\(old.frame))")
         startFrameWatchdog(for: newWindow)
+    }
+
+    /// 重建窗口采用 frame：旧应用侧 frame 有效（非零且落在任一已连屏内）→ 原样恢复；否则目标屏可见区
+    nonisolated static func recreateRestoreFrame(oldFrame: NSRect, targetVisible: NSRect, screenFrames: [NSRect]) -> NSRect {
+        guard oldFrame != .zero, screenFrames.contains(where: { $0.intersects(oldFrame) }) else {
+            return targetVisible
+        }
+        return oldFrame
     }
 
     /// 看门狗：无头/远程环境下显示配置可能抖动（窗口掉屏、被窗口服务器压成碎片、被最小化）；
