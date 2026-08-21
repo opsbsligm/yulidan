@@ -324,8 +324,8 @@ public actor MCPServerManager {
     public func isConnected(name: String) async -> Bool {
         guard let client = clients[name] else { return false }
         if let stdio = client as? StdioMCPClient {
-            _ = try? await stdio.listTools()
-            return true
+            // 进程死亡/握手失败的客户端不得误报为在线（曾无条件 return true）
+            return await (try? stdio.listTools()) != nil
         }
         return descriptors[name]?.isAvailable ?? false
     }

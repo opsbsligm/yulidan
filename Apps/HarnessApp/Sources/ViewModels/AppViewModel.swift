@@ -122,6 +122,18 @@ struct PendingPermissionInstall: Identifiable, Equatable {
     let permissions: [String]
 }
 
+// MARK: - P0.4 MCP stdio 服务器（导入 / 重启 / 卸载；配置源 servers.json）
+
+struct MCPDisplayItem: Identifiable, Hashable {
+    let id: String
+    let name: String
+    let command: String
+    let arguments: [String]
+    let isAvailable: Bool
+    let toolCount: Int?
+    let serverInfo: String?
+}
+
 /// 权限的中文展示名（市场条目用；内置插件另有 BuiltInPluginCatalog）
 extension Permission {
     var display: String {
@@ -358,6 +370,15 @@ final class AppViewModel: ObservableObject {
     @Published var pendingPermissionInstall: PendingPermissionInstall?
     /// 授予后的重试闭包（复用原安装入口；授予在 PluginManager 幂等记录）
     private var pendingPermissionRetry: (() async throws -> Void)?
+    /// MCP stdio 服务器列表（P0.4 导入/重启；servers.json + 实时连接状态）
+    @Published var mcpServers: [MCPDisplayItem] = []
+    /// MCP 导入表单（非 false = 插件页展示表单区）
+    @Published var showMCPImportForm = false
+    /// MCP 配置 URL 测试缝（默认 ~/.harness/mcp/servers.json）
+    static var mcpConfigURLOverride: URL?
+    var mcpConfigURL: URL {
+        Self.mcpConfigURLOverride ?? MCPDiscovery.defaultURL
+    }
 
     /// 基础设施（真实组件）
     var sessionDB: SessionDB?
@@ -543,9 +564,9 @@ final class AppViewModel: ObservableObject {
         for tool in await mcpManager.makeTools() {
             await toolRegistry.register(tool)
         }
-        // 服务发现：连接 ~/.harness/mcp/servers.json 中声明的 stdio 服务器，工具自动注册进主 Agent 注册表
-        // （后台进行，不阻塞启动；P0.3：连接失败的服务器在工具页展示警告 + 可重试）
-        let configs = MCPDiscovery.loadConfigs()
+        // 服务发现：连接 MCP 配置（默认 ~/.harness/mcp/servers.json，测试缝可覆盖）中声明的 stdio 服务器
+        // 工具自动注册进主 Agent 注册表（后台进行，不阻塞启动；P0.3：连接失败的服务器在工具页展示警告 + 可重试）
+        let configs = MCPDiscovery.loadConfigs(url: mcpConfigURL)
         Task { [weak self] in
             guard let self else { return }
             var failedServers: [String] = []
@@ -559,6 +580,7 @@ final class AppViewModel: ObservableObject {
                 toolsLoadWarning = "以下 MCP 服务器连接失败（相关工具不可用）：\(failedServers.joined(separator: "、"))"
             }
             await refreshTools()
+            await refreshMCPServers()
         }
         // RAG 知识库：注册 search_knowledge / add_knowledge / list_knowledge 工具
         // （进程级共享索引 ~/.harness/rag/index.json，与 CLI 同一份库）
@@ -1921,6 +1943,109 @@ final class AppViewModel: ObservableObject {
         pendingPermissionInstall = nil
         pendingPermissionRetry = nil
         showToast("已拒绝权限请求（插件未安装）")
+    }
+
+    // MARK: - P0.4 MCP stdio 服务器（导入 / 重启 / 卸载）
+
+    /// 刷新 MCP 服务器列表（servers.json 配置 × MCPServerManager 实时状态）
+    func refreshMCPServers() async {
+        let configs = MCPDiscovery.loadConfigs(url: mcpConfigURL)
+        let descriptors = await mcpManager.servers()
+        mcpServers = configs.map { cfg in
+            let d = descriptors.first { $0.name == cfg.name }
+            return MCPDisplayItem(id: cfg.id, name: cfg.name, command: cfg.command,
+                                  arguments: cfg.arguments, isAvailable: d?.isAvailable ?? false,
+                                  toolCount: d?.toolCount, serverInfo: d?.serverInfo)
+        }
+    }
+
+    /// 导入（或同名更新）本地 MCP 服务器：写 servers.json → 即时连接 → 刷新工具
+    func importMCPServer(name: String, command: String, arguments: String, environment: String) async {
+        let trimmedName = name.trimmingCharacters(in: .whitespaces)
+        let trimmedCommand = command.trimmingCharacters(in: .whitespaces)
+        guard !trimmedName.isEmpty, !trimmedCommand.isEmpty else {
+            showToast("MCP 服务器名称与命令不能为空")
+            return
+        }
+        let args = arguments.split { $0 == " " || $0 == "\t" }.map(String.init)
+        let env = Self.parseEnvPairs(environment)
+        var configs = MCPDiscovery.loadConfigs(url: mcpConfigURL)
+        let config: MCPServerConfig
+        if let idx = configs.firstIndex(where: { $0.name == trimmedName }) {
+            // 同名 = 更新（保留 id，防重复条目）
+            var updated = configs[idx]
+            updated.command = trimmedCommand
+            updated.arguments = args
+            updated.environment = env
+            config = updated
+            configs[idx] = updated
+        } else {
+            config = MCPServerConfig(name: trimmedName, command: trimmedCommand,
+                                     arguments: args, environment: env)
+            configs.append(config)
+        }
+        do {
+            try MCPDiscovery.save(configs, url: mcpConfigURL)
+        } catch {
+            showToast("MCP 配置保存失败：\(error.localizedDescription)")
+            return
+        }
+        // 旧连接先断开（同名重启防子进程泄漏）再即时连接
+        await mcpManager.disconnect(name: config.name)
+        let descriptor = await mcpManager.connectStdio(config, into: toolRegistry)
+        if descriptor.isAvailable {
+            showToast("MCP 服务器已连接：\(config.name)（\(descriptor.toolCount ?? 0) 个工具）")
+        } else {
+            toolsLoadWarning = "MCP 服务器 \(config.name) 连接失败（检查命令路径与启动参数）"
+        }
+        showMCPImportForm = false
+        await refreshTools()
+        await refreshMCPServers()
+    }
+
+    /// 重启故障 MCP 服务器（断开 → 重连 → 刷新工具）
+    func retryMCPServer(_ item: MCPDisplayItem) async {
+        guard let cfg = MCPDiscovery.loadConfigs(url: mcpConfigURL).first(where: { $0.id == item.id }) else {
+            showToast("服务器配置不存在，无法重启")
+            return
+        }
+        await mcpManager.disconnect(name: cfg.name)
+        let descriptor = await mcpManager.connectStdio(cfg, into: toolRegistry)
+        if descriptor.isAvailable {
+            showToast("MCP 服务器已重启：\(cfg.name)（\(descriptor.toolCount ?? 0) 个工具）")
+        } else {
+            toolsLoadWarning = "MCP 服务器 \(cfg.name) 重启失败（检查命令路径与启动参数）"
+        }
+        await refreshTools()
+        await refreshMCPServers()
+    }
+
+    /// 卸载 MCP 服务器（servers.json 移除 + 断开子进程）
+    func removeMCPServer(_ item: MCPDisplayItem) async {
+        var configs = MCPDiscovery.loadConfigs(url: mcpConfigURL)
+        configs.removeAll { $0.id == item.id }
+        do {
+            try MCPDiscovery.save(configs, url: mcpConfigURL)
+        } catch {
+            showToast("MCP 配置保存失败：\(error.localizedDescription)")
+            return
+        }
+        await mcpManager.disconnect(name: item.name)
+        showToast("已卸载 MCP 服务器：\(item.name)")
+        await refreshTools()
+        await refreshMCPServers()
+    }
+
+    /// 环境变量解析（"K=V K2=V2" 空格分隔；非法项静默丢弃）
+    static func parseEnvPairs(_ raw: String) -> [String: String] {
+        var result: [String: String] = [:]
+        for pair in raw.split(whereSeparator: { $0 == " " || $0 == "\t" }) {
+            let kv = pair.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
+            if kv.count == 2, !kv[0].isEmpty {
+                result[String(kv[0])] = String(kv[1])
+            }
+        }
+        return result
     }
 
     // MARK: - 多 Agent 协作（真实 SubagentCoordinator 编排）

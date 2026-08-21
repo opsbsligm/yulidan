@@ -93,6 +93,34 @@ final class MCPTests: XCTestCase {
         XCTAssertTrue(remainingTools.isEmpty)
     }
 
+    func testIsConnectedStdioReflectsLiveness() async throws {
+        let manager = MCPServerManager()
+        // 正常 stdio 服务器 → true；断开后 → false
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("harness-mcp-conn-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let script = dir.appendingPathComponent("fake_server.py").path
+        try fakeMCPServerSource.write(toFile: script, atomically: true, encoding: .utf8)
+        let good = StdioMCPClient(name: "alive",
+                                  configuration: StdioMCPConfiguration(command: "/usr/bin/env",
+                                                                       arguments: ["python3", script]))
+        await manager.register(good)
+        _ = try await good.listTools() // 完成启动握手
+        let alive = await manager.isConnected(name: "alive")
+        await manager.disconnect(name: "alive")
+        let afterDisconnect = await manager.isConnected(name: "alive")
+        // 坏命令（connectStdio 失败路径）→ false（修复前对已注册 stdio 客户端恒为 true）
+        let badConfig = MCPServerConfig(name: "dead", command: "/nonexistent-mcp-\(UUID().uuidString)", arguments: [])
+        let bad = await manager.connectStdio(badConfig, into: nil)
+        XCTAssertFalse(bad.isAvailable)
+        let dead = await manager.isConnected(name: "dead")
+        await manager.disconnect(name: "dead")
+        XCTAssertTrue(alive)
+        XCTAssertFalse(afterDisconnect)
+        XCTAssertFalse(dead)
+    }
+
     func testMCPErrorDescriptions() {
         XCTAssertTrue(MCPError.unknownTool("t").description.contains("t"))
         XCTAssertTrue(MCPError.unknownClient("c").description.contains("c"))

@@ -5,6 +5,7 @@ struct PluginListView: View {
     enum PluginPane: String, CaseIterable, Identifiable {
         case installed = "已安装"
         case marketplace = "插件市场"
+        case mcpServers = "MCP 服务器"
         var id: String {
             rawValue
         }
@@ -14,6 +15,12 @@ struct PluginListView: View {
     @State private var searchText = ""
     @State private var selectedPluginId: String?
     @State private var pane: PluginPane = .installed
+
+    // P0.4 MCP stdio 导入表单（本地态；保存时下发 AppViewModel.importMCPServer）
+    @State private var mcpFormName = ""
+    @State private var mcpFormCommand = ""
+    @State private var mcpFormArguments = ""
+    @State private var mcpFormEnvironment = ""
 
     var filteredMarket: [MarketplaceDisplayItem] {
         if searchText.isEmpty {
@@ -29,6 +36,10 @@ struct PluginListView: View {
             let installable = viewModel.marketplaceEntries.filter { !$0.isInstalled && $0.incompatibleReason == nil }.count
             return "\(viewModel.marketplaceEntries.count) 个目录条目，\(installable) 个可安装（本地目录源 · 真实安装）"
         }
+        if pane == .mcpServers {
+            let online = viewModel.mcpServers.filter(\.isAvailable).count
+            return "\(online) / \(viewModel.mcpServers.count) 在线（本地 stdio 服务器 · servers.json）"
+        }
         return "\(activeCount) / \(viewModel.plugins.count) 已启用（来自 PluginManager 实时状态）"
     }
 
@@ -38,6 +49,15 @@ struct PluginListView: View {
         }
         return viewModel.plugins.filter { $0.name.localizedCaseInsensitiveContains(searchText) ||
             $0.description.localizedCaseInsensitiveContains(searchText)
+        }
+    }
+
+    var filteredMCPServers: [MCPDisplayItem] {
+        if searchText.isEmpty {
+            return viewModel.mcpServers
+        }
+        return viewModel.mcpServers.filter { $0.name.localizedCaseInsensitiveContains(searchText) ||
+            $0.command.localizedCaseInsensitiveContains(searchText)
         }
     }
 
@@ -62,11 +82,21 @@ struct PluginListView: View {
                         }
                     }
                     .pickerStyle(.segmented)
-                    .frame(width: 220)
+                    .frame(width: 280)
+                    if pane == .mcpServers {
+                        Button {
+                            viewModel.showMCPImportForm.toggle()
+                        } label: {
+                            Label("导入 MCP 服务器…", systemImage: "plus.circle").font(.system(size: 12))
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
                     HStack(spacing: 6) {
                         Image(systemName: "magnifyingglass").font(.system(size: 11))
                             .foregroundStyle(HarnessTheme.textTertiary)
-                        TextField(pane == .marketplace ? "搜索市场…" : "搜索插件…", text: $searchText)
+                        TextField(pane == .marketplace ? "搜索市场…" : pane == .mcpServers ? "搜索 MCP…" : "搜索插件…",
+                                  text: $searchText)
                             .font(.system(size: 13))
                             .textFieldStyle(.plain).disableAutocorrection(true)
                     }
@@ -115,7 +145,7 @@ struct PluginListView: View {
                                                            description: Text("尝试其他搜索词")).padding(.top, 40)
                                 }
                             }
-                        } else {
+                        } else if pane == .marketplace {
                             ForEach(filteredMarket, id: \.id) { item in
                                 MarketplaceCard(
                                     item: item,
@@ -127,6 +157,23 @@ struct PluginListView: View {
                             if filteredMarket.isEmpty {
                                 ContentUnavailableView("未找到插件", systemImage: "shippingbox",
                                                        description: Text("尝试其他搜索词")).padding(.top, 40)
+                            }
+                        } else {
+                            if viewModel.showMCPImportForm {
+                                mcpImportForm
+                                Divider()
+                            }
+                            ForEach(filteredMCPServers, id: \.id) { server in
+                                MCPServerRow(server: server) {
+                                    Task { await viewModel.retryMCPServer(server) }
+                                } onRemove: {
+                                    Task { await viewModel.removeMCPServer(server) }
+                                }
+                            }
+                            if filteredMCPServers.isEmpty, !viewModel.showMCPImportForm {
+                                ContentUnavailableView("暂无 MCP 服务器", systemImage: "server.rack",
+                                                       description: Text("点击「导入 MCP 服务器…」添加本地 stdio 服务"))
+                                    .padding(.top, 40)
                             }
                         }
                     }
@@ -140,11 +187,69 @@ struct PluginListView: View {
         }
         .background(HarnessTheme.bgPrimary)
         .task(id: pane) {
-            await viewModel.refreshMarketplace()
+            if pane == .mcpServers {
+                await viewModel.refreshMCPServers()
+            } else {
+                await viewModel.refreshMarketplace()
+            }
         }
         .onChange(of: pane) { _, _ in
             selectedPluginId = nil
         }
+    }
+
+    // MARK: P0.4 MCP stdio 导入表单
+
+    private var mcpImportForm: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                TextField("名称（唯一标识，如 filesystem）", text: $mcpFormName)
+                    .font(.system(size: 13))
+                    .textFieldStyle(.roundedBorder)
+                TextField("命令（绝对路径优先，如 /usr/bin/npx）", text: $mcpFormCommand)
+                    .font(.system(size: 13))
+                    .textFieldStyle(.roundedBorder)
+            }
+            TextField("启动参数（空格分隔，如 -y @modelcontextprotocol/server-filesystem /tmp）",
+                      text: $mcpFormArguments)
+                .font(.system(size: 13))
+                .textFieldStyle(.roundedBorder)
+            TextField("环境变量（K=V 空格分隔，可留空）", text: $mcpFormEnvironment)
+                .font(.system(size: 13))
+                .textFieldStyle(.roundedBorder)
+            HStack {
+                Text("写入 \(viewModel.mcpConfigURL.path)（同名 = 更新）")
+                    .font(.system(size: 11))
+                    .foregroundStyle(HarnessTheme.textSecondary)
+                Spacer()
+                Button("取消") {
+                    viewModel.showMCPImportForm = false
+                }
+                Button("导入并连接") {
+                    let (name, command, arguments, environment) =
+                        (mcpFormName, mcpFormCommand, mcpFormArguments, mcpFormEnvironment)
+                    clearMCPForm()
+                    Task {
+                        await viewModel.importMCPServer(name: name, command: command,
+                                                        arguments: arguments, environment: environment)
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(mcpFormName.trimmingCharacters(in: .whitespaces).isEmpty ||
+                    mcpFormCommand.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+        }
+        .padding(.horizontal, 20).padding(.vertical, 14)
+        .overlay(alignment: .bottom) {
+            Divider()
+        }
+    }
+
+    private func clearMCPForm() {
+        mcpFormName = ""
+        mcpFormCommand = ""
+        mcpFormArguments = ""
+        mcpFormEnvironment = ""
     }
 }
 
@@ -403,5 +508,70 @@ struct MarketplaceCard: View {
                 Button("安装", action: onInstall).buttonStyle(.borderedProminent).controlSize(.small)
             }
         }
+    }
+}
+
+// MARK: - P0.4 MCP stdio 服务器行
+
+struct MCPServerRow: View {
+    let server: MCPDisplayItem
+    let onRetry: () -> Void
+    let onRemove: () -> Void
+    @State private var isHovered = false
+
+    var body: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                Circle().fill(server.isAvailable ? Color.green.opacity(0.2) : Color.red.opacity(0.2))
+                    .frame(width: 36, height: 36)
+                Circle().fill(server.isAvailable ? Color.green : Color.red)
+                    .frame(width: 10, height: 10)
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    Text(server.name).font(.system(.body, design: .rounded)).fontWeight(.medium)
+                    Text(server.isAvailable ? "运行中" : "离线").font(.system(size: 11))
+                        .foregroundStyle(server.isAvailable ? Color.green : Color.red)
+                    if let count = server.toolCount {
+                        Text("\(count) 个工具").font(.system(size: 11))
+                            .foregroundStyle(HarnessTheme.textTertiary)
+                    }
+                    Spacer()
+                    if !server.isAvailable {
+                        Button {
+                            onRetry()
+                        } label: {
+                            Label("重启", systemImage: "arrow.clockwise").font(.system(size: 11))
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.mini)
+                    }
+                    Button {
+                        onRemove()
+                    } label: {
+                        Label("卸载", systemImage: "trash").font(.system(size: 11))
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.mini)
+                    .tint(.red)
+                }
+                Text(server.command +
+                    (server.arguments.isEmpty ? "" : " " + server.arguments.joined(separator: " ")))
+                    .font(.system(size: 12, design: .monospaced))
+                    .foregroundStyle(HarnessTheme.textSecondary)
+                    .lineLimit(1).truncationMode(.tail)
+                if !server.isAvailable, let info = server.serverInfo {
+                    Text(info).font(.system(size: 11)).foregroundStyle(HarnessTheme.textTertiary)
+                        .lineLimit(1).truncationMode(.tail)
+                }
+            }
+        }
+        .padding(12)
+        .background(isHovered ? Color(NSColor.controlBackgroundColor).opacity(0.4) : HarnessTheme.surface.opacity(0.5))
+        .cornerRadius(10)
+        .overlay(RoundedRectangle(cornerRadius: 10)
+            .stroke(isHovered ? HarnessTheme.accent.opacity(0.3) : HarnessTheme.border, lineWidth: 0.5))
+        .onHover { isHovered = $0 }
+        .contentShape(Rectangle())
     }
 }
