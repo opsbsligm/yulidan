@@ -44,6 +44,8 @@ public struct PluginInfo: Sendable {
     public let state: PluginState
     public let startedAt: Date?
     public let stoppedAt: Date?
+    /// manifest 声明的真实权限（P0.4 权限门禁 UI 数据源；不再依赖 App 层硬编码目录）
+    public let permissions: [Permission]
 
     init(entry: PluginEntry) {
         id = entry.manifest.id
@@ -52,6 +54,7 @@ public struct PluginInfo: Sendable {
         state = entry.state
         startedAt = entry.startedAt
         stoppedAt = entry.stoppedAt
+        permissions = entry.manifest.permissions
     }
 }
 
@@ -77,6 +80,8 @@ struct PluginEntry: @unchecked Sendable {
 
 public actor PluginManager {
     private var plugins: [PluginID: PluginEntry] = [:]
+    /// 权限授予状态（P0.4 门禁：中/高危权限须显式授予后安装；内存态与插件子系统同生命周期，每次启动重新裁决）
+    private var grantedPermissions: [PluginID: Set<Permission>] = [:]
     private let container: ServiceContainer
     private let eventBus: EventBus
     private let logger: Logger
@@ -158,6 +163,7 @@ public actor PluginManager {
             effect.dispose()
         }
 
+        revokePermissions(pluginID)
         plugins.removeValue(forKey: pluginID)
     }
 
@@ -200,10 +206,31 @@ public actor PluginManager {
         }
     }
 
+    // MARK: - 权限门禁（P0.4：授予 / 拒绝 / 撤销）
+
+    /// 授予插件权限（安装前调用；permissionDenied 后用户裁决「授予」再重试安装）
+    public func grantPermissions(_ id: PluginID, _ permissions: [Permission]) {
+        grantedPermissions[id, default: []].formUnion(permissions)
+    }
+
+    /// 撤销插件全部授予（卸载时清理，防残留授予）
+    public func revokePermissions(_ id: PluginID) {
+        grantedPermissions[id] = nil
+    }
+
+    /// 查询插件当前已授予权限（UI 展示「已授予」标记）
+    public func grantedPermissions(for id: PluginID) -> Set<Permission> {
+        grantedPermissions[id] ?? []
+    }
+
     private func checkPermissions(_ manifest: PluginManifest) throws {
-        let highPerms = manifest.permissions.filter { $0.level == .high }
-        if !highPerms.isEmpty {
-            logger.warning("Plugin \(manifest.id.rawValue) requests high-level permissions")
+        // P0.4 门禁：low 风险权限放行；medium/high 须事先显式授予，否则抛 permissionDenied 走 UI 裁决
+        let ungranted = manifest.permissions.filter {
+            $0.level != .low && !grantedPermissions[manifest.id, default: []].contains($0)
+        }
+        guard ungranted.isEmpty else {
+            logger.info("Plugin \(manifest.id.rawValue) 请求未授权权限：\(ungranted.map(\.rawValue))")
+            throw PluginError.permissionDenied(manifest.id, ungranted)
         }
     }
 }

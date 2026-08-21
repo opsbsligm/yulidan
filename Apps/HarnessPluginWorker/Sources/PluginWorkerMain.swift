@@ -39,6 +39,8 @@ final class WorkerEndpoint: NSObject, RemotePluginEndpoint, @unchecked Sendable 
         let manager = manager
         Task {
             do {
+                // 内置插件 = 系统预授予（与主进程 installBuiltInPlugins 口径一致；P0.4 门禁免裁决）
+                await manager.grantPermissions(plugin.manifest.id, plugin.manifest.permissions)
                 try await manager.install(plugin)
                 box.send((true, "ok"))
             } catch {

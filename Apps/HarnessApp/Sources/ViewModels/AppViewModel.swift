@@ -105,10 +105,21 @@ struct PluginDisplayItem: Identifiable, Hashable {
         version = info.version
         state = info.state
         isActive = info.state == .active
-        permissions = BuiltInPluginCatalog.info[info.id.rawValue]?.permissions ?? []
+        // P0.4：权限数据源 = manifest 真实声明（不再依赖 App 层硬编码目录）
+        permissions = info.permissions.map(\.display)
         author = "Harness 内置"
         description = BuiltInPluginCatalog.info[info.id.rawValue]?.description ?? "内置插件"
     }
+}
+
+// MARK: - P0.4 权限门禁：待裁决插件（插件页展示「授予 / 拒绝」横幅）
+
+struct PendingPermissionInstall: Identifiable, Equatable {
+    let id: String
+    let name: String
+    let version: String
+    /// 待裁决权限（中文展示名）
+    let permissions: [String]
 }
 
 /// 权限的中文展示名（市场条目用；内置插件另有 BuiltInPluginCatalog）
@@ -343,6 +354,10 @@ final class AppViewModel: ObservableObject {
     /// 部分失败警告（列表仍展示已加载内容；如个别 MCP 服务器连接失败导致工具不全）
     @Published var pluginsLoadWarning: String?
     @Published var toolsLoadWarning: String?
+    /// 待权限裁决插件（P0.4 门禁；非 nil = 插件页显示授予/拒绝横幅）
+    @Published var pendingPermissionInstall: PendingPermissionInstall?
+    /// 授予后的重试闭包（复用原安装入口；授予在 PluginManager 幂等记录）
+    private var pendingPermissionRetry: (() async throws -> Void)?
 
     /// 基础设施（真实组件）
     var sessionDB: SessionDB?
@@ -782,15 +797,15 @@ final class AppViewModel: ObservableObject {
     @discardableResult
     func installBuiltInPlugins() async -> [String] {
         var errors: [String] = []
-        do {
-            try await pluginManager.install(BuiltInFilesystemPlugin())
-        } catch {
-            errors.append("文件系统插件：\(error.localizedDescription)")
-        }
-        do {
-            try await pluginManager.install(BuiltInTerminalPlugin())
-        } catch {
-            errors.append("终端插件：\(error.localizedDescription)")
+        // 内置插件 = 系统预授予：安装前授予全部声明权限（免 UI 裁决）
+        let builtIns: [any Plugin] = [BuiltInFilesystemPlugin(), BuiltInTerminalPlugin()]
+        for builtIn in builtIns {
+            do {
+                await pluginManager.grantPermissions(builtIn.manifest.id, builtIn.manifest.permissions)
+                try await pluginManager.install(builtIn)
+            } catch {
+                errors.append("\(builtIn.manifest.name)插件：\(error.localizedDescription)")
+            }
         }
         return errors
     }
@@ -1690,6 +1705,7 @@ final class AppViewModel: ObservableObject {
             if plugin.isActive {
                 do {
                     try await pluginManager.uninstall(PluginID(plugin.id))
+                    await pluginManager.revokePermissions(PluginID(plugin.id))
                     showToast("已停用插件：\(plugin.name)")
                 } catch {
                     showToast("停用失败：\(error.localizedDescription)")
@@ -1699,6 +1715,7 @@ final class AppViewModel: ObservableObject {
                     showToast("未知插件，无法启用")
                     return
                 }
+                await pluginManager.grantPermissions(pluginAny.manifest.id, pluginAny.manifest.permissions)
                 do {
                     try await pluginManager.install(pluginAny)
                     showToast("已启用插件：\(plugin.name)")
@@ -1831,27 +1848,17 @@ final class AppViewModel: ObservableObject {
 
     func installFromMarket(_ item: MarketplaceDisplayItem) {
         Task {
-            do {
-                _ = try await marketplace.install(PluginID(item.id))
-                showToast("已从市场安装插件：\(item.name)")
-            } catch {
-                showToast("安装失败：\(error.localizedDescription)")
+            await installPlugin(name: item.name, version: item.version) {
+                _ = try await self.marketplace.install(PluginID(item.id))
             }
-            await refreshMarketplace()
-            await refreshPlugins()
         }
     }
 
     func updateFromMarket(_ item: MarketplaceDisplayItem) {
         Task {
-            do {
-                _ = try await marketplace.upgrade(PluginID(item.id))
-                showToast("已更新插件：\(item.name)")
-            } catch {
-                showToast("更新失败：\(error.localizedDescription)")
+            await installPlugin(name: item.name, version: item.version) {
+                _ = try await self.marketplace.upgrade(PluginID(item.id))
             }
-            await refreshMarketplace()
-            await refreshPlugins()
         }
     }
 
@@ -1859,6 +1866,7 @@ final class AppViewModel: ObservableObject {
         Task {
             do {
                 try await marketplace.uninstall(PluginID(item.id))
+                await pluginManager.revokePermissions(PluginID(item.id))
                 showToast("已从市场卸载插件：\(item.name)")
             } catch {
                 showToast("卸载失败：\(error.localizedDescription)")
@@ -1866,6 +1874,53 @@ final class AppViewModel: ObservableObject {
             await refreshMarketplace()
             await refreshPlugins()
         }
+    }
+
+    // MARK: - P0.4 权限门禁（统一安装入口 + 授予 / 拒绝裁决）
+
+    /// 统一安装入口：permissionDenied → 待裁决横幅；missingDependency → 依赖提示；其余失败 → toast
+    func installPlugin(name: String, version: String, _ install: @escaping () async throws -> Void) async {
+        do {
+            try await install()
+            showToast("已安装插件：\(name)")
+        } catch let PluginError.permissionDenied(id, perms) {
+            pendingPermissionInstall = PendingPermissionInstall(
+                id: id.rawValue, name: name, version: version, permissions: perms.map(\.display)
+            )
+            pendingPermissionRetry = { [weak self] in
+                guard let self else { return }
+                await self.pluginManager.grantPermissions(id, perms)
+                try await install()
+            }
+        } catch let PluginError.missingDependency(dep) {
+            showToast("安装失败：缺少依赖插件（\(dep.rawValue)）")
+        } catch {
+            showToast("安装失败：\(error.localizedDescription)")
+        }
+        await refreshMarketplace()
+        await refreshPlugins()
+    }
+
+    /// 裁决「授予并安装」
+    func grantPendingPermissionInstall() async {
+        guard let pending = pendingPermissionInstall, let retry = pendingPermissionRetry else { return }
+        pendingPermissionInstall = nil
+        pendingPermissionRetry = nil
+        do {
+            try await retry()
+            showToast("已授予并安装：\(pending.name)")
+        } catch {
+            showToast("授予后重试失败：\(error.localizedDescription)")
+        }
+        await refreshMarketplace()
+        await refreshPlugins()
+    }
+
+    /// 裁决「拒绝」（插件保持未安装）
+    func denyPendingPermissionInstall() {
+        pendingPermissionInstall = nil
+        pendingPermissionRetry = nil
+        showToast("已拒绝权限请求（插件未安装）")
     }
 
     // MARK: - 多 Agent 协作（真实 SubagentCoordinator 编排）

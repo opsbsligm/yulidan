@@ -75,6 +75,16 @@ struct PluginListView: View {
                 }
                 .padding(.horizontal, 20).padding(.vertical, 16)
                 Divider()
+                // P0.4 权限裁决横幅（优先级最高）
+                if let pending = viewModel.pendingPermissionInstall {
+                    NavPermissionBanner(name: pending.name, version: pending.version,
+                                        permissions: pending.permissions) {
+                        Task { await viewModel.grantPendingPermissionInstall() }
+                    } onDeny: {
+                        viewModel.denyPendingPermissionInstall()
+                    }
+                    Divider()
+                }
                 // 加载状态（P0.3 异常 UI：失败横幅 / 部分失败警告）
                 if case let .failed(msg) = viewModel.pluginsLoadState {
                     NavErrorBanner(message: msg) {
