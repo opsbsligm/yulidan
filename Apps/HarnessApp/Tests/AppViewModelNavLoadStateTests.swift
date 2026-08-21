@@ -99,7 +99,8 @@ struct AppViewModelNavLoadStateTests {
 
         let vm = AppViewModel(skillUserDirectory: skillDir, sessionDBURL: dbURL)
 
-        await waitUntil { !vm.skillsLoadState.isLoading }
+        // 双条件等待：state 先于 refreshSkills() 派发，仅等 state 会在 skills 列表落位前读到空数组（2026-08-22 并发门禁竞态）
+        await waitUntil { !vm.skillsLoadState.isLoading && !vm.skills.isEmpty }
         guard case let .failed(msg) = vm.skillsLoadState else {
             Issue.record("期望 skillsLoadState 为 .failed，实际：\(vm.skillsLoadState)")
             return

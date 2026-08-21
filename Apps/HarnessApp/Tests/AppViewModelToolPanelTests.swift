@@ -41,17 +41,24 @@ struct AppViewModelToolPanelTests {
     /// 通过工具面板执行 read_file，等待执行完成并返回展示结果
     private func runRead(_ path: String, vm: AppViewModel) async -> String? {
         guard let idx = vm.tools.firstIndex(where: { $0.name == "read_file" }) else { return nil }
+        let toolID = vm.tools[idx].id // 身份锁定（74466cf 同口径）：等待期间 tools 数组可能被整体重建，旧下标会越界
         vm.executeTool(at: idx, withParams: #"{"path":"\#(path)"}"#)
         // 25s 上限：吸收 macOS 协作池瞬态调度停滞（~10-13s，QUALITY_REPORT P1 环境类）；
         // 停滞期间完成态/重注册不派发，10s 上限会误报超时（2026-08-21 并发全量门禁首轮实测 3 断言超时）
         let deadline = Date().addingTimeInterval(25)
         while Date() < deadline {
-            if !vm.tools[idx].executing {
-                return vm.tools[idx].lastResult
+            // 按身份重新查找：等待期间 refreshTools/沙箱重注册会整体重建 tools 数组，
+            // 直接下标旧 idx 越界致命崩溃（2026-08-22 并发全量门禁崩溃，crash report 帧 runRead）
+            guard let current = vm.tools.firstIndex(where: { $0.id == toolID }) else {
+                try? await Task.sleep(for: .milliseconds(50))
+                continue
+            }
+            if !vm.tools[current].executing {
+                return vm.tools[current].lastResult
             }
             try? await Task.sleep(for: .milliseconds(50))
         }
-        return vm.tools[idx].lastResult
+        return vm.tools.firstIndex(where: { $0.id == toolID }).flatMap { vm.tools[$0].lastResult }
     }
 
     // MARK: 场景 1：executeTool 真实执行 + 结果回显 + 清除
@@ -148,12 +155,24 @@ struct AppViewModelToolPanelTests {
         guard let idx = vm.tools.firstIndex(where: { $0.name == "read_file" }) else {
             Issue.record("read_file 不在展示列表"); return
         }
+        let toolID = vm.tools[idx].id // 身份锁定：等待期间 refreshTools 按注册表字典序重建展示数组，位置可变，旧下标会落错槽
         vm.executeTool(at: idx, withParams: "{}")
         let deadline = Date().addingTimeInterval(25)
-        while Date() < deadline, vm.tools[idx].executing {
+        while Date() < deadline {
+            guard let current = vm.tools.firstIndex(where: { $0.id == toolID }) else {
+                try? await Task.sleep(for: .milliseconds(50))
+                continue
+            }
+            if !vm.tools[current].executing {
+                break
+            }
             try? await Task.sleep(for: .milliseconds(50))
         }
-        #expect(vm.tools[idx].lastResult?.contains("错误：缺少参数 path") == true)
+        guard let finalIdx = vm.tools.firstIndex(where: { $0.id == toolID }) else {
+            Issue.record("read_file 槽位丢失")
+            return
+        }
+        #expect(vm.tools[finalIdx].lastResult?.contains("错误：缺少参数 path") == true)
     }
 
     // MARK: 场景 5：沙箱根切换端到端（内置工具重注册立即生效）

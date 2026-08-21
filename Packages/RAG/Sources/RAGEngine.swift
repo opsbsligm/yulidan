@@ -215,6 +215,20 @@ public actor SharedRAGEngine {
             .appendingPathComponent("index.json")
     }
 
+    /// 当前索引路径（P0.1.5：工作区根切换时经 resetIndexURL 重路由，双根严格隔离不迁移）
+    private var indexURL: URL
+
+    public init(indexURL: URL? = nil) {
+        self.indexURL = indexURL ?? Self.defaultIndexURL
+    }
+
+    /// P0.1.5：工作区根切换（本地 ⇄ iCloud）后重路由索引路径；
+    /// 丢弃既有引擎实例，下次 get() 在新路径上重建（严格隔离，不自动迁移数据）
+    public func resetIndexURL(_ url: URL) {
+        indexURL = url
+        engine = nil
+    }
+
     /// ~/.harness 基础目录（HARNESS_HOME 环境变量可覆盖，测试/隔离运行用）
     private static func harnessHomeBase() -> URL {
         if let envHome = ProcessInfo.processInfo.environment["HARNESS_HOME"], !envHome.isEmpty {
@@ -230,7 +244,7 @@ public actor SharedRAGEngine {
         if let engine {
             return engine
         }
-        let engine = RAGEngine(store: VectorStore(fileURL: Self.defaultIndexURL))
+        let engine = RAGEngine(store: VectorStore(fileURL: indexURL))
         self.engine = engine
         return engine
     }

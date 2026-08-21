@@ -1,5 +1,6 @@
 import ServiceContainer
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct PluginListView: View {
     enum PluginPane: String, CaseIterable, Identifiable {
@@ -23,6 +24,8 @@ struct PluginListView: View {
     @State private var mcpFormEnvironment = ""
     /// P0.4 运行日志面板（非 nil = 展示日志 sheet）
     @State private var logServer: MCPDisplayItem?
+    /// P0.4.3 文件型主题包导入（非 false = 展示文件选择）
+    @State private var showThemePackageImporter = false
 
     var filteredMarket: [MarketplaceDisplayItem] {
         if searchText.isEmpty {
@@ -93,6 +96,16 @@ struct PluginListView: View {
                         }
                         .buttonStyle(.bordered)
                         .controlSize(.small)
+                    }
+                    if pane == .installed {
+                        Button {
+                            showThemePackageImporter = true
+                        } label: {
+                            Label("导入主题包…", systemImage: "paintpalette").font(.system(size: 12))
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .help("导入 DSH 社区主题包（spec.json 或主题包目录）；落活动工作区 themes/（iCloud 模式随容器同步）")
                     }
                     HStack(spacing: 6) {
                         Image(systemName: "magnifyingglass").font(.system(size: 11))
@@ -165,6 +178,18 @@ struct PluginListView: View {
                                 mcpImportForm
                                 Divider()
                             }
+                            if !viewModel.mcpPendingReimportNames.isEmpty {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "exclamationmark.icloud").font(.system(size: 12))
+                                    Text("以下 MCP 服务器的本地二进制未同步（元数据来自其他设备），请重新导入：\(viewModel.mcpPendingReimportNames.joined(separator: "、"))")
+                                        .font(.system(size: 12))
+                                }
+                                .foregroundStyle(.orange)
+                                .padding(10)
+                                .background(HarnessTheme.surfaceHover)
+                                .cornerRadius(8)
+                                .padding(.bottom, 4)
+                            }
                             ForEach(filteredMCPServers, id: \.id) { server in
                                 MCPServerRow(server: server) {
                                     Task { await viewModel.retryMCPServer(server) }
@@ -202,6 +227,20 @@ struct PluginListView: View {
         }
         .sheet(item: $logServer) { server in
             MCPServerLogSheet(viewModel: viewModel, server: server)
+        }
+        .fileImporter(
+            isPresented: $showThemePackageImporter,
+            allowedContentTypes: [.json, .folder],
+            allowsMultipleSelection: false
+        ) { result in
+            switch result {
+            case let .success(urls):
+                if let url = urls.first {
+                    viewModel.importThemePackage(fileURL: url)
+                }
+            case let .failure(error):
+                viewModel.showToast("主题包选择失败：\(error.localizedDescription)")
+            }
         }
     }
 
@@ -330,38 +369,6 @@ struct PluginCard: View {
     }
 }
 
-struct StateBadge: View {
-    let state: PluginState
-    var color: Color {
-        switch state {
-        case .active: .green
-        case .stopped: .gray
-        case .failed, .errored: .red
-        case .loading, .initializing, .starting, .stopping: .orange
-        }
-    }
-
-    var label: String {
-        switch state {
-        case .active: "运行中"
-        case .stopped: "已停用"
-        case .failed: "失败"
-        case .errored: "错误"
-        case .loading: "加载中"
-        case .initializing: "初始化"
-        case .starting: "启动中"
-        case .stopping: "停止中"
-        }
-    }
-
-    var body: some View {
-        HStack(spacing: 4) {
-            Circle().fill(color).frame(width: 6, height: 6)
-            Text(label).font(.system(size: 11)).foregroundStyle(color)
-        }
-    }
-}
-
 struct PluginDetailView: View {
     @ObservedObject var viewModel: AppViewModel
     let plugin: PluginDisplayItem
@@ -440,18 +447,6 @@ struct PluginDetailView: View {
         .padding(16)
         .frame(maxHeight: .infinity, alignment: .top)
         .background(HarnessTheme.sidebarBg)
-    }
-}
-
-struct DetailRow: View {
-    let label: String
-    let value: String
-    var body: some View {
-        HStack(spacing: 12) {
-            Text(label).font(.system(size: 12)).foregroundStyle(HarnessTheme.textSecondary)
-                .frame(width: 60, alignment: .leading)
-            Text(value).font(.system(size: 12, design: .monospaced))
-        }
     }
 }
 

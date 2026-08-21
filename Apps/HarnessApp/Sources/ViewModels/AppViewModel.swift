@@ -451,6 +451,15 @@ final class AppViewModel: ObservableObject {
     let skillRegistry: SkillRegistry = .init()
     /// 账号与工作区（P0.1：Apple SSO + iCloud 双模式状态机；设置页「账号与同步」观察此对象）
     let accountService: AccountService
+    /// 工作区路由（P0.1.5：本地 ⇄ iCloud 运行时目录集；测试缝 init 注入）
+    let workspaceRouter: WorkspaceRouter
+    /// 共享 RAG 引擎实例（生产 = .shared；测试注入独立实例防并行套件互踩）
+    let sharedRAG: SharedRAGEngine
+    /// 文件型主题包插件（P0.4.3：资源在活动工作区 themes/；卸载删目录）
+    private var fileThemePackages: [FileThemePackagePlugin] = []
+    @Published private(set) var fileThemePackageIDs: Set<String> = []
+    /// MCP 元数据恢复：本地二进制缺失（二进制不同步），需用户重新导入
+    @Published private(set) var mcpPendingReimportNames: [String] = []
     /// 用户技能目录（构造时一次性捕获：长生命周期 VM 期间目录不漂移；
     /// 测试在构造前注入 SkillStore.userSkillsDirectoryOverride 即可隔离）
     let skillUserDirectory: URL
@@ -481,7 +490,9 @@ final class AppViewModel: ObservableObject {
     // MARK: - 初始化
 
     /// - Parameter skillUserDirectory: 用户技能目录（测试注入隔离目录；生产默认 ~/.harness/skills）
-    init(skillUserDirectory: URL? = nil, sessionDBURL: URL? = nil, mcpConfigURLOverride: URL? = nil) {
+    init(skillUserDirectory: URL? = nil, sessionDBURL: URL? = nil, mcpConfigURLOverride: URL? = nil,
+         workspaceRouter: WorkspaceRouter? = nil, sharedRAG: SharedRAGEngine? = nil,
+         accountService: AccountService? = nil) {
         self.mcpConfigURLOverride = mcpConfigURLOverride
         let container = ServiceContainer()
         let eventBus = EventBus()
@@ -507,8 +518,10 @@ final class AppViewModel: ObservableObject {
         sessionDB = try? SessionDB(dbURL: dbURL)
         sessionTitles = Self.loadTitles()
         // P0.1：账号与工作区（默认本地模式；SSO+iCloud 需 entitlements 就绪后自动升级）
-        accountService = AccountService()
-        accountService.restore()
+        self.accountService = accountService ?? AccountService()
+        self.accountService.restore()
+        self.workspaceRouter = workspaceRouter ?? WorkspaceRouter(accountService: self.accountService)
+        self.sharedRAG = sharedRAG ?? .shared
         // 先占位（init 两阶段初始化限制），onEvent 由 registerSubagentRuntime 后置赋值
         subagentCoordinator = SubagentCoordinator(maxConcurrent: 4)
 
@@ -525,18 +538,22 @@ final class AppViewModel: ObservableObject {
         // P0.2：加载项目 + 挂接工作区同步（iCloud 模式生效；本地模式 no-op）
         Task { await self.loadProjectsFromDB() }
         attachWorkspaceSyncIfNeeded()
-        accountObservation = accountService.objectWillChange.sink { [weak self] _ in
+        accountObservation = self.accountService.objectWillChange.sink { [weak self] _ in
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 // 降级/退出 iCloud：同步清掉引擎引用（防向已停用同步服务发布）
-                if !accountService.state.isICloudReady {
+                if !self.accountService.state.isICloudReady {
                     workspaceEngine = nil
                 }
                 attachWorkspaceSyncIfNeeded()
+                // P0.1.5：工作区路由变化（本地 ⇄ iCloud）→ 重路由运行时目录集
+                if self.workspaceRouter.refresh() {
+                    await handleWorkspaceRootChanged()
+                }
             }
         }
         // P0.1.4：冲突交 UI 裁决（VM 已销毁时回落保留本地，离线优先）
-        accountService.setConflictHandler { [weak self] conflict in
+        self.accountService.setConflictHandler { [weak self] conflict in
             guard let self else { return conflict.local }
             return await awaitUserResolution(conflict)
         }
@@ -640,7 +657,7 @@ final class AppViewModel: ObservableObject {
         }
         // RAG 知识库：注册 search_knowledge / add_knowledge / list_knowledge 工具
         // （进程级共享索引 ~/.harness/rag/index.json，与 CLI 同一份库）
-        let ragEngine = await SharedRAGEngine.shared.get()
+        let ragEngine = await sharedRAG.get()
         for tool in KnowledgeTools.makeAll(engine: ragEngine) {
             await toolRegistry.register(tool)
         }
@@ -872,16 +889,21 @@ final class AppViewModel: ObservableObject {
     // MARK: - 基础设施刷新
 
     /// 安装内置插件，返回失败列表（空 = 全部成功）
+    /// 内置插件实例（安装清单与元数据清单 origin 判定共用同一来源）
     @discardableResult
-    func installBuiltInPlugins() async -> [String] {
-        var errors: [String] = []
-        // 内置插件 = 系统预授予：安装前授予全部声明权限（免 UI 裁决）
-        let builtIns: [any Plugin] = [
+    static func builtInPluginInstances() -> [any Plugin] {
+        [
             BuiltInFilesystemPlugin(),
             BuiltInTerminalPlugin(),
             BuiltInOceanThemePlugin(),
             BuiltInSunsetThemePlugin(),
         ]
+    }
+
+    func installBuiltInPlugins() async -> [String] {
+        var errors: [String] = []
+        // 内置插件 = 系统预授予：安装前授予全部声明权限（免 UI 裁决）
+        let builtIns = Self.builtInPluginInstances()
         for builtIn in builtIns {
             do {
                 await pluginManager.grantPermissions(builtIn.manifest.id, builtIn.manifest.permissions)
@@ -917,8 +939,10 @@ final class AppViewModel: ObservableObject {
     /// 安装内置插件 → 刷新市场/隔离恢复/列表 → 按安装失败情况设置加载状态
     func loadPluginsInfrastructure() async {
         let errors = await installBuiltInPlugins()
+        await loadFileThemePackagesFromWorkspace()
         await refreshMarketplace()
         await restoreIsolatedPlugins()
+        await reconcilePluginMetadata()
         await refreshPlugins()
         if errors.count >= 2 {
             // 双内置插件全部失败 = 插件子系统不可用
@@ -928,6 +952,122 @@ final class AppViewModel: ObservableObject {
             pluginsLoadWarning = errors.joined(separator: "；")
         } else {
             pluginsLoadWarning = nil
+        }
+    }
+
+    // MARK: - P0.1.5 工作区路由（本地 ⇄ iCloud）与插件元数据同步
+
+    /// 启动：从活动工作区 themes/ 加载文件型主题包并安装（P0.4.3 社区主题包兼容）
+    func loadFileThemePackagesFromWorkspace() async {
+        let root = workspaceRouter.themeResources
+        fileThemePackages = ThemePackageImporter.loadAll(in: root)
+        fileThemePackageIDs = Set(fileThemePackages.map(\.manifest.id.rawValue))
+        for plugin in fileThemePackages {
+            try? await pluginManager.install(plugin)
+        }
+    }
+
+    /// 工作区根切换（本地 ⇄ iCloud）：重路由运行时目录集
+    func handleWorkspaceRootChanged() async {
+        // ① RAG 索引重路由 + 记忆引擎重新挂接（严格隔离，不迁移数据）
+        await sharedRAG.resetIndexURL(workspaceRouter.ragIndexURL)
+        if let memoryEngine {
+            await memoryEngine.attachRAG(sharedRAG.get())
+        }
+        // ② 文件型主题包从新根重建（新根缺失的包 → 主题刷新时自动回落系统基准）
+        await loadFileThemePackagesFromWorkspace()
+        // ③ 插件元数据对账（本地二进制存在的 localMCP 条目恢复连接；缺失 → 需重新导入）
+        await reconcilePluginMetadata()
+        // ④ 刷新主题选项（激活主题来源消失 → 自动回落）
+        await refreshThemes()
+    }
+
+    /// 插件元数据清单持久化（元数据 + 启用意图 + 配置；MCP 二进制永不入清单文件同步）
+    func persistPluginMetadata() async {
+        let builtInIDs = Set(Self.builtInPluginInstances().map(\.manifest.id.rawValue))
+        var entries: [PluginMetaEntry] = []
+        for info in await pluginManager.list() {
+            let origin: PluginMetaEntry.Origin = fileThemePackageIDs.contains(info.id.rawValue)
+                ? .fileThemePackage
+                : (builtInIDs.contains(info.id.rawValue) ? .builtin : .marketplace)
+            let localPath = fileThemePackageIDs.contains(info.id.rawValue)
+                ? fileThemePackages.first { $0.manifest.id.rawValue == info.id.rawValue }?.specURL.path
+                : nil
+            entries.append(PluginMetaEntry(
+                id: info.id.rawValue, name: info.name, version: info.version,
+                origin: origin, enabled: info.state == .active, localPath: localPath
+            ))
+        }
+        for cfg in MCPDiscovery.loadConfigs(url: mcpConfigURL) {
+            entries.append(PluginMetaEntry(
+                id: cfg.id, name: cfg.name, version: "1.0.0",
+                origin: .localMCP, enabled: true,
+                localPath: cfg.command, mcpCommand: [cfg.command] + cfg.arguments
+            ))
+        }
+        do {
+            try PluginMetadataStore.save(PluginMetaManifest(plugins: entries), to: workspaceRouter.pluginMetaURL)
+        } catch {
+            showToast("插件元数据保存失败：\(error.localizedDescription)")
+        }
+    }
+
+    /// 对账活动根的插件元数据清单：本地二进制存在的 localMCP 条目恢复连接；缺失 → mcpPendingReimportNames
+    /// 仅 iCloud 根生效：清单经容器来自其他设备才需要恢复；本地模式下清单与 servers.json 同源同机、
+    /// 每次变更同步落盘，无跨设备恢复语义（且避免并行测试套件共享本地根时互写）
+    func reconcilePluginMetadata() async {
+        guard workspaceRouter.isICloud else {
+            mcpPendingReimportNames = []
+            return
+        }
+        let manifest = PluginMetadataStore.load(from: workspaceRouter.pluginMetaURL)
+        var pending: [String] = []
+        for entry in manifest.plugins where entry.origin == .localMCP {
+            let configs = MCPDiscovery.loadConfigs(url: mcpConfigURL)
+            guard !configs.contains(where: { $0.id == entry.id || $0.name == entry.name }) else { continue }
+            guard let command = entry.mcpCommand, let binary = command.first else {
+                pending.append(entry.name)
+                continue
+            }
+            let expanded = (binary as NSString).expandingTildeInPath
+            if FileManager.default.isExecutableFile(atPath: expanded) {
+                let config = MCPServerConfig(name: entry.name, command: expanded, arguments: Array(command.dropFirst()))
+                var updated = configs
+                updated.append(config)
+                do {
+                    try MCPDiscovery.save(updated, url: mcpConfigURL)
+                    _ = await mcpManager.connectStdio(config, into: toolRegistry)
+                } catch {
+                    pending.append(entry.name)
+                }
+            } else {
+                pending.append(entry.name)
+            }
+        }
+        mcpPendingReimportNames = pending
+        await refreshMCPServers()
+        await refreshTools()
+    }
+
+    /// 导入文件型主题包（插件页 fileImporter 回调）
+    func importThemePackage(fileURL: URL) {
+        do {
+            let plugin = try ThemePackageImporter.importPackage(fileURL: fileURL, into: workspaceRouter.themeResources)
+            guard !fileThemePackageIDs.contains(plugin.manifest.id.rawValue) else {
+                showToast("主题包已导入：\(plugin.manifest.name)")
+                return
+            }
+            fileThemePackages.append(plugin)
+            fileThemePackageIDs.insert(plugin.manifest.id.rawValue)
+            Task {
+                try? await pluginManager.install(plugin)
+                await persistPluginMetadata()
+                await refreshPlugins()
+                await refreshThemes()
+                showToast("已导入主题包：\(plugin.manifest.name)")
+            }
+        } catch {
+            showToast("主题包导入失败：\(error.localizedDescription)")
         }
     }
 
@@ -1034,7 +1174,12 @@ final class AppViewModel: ObservableObject {
             }
             return
         }
-        let session = SessionRecord(metadata: SessionMetadata(cwd: URL(fileURLWithPath: NSHomeDirectory())))
+        // P0.1.5：会话工作目录 = 活动工作区/agents/<sessionID>（iCloud 模式 = iCloud 容器）
+        let sessionID = SessionID()
+        let session = SessionRecord(
+            id: sessionID,
+            metadata: SessionMetadata(cwd: workspaceRouter.sessionCwd(sessionID.rawValue))
+        )
         sessions.insert(session, at: 0)
         selectedSession = session
         messages.removeAll()
@@ -1850,6 +1995,7 @@ final class AppViewModel: ObservableObject {
 
     func togglePlugin(_ plugin: PluginDisplayItem) {
         Task {
+            let wasActive = plugin.isActive
             if plugin.isActive {
                 do {
                     try await pluginManager.uninstall(PluginID(plugin.id))
@@ -1871,7 +2017,14 @@ final class AppViewModel: ObservableObject {
                     showToast("启用失败：\(error.localizedDescription)")
                 }
             }
+            // P0.1.5：文件型主题包停用 → 删除活动工作区 themes/ 下包目录
+            if wasActive, let pkg = fileThemePackages.first(where: { $0.manifest.id.rawValue == plugin.id }) {
+                ThemePackageImporter.remove(themeID: pkg.spec.id, from: workspaceRouter.themeResources)
+                fileThemePackages.removeAll { $0.manifest.id == pkg.manifest.id }
+                fileThemePackageIDs.remove(plugin.id)
+            }
             await refreshPlugins()
+            await persistPluginMetadata()
         }
     }
 
@@ -2071,6 +2224,7 @@ final class AppViewModel: ObservableObject {
         } catch {
             showToast("安装失败：\(error.localizedDescription)")
         }
+        await persistPluginMetadata()
         await refreshMarketplace()
         await refreshPlugins()
     }
@@ -2165,6 +2319,7 @@ final class AppViewModel: ObservableObject {
         await refreshTools()
         await refreshThemes()
         await refreshMCPServers()
+        await persistPluginMetadata()
     }
 
     /// 重启故障 MCP 服务器（断开 → 重连 → 刷新工具）
@@ -2200,6 +2355,7 @@ final class AppViewModel: ObservableObject {
         await refreshTools()
         await refreshThemes()
         await refreshMCPServers()
+        await persistPluginMetadata()
     }
 
     /// 环境变量解析（"K=V K2=V2" 空格分隔；非法项静默丢弃）
