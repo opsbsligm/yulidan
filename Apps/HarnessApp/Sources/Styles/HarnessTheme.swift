@@ -105,15 +105,18 @@ struct CardModifier: ViewModifier {
 
 struct MessageBubbleModifier: ViewModifier {
     var isUser: Bool
+    /// P0.4 主题插件：气泡色随激活主题即时切换（未提供时回落系统基准）
+    @Environment(\.harnessThemeSpec) private var themeSpec
+
     func body(content: Content) -> some View {
         content
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
-            .background(isUser ? HarnessTheme.userMessage : HarnessTheme.assistantMessage)
+            .background(isUser ? themeSpec.userMessageColor : themeSpec.assistantMessageColor)
             .cornerRadius(HarnessTheme.radiusLarge)
             .overlay(
                 RoundedRectangle(cornerRadius: HarnessTheme.radiusLarge)
-                    .stroke(isUser ? HarnessTheme.accent.opacity(0.3) : HarnessTheme.border, lineWidth: 0.5)
+                    .stroke(isUser ? themeSpec.accentColor.opacity(0.3) : HarnessTheme.border, lineWidth: 0.5)
             )
     }
 }

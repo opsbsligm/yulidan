@@ -7,8 +7,8 @@ import Testing
 // MARK: - P0.4 MCP stdio 服务器：导入 / 同名更新 / 坏命令 / 重启 / 卸载 / 环境变量解析
 
 //
-// 隔离纪律：AppViewModel.mcpConfigURLOverride 是 static 测试缝，
-// 每个用例 defer 重置为 nil，防跨 suite 泄漏到真实 ~/.harness/mcp/servers.json。
+// 隔离纪律：mcpConfigURLOverride 为实例级测试缝（经 init 注入），
+// 每个用例独立临时 URL，防泄漏到真实 ~/.harness/mcp/servers.json。
 
 @MainActor
 @Suite("AppViewModel P0.4 MCP stdio 服务器", .serialized)
@@ -17,17 +17,17 @@ struct AppViewModelMCPServerTests {
         AppViewModel.notificationServiceFactory = { NoopNotificationService() }
     }
 
-    /// 每用例独立临时配置 URL；defer { AppViewModel.mcpConfigURLOverride = nil } 必须成对出现
+    /// 每用例独立临时配置 URL（实例级注入，无共享状态）
     private func makeVM() -> (vm: AppViewModel, mcpConfigURL: URL) {
         let mcpConfigURL = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("harness-mcp-test-\(UUID().uuidString)")
             .appendingPathComponent("servers.json")
-        AppViewModel.mcpConfigURLOverride = mcpConfigURL
         let vm = AppViewModel(
             skillUserDirectory: URL(fileURLWithPath: NSTemporaryDirectory())
                 .appendingPathComponent("harness-mcp-skills-\(UUID().uuidString)"),
             sessionDBURL: URL(fileURLWithPath: NSTemporaryDirectory())
-                .appendingPathComponent("harness-mcp-test-\(UUID().uuidString).sqlite")
+                .appendingPathComponent("harness-mcp-test-\(UUID().uuidString).sqlite"),
+            mcpConfigURLOverride: mcpConfigURL
         )
         return (vm, mcpConfigURL)
     }
@@ -37,7 +37,6 @@ struct AppViewModelMCPServerTests {
     @Test("导入 MCP：配置落盘（command/arguments/environment 解析）")
     func importWritesConfig() async {
         let (vm, mcpURL) = makeVM()
-        defer { AppViewModel.mcpConfigURLOverride = nil }
 
         await vm.importMCPServer(name: "fs-test", command: "/usr/bin/true",
                                  arguments: "-h --verbose", environment: "FOO=bar BAZ=qux")
@@ -60,7 +59,6 @@ struct AppViewModelMCPServerTests {
     @Test("同名导入 = 更新：条目唯一且 id 不变")
     func importSameNameUpdates() async {
         let (vm, mcpURL) = makeVM()
-        defer { AppViewModel.mcpConfigURLOverride = nil }
 
         await vm.importMCPServer(name: "dup", command: "/usr/bin/true",
                                  arguments: "", environment: "")
@@ -85,7 +83,6 @@ struct AppViewModelMCPServerTests {
     @Test("坏命令：isAvailable=false 且 toolsLoadWarning 非空")
     func badCommandUnavailable() async {
         let (vm, _) = makeVM()
-        defer { AppViewModel.mcpConfigURLOverride = nil }
 
         await vm.importMCPServer(name: "broken", command: "/usr/bin/nonexistent_mcp_xyz_123",
                                  arguments: "", environment: "")
@@ -101,7 +98,6 @@ struct AppViewModelMCPServerTests {
     @Test("卸载 MCP：servers.json 清空且服务器断开")
     func removeClearsConfig() async {
         let (vm, mcpURL) = makeVM()
-        defer { AppViewModel.mcpConfigURLOverride = nil }
 
         await vm.importMCPServer(name: "rm-test", command: "/usr/bin/true",
                                  arguments: "", environment: "")
@@ -120,7 +116,6 @@ struct AppViewModelMCPServerTests {
     @Test("重启坏服务器：快速失败且配置保留")
     func retryBrokenServerKeepsConfig() async {
         let (vm, mcpURL) = makeVM()
-        defer { AppViewModel.mcpConfigURLOverride = nil }
 
         await vm.importMCPServer(name: "broken2", command: "/usr/bin/nonexistent_mcp_xyz_123",
                                  arguments: "", environment: "")
@@ -139,9 +134,8 @@ struct AppViewModelMCPServerTests {
     @Test("mcpServerLog：无 stderr 输出时返回占位提示")
     func mcpServerLogPlaceholder() async {
         let (vm, _) = makeVM()
-        defer { AppViewModel.mcpConfigURLOverride = nil }
         let item = MCPDisplayItem(id: "log-none", name: "log-none", command: "/usr/bin/true",
-                                  arguments: [], isAvailable: false, toolCount: nil, serverInfo: nil)
+                                  arguments: [], isAvailable: false, toolCount: nil, serverInfo: nil, isTheme: false)
         let log = await vm.mcpServerLog(item)
         #expect(log.contains("stderr"))
     }

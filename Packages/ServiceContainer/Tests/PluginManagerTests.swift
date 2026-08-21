@@ -195,7 +195,7 @@ struct PluginManagerTests {
         do {
             try await manager.install(plugin)
             Issue.record("Expected permissionDenied after revoke")
-        } catch let PluginError.permissionDenied(_, _) {
+        } catch PluginError.permissionDenied(_, _) {
             // 预期路径
         }
     }

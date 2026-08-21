@@ -130,6 +130,8 @@ struct SettingsNavigationState {
 // MARK: - 设置页（两级菜单 + 子页面导航/跳转）
 
 struct SettingsView: View {
+    /// AppViewModel（主题插件选项 / 切换；P0.4）
+    var viewModel: AppViewModel
     /// 沙箱设置变更回调（由 AppViewModel 消费，重新注册工具）
     var onSandboxChange: ((String?) -> Void)?
     /// 系统通知开关变更回调（由 AppViewModel 消费，同步 NotificationCoordinator）
@@ -230,7 +232,7 @@ struct SettingsView: View {
     private func subPageView(_ sub: SettingsSubTab) -> some View {
         switch sub {
         case .preferences:
-            GeneralPreferencesView()
+            GeneralPreferencesView(viewModel: viewModel)
         case .notifications:
             SectionSubPage {
                 NotificationsSection(onNotificationsChange: onNotificationsChange)
@@ -353,8 +355,17 @@ struct SettingsSubRow: View {
 // MARK: - 通用设置（偏好：外观 + 快捷键）
 
 struct GeneralPreferencesView: View {
+    var viewModel: AppViewModel
     @AppStorage(ThemeManager.themeKey) private var theme: String = "system"
     @AppStorage("fontSize") private var fontSize: Double = 14
+
+    /// 主题插件选择绑定（get = 当前激活；set = 即时应用）
+    private var themeSelection: Binding<String> {
+        Binding(
+            get: { viewModel.activeThemeSpec.id },
+            set: { viewModel.applyTheme(id: $0) }
+        )
+    }
 
     var body: some View {
         ScrollView {
@@ -378,6 +389,27 @@ struct GeneralPreferencesView: View {
                             }
                         }
                         Text("当前：\(theme == "dark" ? "深色" : theme == "light" ? "浅色" : "跟随系统")")
+                            .font(.system(size: 11)).foregroundStyle(HarnessTheme.textTertiary)
+
+                        Divider()
+
+                        HStack {
+                            Text("主题插件")
+                                .font(.system(.body))
+                                .foregroundStyle(HarnessTheme.textPrimary)
+
+                            Picker("主题插件", selection: themeSelection) {
+                                ForEach(viewModel.themeOptions) { option in
+                                    Text(option.isSystem
+                                        ? option.spec.name
+                                        : "\(option.spec.name) · \(option.sourceName)")
+                                        .tag(option.id)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            .frame(width: 300)
+                        }
+                        Text("主题一律来自主题插件（本地插件 / MCP 主题服务器）；卸载正在使用的主题自动回落系统基准。")
                             .font(.system(size: 11)).foregroundStyle(HarnessTheme.textTertiary)
 
                         HStack {

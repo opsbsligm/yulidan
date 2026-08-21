@@ -171,6 +171,11 @@ public actor PluginManager {
         plugins.values.map { PluginInfo(entry: $0) }
     }
 
+    /// active 插件实例快照（供能力探测，如主题插件发现；只读，不改变生命周期）
+    public func activePluginInstances() -> [any Plugin] {
+        plugins.values.filter { $0.state == .active }.map(\.plugin)
+    }
+
     public func activePlugins() -> [PluginInfo] {
         plugins.values.filter { $0.state == .active }.map { PluginInfo(entry: $0) }
     }

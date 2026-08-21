@@ -26,6 +26,12 @@ struct MCPServerRow: View {
                         Text("\(count) 个工具").font(.system(size: 11))
                             .foregroundStyle(HarnessTheme.textTertiary)
                     }
+                    if server.isTheme {
+                        Text("主题").font(.system(size: 9))
+                            .padding(.horizontal, 4).padding(.vertical, 2)
+                            .background(Color.pink.opacity(0.15)).cornerRadius(3)
+                            .foregroundStyle(.pink)
+                    }
                     Spacer()
                     if !server.isAvailable {
                         Button {

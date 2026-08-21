@@ -49,6 +49,9 @@ struct ContentView: View {
         }
         .background(HarnessTheme.bgPrimary)
         .frame(minWidth: 800, minHeight: 500)
+        // P0.4 主题插件：激活主题即时生效（tint 全局传播 + Environment 注入观察）
+        .tint(viewModel.activeThemeSpec.accentColor)
+        .environment(\.harnessThemeSpec, viewModel.activeThemeSpec)
         // 折叠态：主区左上角展开按钮（Codex 式）
         .overlay(alignment: .topLeading) {
             if viewModel.isSidebarCollapsed {
@@ -109,7 +112,8 @@ struct ContentView: View {
                 onRetry: { Task { await viewModel.retryLoadTools() } }
             )
         case .settings:
-            SettingsView(onSandboxChange: { viewModel.setSandboxRoot($0) },
+            SettingsView(viewModel: viewModel,
+                         onSandboxChange: { viewModel.setSandboxRoot($0) },
                          onNotificationsChange: { viewModel.setNotificationsEnabled($0) },
                          accountService: viewModel.accountService)
         }

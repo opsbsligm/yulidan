@@ -285,6 +285,12 @@ struct PluginCard: View {
                             .background(Color.purple.opacity(0.15)).cornerRadius(3)
                             .foregroundStyle(.purple)
                     }
+                    if plugin.isTheme {
+                        Text("主题").font(.system(size: 9))
+                            .padding(.horizontal, 4).padding(.vertical, 2)
+                            .background(Color.pink.opacity(0.15)).cornerRadius(3)
+                            .foregroundStyle(.pink)
+                    }
                     Spacer()
                     StateBadge(state: plugin.state)
                 }

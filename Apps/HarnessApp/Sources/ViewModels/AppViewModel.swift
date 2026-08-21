@@ -90,16 +90,20 @@ struct PluginDisplayItem: Identifiable, Hashable {
     let permissions: [String]
     let author: String?
     let description: String
+    /// 提供主题能力（ThemeProviderPlugin；插件页“主题”徽章）
+    let isTheme: Bool
 
     init(id: String, name: String, version: String, state: PluginState,
-         isActive: Bool, permissions: [String], author: String?, description: String) {
+         isActive: Bool, permissions: [String], author: String?, description: String,
+         isTheme: Bool = false) {
         self.id = id; self.name = name; self.version = version; self.state = state
         self.isActive = isActive; self.permissions = permissions
         self.author = author; self.description = description
+        self.isTheme = isTheme
     }
 
     /// 从 PluginManager 的真实 PluginInfo 构造
-    init(info: PluginInfo) {
+    init(info: PluginInfo, isTheme: Bool = false) {
         id = info.id.rawValue
         name = info.name
         version = info.version
@@ -109,6 +113,7 @@ struct PluginDisplayItem: Identifiable, Hashable {
         permissions = info.permissions.map(\.display)
         author = "Harness 内置"
         description = BuiltInPluginCatalog.info[info.id.rawValue]?.description ?? "内置插件"
+        self.isTheme = isTheme
     }
 }
 
@@ -132,6 +137,8 @@ struct MCPDisplayItem: Identifiable, Hashable {
     let isAvailable: Bool
     let toolCount: Int?
     let serverInfo: String?
+    /// 提供主题能力（暴露 get_theme_spec 工具）
+    let isTheme: Bool
 }
 
 /// 权限的中文展示名（市场条目用；内置插件另有 BuiltInPluginCatalog）
@@ -372,12 +379,17 @@ final class AppViewModel: ObservableObject {
     private var pendingPermissionRetry: (() async throws -> Void)?
     /// MCP stdio 服务器列表（P0.4 导入/重启；servers.json + 实时连接状态）
     @Published var mcpServers: [MCPDisplayItem] = []
+    /// 当前激活主题规格（P0.4 主题插件：UI 依此渲染，切换即时生效无需重启；nil 字段 = 系统基准）
+    @Published var activeThemeSpec: ThemeSpec = .systemBaseline
+    /// 可选主题选项（P0.4：系统基准 + 本地主题插件 + MCP 主题服务器）
+    @Published var themeOptions: [ThemeOption] = []
     /// MCP 导入表单（非 false = 插件页展示表单区）
     @Published var showMCPImportForm = false
     /// MCP 配置 URL 测试缝（默认 ~/.harness/mcp/servers.json）
-    static var mcpConfigURLOverride: URL?
+    /// 实例级（非 static）：全量并行门禁下 @MainActor 套件在 await 点交错，static 共享引用会跨套件互踩
+    private let mcpConfigURLOverride: URL?
     var mcpConfigURL: URL {
-        Self.mcpConfigURLOverride ?? MCPDiscovery.defaultURL
+        mcpConfigURLOverride ?? MCPDiscovery.defaultURL
     }
 
     /// 基础设施（真实组件）
@@ -393,6 +405,7 @@ final class AppViewModel: ObservableObject {
     @Published var isolatedPluginIDs: Set<String> = []
     let toolRegistry: ToolRegistry
     let mcpManager: MCPServerManager
+    let themePluginManager: ThemePluginManager
     let subagentCoordinator: SubagentCoordinator
     /// 记忆引擎（registerStartupTools 装配后生效；nil = 未就绪）
     private var memoryEngine: MemoryEngine?
@@ -432,13 +445,15 @@ final class AppViewModel: ObservableObject {
     // MARK: - 初始化
 
     /// - Parameter skillUserDirectory: 用户技能目录（测试注入隔离目录；生产默认 ~/.harness/skills）
-    init(skillUserDirectory: URL? = nil, sessionDBURL: URL? = nil) {
+    init(skillUserDirectory: URL? = nil, sessionDBURL: URL? = nil, mcpConfigURLOverride: URL? = nil) {
+        self.mcpConfigURLOverride = mcpConfigURLOverride
         let container = ServiceContainer()
         let eventBus = EventBus()
         pluginManager = PluginManager(container: container, eventBus: eventBus,
                                       harnessVersion: PluginVersion(major: 0, minor: 1, patch: 0))
         toolRegistry = ToolRegistry()
         mcpManager = MCPServerManager()
+        themePluginManager = ThemePluginManager(pluginManager: pluginManager, mcpManager: mcpManager)
         notificationCenter = NotificationCoordinator(
             service: Self.notificationServiceFactory?() ?? SystemNotificationService(),
             isEnabled: UserDefaults.standard.object(forKey: "notificationsEnabled") as? Bool ?? true
@@ -820,7 +835,12 @@ final class AppViewModel: ObservableObject {
     func installBuiltInPlugins() async -> [String] {
         var errors: [String] = []
         // 内置插件 = 系统预授予：安装前授予全部声明权限（免 UI 裁决）
-        let builtIns: [any Plugin] = [BuiltInFilesystemPlugin(), BuiltInTerminalPlugin()]
+        let builtIns: [any Plugin] = [
+            BuiltInFilesystemPlugin(),
+            BuiltInTerminalPlugin(),
+            BuiltInOceanThemePlugin(),
+            BuiltInSunsetThemePlugin(),
+        ]
         for builtIn in builtIns {
             do {
                 await pluginManager.grantPermissions(builtIn.manifest.id, builtIn.manifest.permissions)
@@ -834,9 +854,14 @@ final class AppViewModel: ObservableObject {
 
     func refreshPlugins() async {
         let infos = await pluginManager.list()
-        plugins = infos.map { PluginDisplayItem(info: $0) }
+        let themeIDs = await Set(pluginManager.activePluginInstances()
+            .filter { $0 is ThemeProviderPlugin }
+            .map(\.manifest.id.rawValue))
+        plugins = infos.map { PluginDisplayItem(info: $0, isTheme: themeIDs.contains($0.id.rawValue)) }
             .sorted { !$0.isActive && $1.isActive }
         pluginsLoadState = .loaded
+        // P0.4 主题插件：本地插件变更的唯一聚合刷新点（安装/卸载/停用/启动全部经此）
+        await refreshThemes()
     }
 
     /// 插件基础设施加载（启动与失败重试共用）：
@@ -1951,11 +1976,13 @@ final class AppViewModel: ObservableObject {
     func refreshMCPServers() async {
         let configs = MCPDiscovery.loadConfigs(url: mcpConfigURL)
         let descriptors = await mcpManager.servers()
+        let themeNames = themeMCPServerNames
         mcpServers = configs.map { cfg in
             let d = descriptors.first { $0.name == cfg.name }
             return MCPDisplayItem(id: cfg.id, name: cfg.name, command: cfg.command,
                                   arguments: cfg.arguments, isAvailable: d?.isAvailable ?? false,
-                                  toolCount: d?.toolCount, serverInfo: d?.serverInfo)
+                                  toolCount: d?.toolCount, serverInfo: d?.serverInfo,
+                                  isTheme: themeNames.contains(cfg.name))
         }
     }
 
@@ -2009,6 +2036,7 @@ final class AppViewModel: ObservableObject {
         }
         showMCPImportForm = false
         await refreshTools()
+        await refreshThemes()
         await refreshMCPServers()
     }
 
@@ -2026,6 +2054,7 @@ final class AppViewModel: ObservableObject {
             toolsLoadWarning = "MCP 服务器 \(cfg.name) 重启失败（检查命令路径与启动参数）"
         }
         await refreshTools()
+        await refreshThemes()
         await refreshMCPServers()
     }
 
@@ -2042,6 +2071,7 @@ final class AppViewModel: ObservableObject {
         await mcpManager.disconnect(name: item.name)
         showToast("已卸载 MCP 服务器：\(item.name)")
         await refreshTools()
+        await refreshThemes()
         await refreshMCPServers()
     }
 
@@ -2055,6 +2085,38 @@ final class AppViewModel: ObservableObject {
             }
         }
         return result
+    }
+
+    // MARK: - P0.4 主题插件（主题一律来自插件；系统基准仅回落用）
+
+    /// 刷新主题选项与激活规格（启动 / 插件变更 / MCP 变更后调用）
+    func refreshThemes() async {
+        let fellBack = await themePluginManager.refresh()
+        themeOptions = themePluginManager.themes
+        let spec = themePluginManager.activeSpec
+        if activeThemeSpec != spec {
+            activeThemeSpec = spec
+        }
+        if fellBack, let reason = themePluginManager.lastFallbackReason {
+            themePluginManager.lastFallbackReason = nil
+            showToast(reason)
+        }
+    }
+
+    /// 切换激活主题（即时生效；仅允许当前选项中存在的 id）
+    func applyTheme(id: String) {
+        themePluginManager.apply(id: id)
+        activeThemeSpec = themePluginManager.activeSpec
+    }
+
+    /// 提供主题的 MCP 服务器名集合（MCP 列表主题徽章）
+    var themeMCPServerNames: Set<String> {
+        Set(themeOptions.compactMap { option -> String? in
+            if case let .mcpServer(name) = option.source {
+                return name
+            }
+            return nil
+        })
     }
 
     // MARK: - 多 Agent 协作（真实 SubagentCoordinator 编排）
