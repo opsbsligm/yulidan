@@ -147,9 +147,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         startFrameWatchdog(for: newWindow)
     }
 
-    /// 看门狗：无头/远程环境下显示配置可能抖动（窗口掉屏、被窗口服务器压成碎片、被最小化）。
-    /// 每 2 秒检查：应用侧 frame 与窗口服务器实际边界是否一致（用 CGWindowList 对账），
-    /// 不一致则钉回目标屏（面积最大的屏 = 用户主屏）并强制重映射，保证窗口始终可见
+    /// 看门狗：无头/远程环境下显示配置可能抖动（窗口掉屏、被窗口服务器压成碎片、被最小化）；
+    /// macOS 27 beta 窗口服务器还会对本 App 窗口间歇性报告幻影 CGWindowList 边界（P0.2 现场实测）。
+    /// 每 2 秒检查：应用侧 frame 与窗口服务器实际边界是否一致（用 CGWindowList 对账）。
+    /// 干预策略（反拉锯）：
+    /// - 用户看不到窗口（掉屏/未映射）→ n>=2 钉回用户面对屏并强制重映射，n>=4 重建窗口（预算 2 次/30s）
+    /// - 用户看得到窗口但服务器报幻影碎片 → 禁止 remap（orderOut 会撕裂可见窗口并抢焦点），
+    ///   持续 n>=8 才允许 recreate 自愈（ghost 渲染唯一可靠恢复手段，实测 4s 自愈）
     private var frameWatchdog: Timer?
 
     /// 帧监视器连续异常计数（主线程 Timer 回调使用）
@@ -186,26 +190,42 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // 应用侧认为的 frame 已经在目标屏可见区 → 还需和窗口服务器实际边界对账
         let appSideOK = window.screen == target && target.visibleFrame.intersects(window.frame)
-        let serverOK = Self.cgWindowBounds(windowNumber: window.windowNumber).map { cg in
-            let expected = Self.appKitToCG(window.frame)
-            return abs(cg.width - expected.width) <= 64 && abs(cg.height - expected.height) <= 64
-        } ?? false
+        let expected = Self.appKitToCG(window.frame)
+        let cg = Self.cgWindowBounds(windowNumber: window.windowNumber)
+        let serverConsistent = cg.map { abs($0.width - expected.width) <= 64 && abs($0.height - expected.height) <= 64 } ?? false
+        // 碎片化判定：窗口服务器实际面积显著小于应用侧期望（窗口被压成条状/碎片）；
+        // 查不到（未映射）同样视为不可见
+        let serverFragmented = cg.map {
+            min($0.width, expected.width) / max(expected.width, 1)
+                * min($0.height, expected.height) / max(expected.height, 1) < 0.5
+        } ?? true
+        // 尊重用户：窗口在任一已连接屏上可见（用户可能手动移动/缩放过）且未碎片化 → 不干预。
+        // 旧逻辑对「app 侧 frame 与服务器边界瞬时不一致」也强制全屏重映射，与用户拖拽/缩放
+        // 形成拉锯（P0.2 现场实测：用户缩窄窗口后被每 2s 拉回全屏）
+        let userManaged = window.frame != .zero
+            && NSScreen.screens.contains { $0.visibleFrame.intersects(window.frame) }
+        let serverDesc = cg.map { "srv=(\(Int($0.minX)),\(Int($0.minY)),\(Int($0.width)),\(Int($0.height)))" } ?? "srv=nil"
 
-        if appSideOK, serverOK {
+        if (appSideOK && serverConsistent) || (userManaged && !serverFragmented) {
             frameMismatch.withLock { $0 = 0 }
             return
         }
         let screenDesc = String(describing: window.screen?.frame)
-        let state = "win#\(window.windowNumber) frame=\(window.frame) appOK=\(appSideOK) srvOK=\(serverOK) scr=\(screenDesc) tgt=\(target.frame)"
+        let state = "win#\(window.windowNumber) frame=\(window.frame) appOK=\(appSideOK) srvConsistent=\(serverConsistent) "
+            + "fragmented=\(serverFragmented) userManaged=\(userManaged) scr=\(screenDesc) tgt=\(target.frame) \(serverDesc)"
         AppDelegate.debugLog("watchdog mismatch " + state)
         let n = frameMismatch.withLock { count in
             count += 1
             return count
         }
-        // 连续 2 次异常才重映射，避免瞬时抖动导致闪烁
-        guard n >= 2 else { return }
-        // 连续 4 次仍异常（重映射已失效，窗口被压成碎片）→ 重建窗口
-        if n >= 4 {
+        // 反拉锯阈值（P0.2 现场实测）：
+        // macOS 27 beta 窗口服务器对本 App 窗口间歇性报幻影 CGWindowList 边界
+        // （Dock 缩略图尺寸/屏外边界，同窗口服务器侧报告 true/false 翻转），
+        // 若每 tick 都 orderOut+setFrame+makeKeyAndOrderFront 会撕裂可见窗口并抢焦点（闪烁拉锯）。
+        // - 用户看不到窗口（掉屏/未映射）：n>=2 remap，n>=4 升级 recreate（预算 2 次/30s）
+        // - 用户看得到窗口但服务器报幻影碎片：禁止 remap（信任应用侧报告），
+        //   持续 n>=8 才 recreate 自愈（ghost 渲染唯一可靠恢复手段）
+        if n >= (userManaged ? 8 : 4) {
             frameMismatch.withLock { $0 = 0 }
             let now = Date()
             let budgetOK = AppDelegate.RecreateState.allow(now: now)
@@ -215,7 +235,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
             return
         }
-        // 不清零：让计数持续累积，重映射无效时升级到现场重建
+        // 强制重映射只在用户看不到窗口时执行；不清零计数，
+        // 让计数持续累积，重映射无效时升级到现场重建
+        guard !userManaged, n >= 2 else { return }
         window.orderOut(nil)
         window.setFrame(target.visibleFrame, display: true)
         window.makeKeyAndOrderFront(nil)
