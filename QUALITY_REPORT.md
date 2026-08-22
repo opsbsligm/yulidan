@@ -26,6 +26,8 @@
 | 本地镜像备份 | ✅ 每次提交后 | `git push --mirror /Users/liguangming/code/swift-harness-backup.git` |
 | GitHub 推送 | ⏸ 暂缓（流水线已就绪） | 按用户要求先本地版本控制，未推送远端。`.github/workflows/swift-ci.yml` 四 job（pr-check：SwiftLint+SwiftFormat+build+单测 / xcode-check / leaks / main-check：release+全量测试+覆盖率+CodeQL+制品）+ `weekly-regression.yml`（schedule cron 周日 02:23 UTC 全量回归 + workflow_dispatch 手动触发；独立文件避免 schedule 触发重复跑 4 job 的 macOS runner 成本）；激活前置：建 GitHub 仓库并 push（私有仓库需 Settings→Actions 启用 scheduled workflows；CODECOV_TOKEN 仅私有仓库需要）；本地模拟 `tools/ci-local.sh [pr|leaks|xcode|main]` 可跑，leaks 门禁 0 leaks 实测 |
 
+> **2026-08-23 周末无人值守复核（HEAD `c18289c`，docs-only 提交）**：pr 门禁复跑全绿 — SwiftLint 0 违规 / SwiftFormat 0 改动 / 编译 0 警告 / 单测 653/653（137 suites），日志 /tmp/ci_pr_weekend.log；DSHCLI e2e 无人值守复跑通过（`dsh run` + local/qwen3:4b，2 次工具调用 write_file→read_file → `weekend-check.txt` 10 字节 md5 dfcec55e… 落盘一致，MCP 测试服务器优雅降级一致，日志 /tmp/dsh_e2e_weekend.log）；锁屏长时压力持续（OVERRIDE-REMAP 自愈链，见 §四 P2 幻影行 2026-08-23 实证段）。
+
 ## 二、八大后端模块交付状态
 
 | # | 模块 | 提交 | 状态 |
@@ -249,6 +251,7 @@
 ## 六、提交链（近期）
 
 ```
+c18289c  docs(quality): 锁屏长时压力实证入册（OVERRIDE-REMAP 持续自愈 31 次、预算耗尽不卡死，c6dd787 极限场景验证）+ §6 提交链补欠账 + .gitignore 补 *.profraw
 83aeb6c  feat(memory): 契约 v2 — 长期记忆纳入工作区六目录契约随根漫游
 dd902b8  ci(remote): CodeQL/codecov 步骤加仓库变量门控（免费私有仓库适配，启用方法入注释），actionlint 通过
 3ad7bcb  docs(acceptance): DSHCLI 全链路 e2e 实跑证据入册（local/qwen3:4b 真实流式 + write/read 工具调用落盘核验 + MCP 优雅降级 + 记忆/技能系统行为核验）
