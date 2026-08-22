@@ -18,9 +18,29 @@ public actor ToolRegistry {
         tools[name]
     }
 
-    /// 获取所有工具 Schema
+    /// 稳定分类序（与 ToolListView 分类栏一致：文件/终端/MCP/网络/代理，技能次之，未归类最后）
+    private static let categoryOrder: [String: Int] = [
+        "filesystem": 0,
+        "terminal": 1,
+        "mcp": 2,
+        "network": 3,
+        "agent": 4,
+        "skills": 5,
+        "general": 6,
+    ]
+
+    /// 获取所有工具 Schema（稳定序：分类序 → 名称。
+    /// 字典迭代序不确定，裸 values 会让展示列表与 LLM wire 每次重建时顺序漂移
+    /// ——2026-08-22 并发门禁 3 处测试 flaky 的共同根因）
     public func schemas() -> [ToolSchema] {
-        tools.values.map(\.schema)
+        tools.values.map(\.schema).sorted { a, b in
+            let ca = Self.categoryOrder[BuiltinTools.category(for: a.name).id] ?? 99
+            let cb = Self.categoryOrder[BuiltinTools.category(for: b.name).id] ?? 99
+            if ca != cb {
+                return ca < cb
+            }
+            return a.name < b.name
+        }
     }
 
     /// 清除所有工具

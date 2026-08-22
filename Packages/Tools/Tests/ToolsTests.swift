@@ -47,6 +47,37 @@ struct ToolRegistryTests {
         #expect(schemas[0].name == "mock")
     }
 
+    @Test("schemas 稳定序：分类序→名称，重建/扩容不漂移（字典序漂移根因回归）")
+    func stableSchemaOrder() async {
+        let registry = ToolRegistry()
+        // 故意以乱序注册（与分类/字母序均不同）
+        let names = ["mcp_x", "read_file", "web_fetch", "use_skill", "exec_command", "write_file", "zzz_unknown", "list_skills"]
+        for n in names {
+            let t = MockTool()
+            t.name = n
+            await registry.register(t)
+        }
+        let first = await registry.schemas().map(\.name)
+        // 期望：filesystem（read_file, write_file）→ terminal（exec_command）→ mcp（mcp_x）
+        //      → network（web_fetch）→ skills（list_skills, use_skill）→ general（zzz_unknown）
+        #expect(first == ["read_file", "write_file", "exec_command", "mcp_x", "web_fetch", "list_skills", "use_skill", "zzz_unknown"])
+        // 清空后反序重注册（模拟 refreshTools 全量重建）：顺序必须完全一致
+        await registry.clear()
+        for n in names.reversed() {
+            let t = MockTool()
+            t.name = n
+            await registry.register(t)
+        }
+        let second = await registry.schemas().map(\.name)
+        #expect(first == second)
+        // 再扩注册一个工具（模拟刷新窗口内 MCP 连接完成）：新工具落位正确，既有工具顺序不被扰动
+        let extra = MockTool()
+        extra.name = "mcp_a"
+        await registry.register(extra)
+        let third = await registry.schemas().map(\.name)
+        #expect(third == ["read_file", "write_file", "exec_command", "mcp_a", "mcp_x", "web_fetch", "list_skills", "use_skill", "zzz_unknown"])
+    }
+
     @Test("Clear")
     func testClear() async {
         let registry = ToolRegistry()

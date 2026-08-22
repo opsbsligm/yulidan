@@ -21,8 +21,8 @@
 | SwiftFormat | ✅ 0 改动 | `swiftformat --lint . --config .swiftformat`（197 文件，P0.3 新增 2） |
 | SwiftLint | ✅ 0 违规 | `swiftlint lint --strict --config .swiftlint.yml`（197 文件，P0.3 新增 2） |
 | 编译 | ✅ 0 警告 | 全量冷编译（450 targets 含测试目标，覆盖率构建实测） |
-| 单元测试 | ✅ 638/638 | Swift Testing 638（131 suites），0 失败（P0.1.5 新增 17：App 工作区路由 15（fakes 全套）+ RAG indexURL 路由 2） |
-| 本地 CI 模拟 | ✅ pr+main 全绿（xcode 复用基线） | `tools/ci-local.sh`（P0.1.5：pr /tmp/p015_ci_pr3.log + main /tmp/p015_ci_main.log + leaks /tmp/p015_ci_leaks.log 全绿 638/638 零停滞 0 leaks；xcode 复用 P0.2 /tmp/p02_ci_xcode8.log 基线——本轮零工程结构变更（无新 target/依赖），结构变更时必复跑） |
+| 单元测试 | ✅ 639/639 | Swift Testing 639（131 suites），0 失败（P0.1.5 新增 17：App 工作区路由 15（fakes 全套）+ RAG indexURL 路由 2；工具枚举稳定序 1） |
+| 本地 CI 模拟 | ✅ pr+main 全绿（xcode 复用基线） | `tools/ci-local.sh`（P0.1.5：pr /tmp/p015_ci_pr6.log（639/639）+ main /tmp/p015_ci_main.log + leaks /tmp/p015_ci_leaks.log 全绿 零停滞 0 leaks（pr 连跑 3 轮稳定性验证）；xcode 复用 P0.2 /tmp/p02_ci_xcode8.log 基线——本轮零工程结构变更（无新 target/依赖），结构变更时必复跑） |
 | 本地镜像备份 | ✅ 每次提交后 | `git push --mirror /Users/liguangming/code/swift-harness-backup.git` |
 | GitHub 推送 | ⏸ 暂缓 | 按用户要求先本地版本控制，未推送远端（`.github/workflows/swift-ci.yml` 四 job 已就位；本地模拟 `tools/ci-local.sh [pr|leaks|xcode|main]` 可跑，leaks 门禁 0 leaks 实测） |
 
@@ -119,6 +119,7 @@
 | SSO + iCloud 真机验收待 Developer Team | 无描述文件时本地 ad-hoc 签名无法携带 applesignin/icloud entitlements（Xcode ad-hoc 拒绝 team 级 entitlements，实测）；已按「无 entitlements 优雅降级」设计交付（UI 显示「需配置 entitlement/描述文件」+ 重新申请入口 + retryICloud），真实 SSO 登录 / KVS 跨设备漫游验收待用户提供 Team | 待用户（不阻塞） |
 | ~~KVS 跨设备冲突用户裁决 UI 未接~~（已过时） | P0.1.4 `de9bdc8` 已接入「账号与同步」冲突裁决卡（本地/云端双栏 + 保留本地/保留云端 + 10min 安全网）。另核 P0.1.5 轮：工作区载荷（WorkspaceSyncPayload.applyChanges）为**按字段合并**纯函数（远端值逐字段求差落库），无挂起冲突态，设计上无需用户裁决 UI | 已闭环（`de9bdc8`） |
 | AppleSignInService 低覆盖 13.1%（18/137，P0.2 口径） | ASAuthorizationController 系统对话框包装层（NS_SWIFT_UI_ACTOR），无头环境结构性不可测，同类 Notifications UN 包装层；纯逻辑（nonce 生成 / 错误归类 userCancelled / 凭证状态查询）已全测 | 设计面（已知） |
+| 工具枚举顺序不稳定（ToolRegistry.schemas() 裸字典序迭代 → 展示列表/LLM wire 每次重建顺序漂移；2026-08-22 并发门禁 3 处测试 flaky 共同根因） | `70a40a2`+本轮（schemas() 稳定排序：分类序（文件/终端/MCP/网络/代理/技能/通用，对齐 ToolListView 分类栏）→ 名称；1 项回归测试覆盖乱序注册/反序重建/窗口内扩容三场景） |
 | 长期记忆存储不在五目录契约内（固定 ~/.harness/memory/longterm.json） | P0.1 五目录契约（agents/rag/plugins-meta/themes/sync）未含 memory；iCloud 模式下长期记忆不随容器漫游（本地/iCloud 两模式共用同一固定路径，SharedMemoryEngine.get() 硬编码 defaultFileURL）。属契约设计取舍（P0.1.5 接线范围=Agent 产出/RAG/插件元数据/主题资源 四项，不含 memory），非本轮缺陷 | 待确认（设计问题：是否将 memory 纳入契约第五目录之外的扩展目录；若纳入需契约 v2 + 迁移策略，P0 验收后决策） |
 | Apple LLVM 21（Xcode 26.6 / macOS 27 beta）`llvm-profdata merge -f` 参数 bug | `-f` 存在时（任意参数序）报 `error: <out>: No such file or directory` 且 rc=1；输出路径可写、输入 profraw 可读（`show` 正常）→ 工具自身 bug。三组实验实锤：`-f -o out files` 失败 / `files -f -o out` 失败 / `files -o out` 成功（覆盖已存在输出文件亦可）。曾致 `tools/ci-local.sh main` 覆盖率汇总步骤失败（测试门禁本身通过） | 已绕过（`50fb2be`）：merge 行改 `merge *.profraw -o out`（省略 -f、-o 置输入文件后），182 个 profraw 全量验证 + ci-local main 复跑全绿；官方工具链修复后可恢复 -f |
 | KVS workspace 冲突裁决 UI 未接 | WorkspaceSyncEngine 的 onConflict 未设（= 保留本地，同 P0.1 accountMode 口径）；「账号与同步」子页暂无工作区冲突裁决 UI | P0.3 或后续接入 |
@@ -179,10 +180,10 @@
 
 | 项 | 数值 |
 |----|------|
-| 源码（Packages，92 源文件） | 13,635 行（P0.1.5：RAGEngine SharedRAGEngine indexURL 注入 + resetIndexURL） |
+| 源码（Packages，92 源文件） | 13,655 行（P0.1.5：RAGEngine indexURL 注入 + resetIndexURL；ToolRegistry schemas() 稳定排序 +20） |
 | 源码（Apps，44 文件，HarnessApp + 辅助 target） | 10,637 行（P0.1.5 新增 4 文件：WorkspaceRouter 73 / PluginMetadataStore 93 / FileThemePackage 198 / PluginDetailComponents 48 + AppViewModel 接线 + PluginListView 导入入口） |
-| 源码合计（136 文件） | 24,272 行 |
-| 测试代码（78 文件） | 17,069 行（P0.1.5 新增：WorkspaceRoutingTests 522 行 15 场景 + SharedRAGEngineRoutingTests 54 行 2 场景） |
+| 源码合计（136 文件） | 24,292 行 |
+| 测试代码（78 文件） | 17,100 行（P0.1.5 新增：WorkspaceRoutingTests 522 行 15 场景 + SharedRAGEngineRoutingTests 54 行 2 场景 + 工具稳定序回归 1） |
 | SPM 目标 | 22 库（17 后端包 + 5 辅助库 Workspace/Plan/Goal/HarnessCore/Account 扩展）/ 4 可执行 + 20 测试目标（单一 xctest 进程） |
 | 工具链 | Swift 6.3.3 / Xcode 26.6 / macOS arm64 / platforms .macOS(.v26) |
 | 覆盖率口径 | llvm-cov 仅统计 Packages/*（Apps/HarnessApp 层不在表内，既有口径）；P0.1.5 main 门禁核心包：AccountService 94.08% / AgentLoop 89.66% / MCP.swift 97.31% / StdioMCPClient 92.53% / RAGEngine 94.02%（+0.27，2 新路由测试）/ MemoryEngine 95.02% / XPCPluginHost 96.57% |
@@ -278,7 +279,7 @@ cf0e230  docs(quality): 刷新质量报告 — 前端阶段1/2 基线
 
 ## 七、下一阶段
 
-已完成（2026-08-22 P0.1.5 轮，`70a40a2`）：① 工作区运行时接线（P0.1.2/1.3 真缺口：WorkspaceRootProvider 存在但 App 层零消费）— WorkspaceRouter（current 根 / 五目录契约 / sessionCwd / refresh 根变化检测 / materialize）+ SharedRAGEngine indexURL 注入与 resetIndexURL（根变化重建索引）+ PluginMetadataStore（v1 清单原子写）+ AppViewModel 全接线（会话 cwd 路由 / 根变化 RAG reset + memoryEngine 重挂 + 文件主题重建 + reconcile 对账（isICloud 守卫）/ persistPluginMetadata）② P0.4.3 文件型主题包导入（spec.json 文件|目录、颜色校验、sanitizeID、themes/ 持久化 + 安装为 ThemeProviderPlugin + 停用删除 + MCP 待重导横幅 + fileImporter 入口 + PluginDetailComponents 拆出）③ runRead 越界崩溃修复（身份锁定，3/3 绿）+ 并发门禁两处 flaky 点（旧下标错槽 / skills state-数据竞态）④ 17 新单测（App 15 fakes 全套 + RAG 2）⑤ PR 门禁 638/638（131 suites）0 警告 0 停滞。**P0 代码更完整闭环**（iCloud 存储分工 / 插件元数据跨设备同步 / 社区主题包兼容全部接线）。
+已完成（2026-08-22 P0.1.5 轮，`70a40a2`）：① 工作区运行时接线（P0.1.2/1.3 真缺口：WorkspaceRootProvider 存在但 App 层零消费）— WorkspaceRouter（current 根 / 五目录契约 / sessionCwd / refresh 根变化检测 / materialize）+ SharedRAGEngine indexURL 注入与 resetIndexURL（根变化重建索引）+ PluginMetadataStore（v1 清单原子写）+ AppViewModel 全接线（会话 cwd 路由 / 根变化 RAG reset + memoryEngine 重挂 + 文件主题重建 + reconcile 对账（isICloud 守卫）/ persistPluginMetadata）② P0.4.3 文件型主题包导入（spec.json 文件|目录、颜色校验、sanitizeID、themes/ 持久化 + 安装为 ThemeProviderPlugin + 停用删除 + MCP 待重导横幅 + fileImporter 入口 + PluginDetailComponents 拆出）③ runRead 越界崩溃修复（身份锁定，3/3 绿）+ 并发门禁两处 flaky 点（旧下标错槽 / skills state-数据竞态）④ 17 新单测（App 15 fakes 全套 + RAG 2）⑤ PR 门禁 638/638（131 suites）0 警告 0 停滞 ⑥ 工具枚举稳定序修复（schemas() 字典序漂移 → 分类序+名称，P2 闭环，639/639 + pr 连跑 3 轮稳定）。**P0 代码更完整闭环**（iCloud 存储分工 / 插件元数据跨设备同步 / 社区主题包兼容全部接线）。
 
 已完成（2026-08-21 P0.3 轮，`2ada315`）：① 6 导航项真实对接审计（零假 UI）② NavLoadState 三态状态层 + 四路 retry 重跑链路 ③ SkillStore.loadThrowing（目录被文件占用显式抛错）④ 三 UI 组件 + 四视图接线（空态闪烁防护/失败横幅/部分失败警告）⑤ 零警告基线修复（两处死 catch 消除）⑥ 3 场景单测 + 766/766 门禁（pr+main 全绿 0 停滞）⑦ 实机正常态验证（会话真实数据/插件 2/2 运行/窗口零幻影）。
 
