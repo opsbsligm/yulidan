@@ -192,7 +192,7 @@
 | 测试代码（80 文件） | 17,530 行（P2 ① 新增 AgentInFlightCancellationTests 3 场景 + 子任务历史 URL 实例缝迁移 2 文件） |
 | SPM 目标 | 22 库（17 后端包 + 5 辅助库 Workspace/Plan/Goal/HarnessCore/Account 扩展）/ 4 可执行 + 20 测试目标（单一 xctest 进程） |
 | 工具链 | Swift 6.3.3 / Xcode 26.6 / macOS arm64 / platforms .macOS(.v26) |
-| 覆盖率口径 | llvm-cov 仅统计 Packages/*（Apps/HarnessApp 层不在表内，既有口径）；P2 ① main 门禁核心包（/tmp/p2cancel_ci_main.log）：AccountService 94.08% / AgentLoop 89.98%（联动取消路径覆盖）/  MCP.swift 97.31% / StdioMCPClient 92.53% / RAGEngine 94.02%（+0.27，2 新路由测试）/ MemoryEngine 95.02% / XPCPluginHost 96.57% |
+| 覆盖率口径 | llvm-cov 仅统计 Packages/*（Apps/HarnessApp 层不在表内，既有口径）；P2 ① main 门禁核心包（/tmp/p2cancel_ci_main.log）：AccountService 94.08% / AgentLoop 89.98%（联动取消路径覆盖）/  MCP.swift 97.31% / StdioMCPClient 92.53% / RAGEngine 94.02%（+0.27，2 新路由测试）/ MemoryEngine 95.02% / XPCPluginHost 96.57%；模块7 Skill 关键文件（同 log）：SkillEvolution 100 / SkillRegistry 100 / SkillStore 95.07 / SkillDebugger 98.94 / SkillVersioning 95.59 / SkillTools 92.00；模块8 LLM 关键文件：Adapters 92.14 / OpenAICompatChat 92.40 / LLMResponseNormalizer 96.40 / LLMProvider 89.66 / Message 76.92（DTO 纯数据文件 100） |
 | 提交总数 | 137（P2 ①：在途 LLM 联动取消 + 子任务历史 URL 实例缝；前轮 P0.1.5 消费端 `62ff3ff` 等） |
 
 ### 八大后端模块代码级需求审计（2026-08-20 跨会话核验轮）
