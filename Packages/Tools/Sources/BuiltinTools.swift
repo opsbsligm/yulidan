@@ -17,6 +17,20 @@ enum SandboxGuard {
     }
 }
 
+/// 解析工具路径（P0.1.5 会话工作区接线）：绝对路径 / ~ 路径原样；
+/// 相对路径基于会话工作目录解析（未提供时保持进程 cwd 旧行为）。
+/// 注意：必须先解析再沙箱校验，防止相对路径绕过沙箱。
+func resolveToolPath(_ raw: String, workingDirectory: URL?) -> String {
+    let expanded = (raw as NSString).expandingTildeInPath
+    if (expanded as NSString).isAbsolutePath {
+        return expanded
+    }
+    if let workingDirectory {
+        return workingDirectory.appendingPathComponent(expanded).standardizedFileURL.path
+    }
+    return expanded
+}
+
 // MARK: - read_file
 
 public struct ReadFileTool: Tool {
@@ -29,22 +43,24 @@ public struct ReadFileTool: Tool {
 
     public let name = "read_file"
     public let description = "读取文件内容（默认限制 200KB）"
-    public let parameterSchema = "{\"path\": \"文件绝对路径\"}"
+    public let parameterSchema = "{\"path\": \"文件路径（绝对，或相对当前会话工作区）\"}"
     public let requiredParameters = ["path"]
 
-    public func execute(_ args: [String: String], context _: ToolRunContext) async throws -> ToolResult {
+    public func execute(_ args: [String: String], context: ToolRunContext) async throws -> ToolResult {
         guard let path = args["path"]?.trimmingCharacters(in: .whitespaces), !path.isEmpty else {
             return ToolResult(content: [.text("错误：缺少参数 path")],
                               error: ToolError(name: "read_file", code: "missing_arg", message: "缺少 path 参数"))
         }
+        // 先基于会话工作目录解析相对路径，再沙箱校验（防相对路径绕过）
+        let resolved = resolveToolPath(path, workingDirectory: context.workingDirectory)
         if let sandbox {
             do {
-                try sandbox.assertAllowed(path)
+                try sandbox.assertAllowed(resolved)
             } catch {
-                return SandboxGuard.reject("read_file", path)
+                return SandboxGuard.reject("read_file", resolved)
             }
         }
-        let url = URL(fileURLWithPath: (path as NSString).expandingTildeInPath)
+        let url = URL(fileURLWithPath: resolved)
         guard FileManager.default.fileExists(atPath: url.path) else {
             return ToolResult(content: [.text("错误：文件不存在 \(url.path)")],
                               error: ToolError(name: "read_file", code: "not_found", message: "文件不存在"))
@@ -77,23 +93,25 @@ public struct WriteFileTool: Tool {
 
     public let name = "write_file"
     public let description = "写入文件内容（目录不存在时自动创建）"
-    public let parameterSchema = "{\"path\": \"文件绝对路径\", \"content\": \"要写入的内容\"}"
+    public let parameterSchema = "{\"path\": \"文件路径（绝对，或相对当前会话工作区）\", \"content\": \"要写入的内容\"}"
     public let requiredParameters = ["path"]
 
-    public func execute(_ args: [String: String], context _: ToolRunContext) async throws -> ToolResult {
+    public func execute(_ args: [String: String], context: ToolRunContext) async throws -> ToolResult {
         guard let path = args["path"]?.trimmingCharacters(in: .whitespaces), !path.isEmpty else {
             return ToolResult(content: [.text("错误：缺少参数 path")],
                               error: ToolError(name: "write_file", code: "missing_arg", message: "缺少 path 参数"))
         }
+        // 先基于会话工作目录解析相对路径，再沙箱校验（防相对路径绕过）
+        let resolved = resolveToolPath(path, workingDirectory: context.workingDirectory)
         if let sandbox {
             do {
-                try sandbox.assertAllowed(path)
+                try sandbox.assertAllowed(resolved)
             } catch {
-                return SandboxGuard.reject("write_file", path)
+                return SandboxGuard.reject("write_file", resolved)
             }
         }
         let content = args["content"] ?? ""
-        let url = URL(fileURLWithPath: (path as NSString).expandingTildeInPath)
+        let url = URL(fileURLWithPath: resolved)
         do {
             try FileManager.default.createDirectory(at: url.deletingLastPathComponent(),
                                                     withIntermediateDirectories: true)
@@ -120,18 +138,20 @@ public struct ListFilesTool: Tool {
 
     public let name = "list_files"
     public let description = "列出目录下的文件与子目录"
-    public let parameterSchema = "{\"path\": \"目录绝对路径，默认当前目录\", \"limit\": \"最多显示条数，默认 100\"}"
+    public let parameterSchema = "{\"path\": \"目录路径（绝对，或相对当前会话工作区），缺省 = 会话工作区根\", \"limit\": \"最多显示条数，默认 100\"}"
 
-    public func execute(_ args: [String: String], context _: ToolRunContext) async throws -> ToolResult {
+    public func execute(_ args: [String: String], context: ToolRunContext) async throws -> ToolResult {
         let rawPath = (args["path"] ?? ".").trimmingCharacters(in: .whitespaces)
+        // 先基于会话工作目录解析相对路径（缺省 "." = 工作目录本身），再沙箱校验
+        let resolved = resolveToolPath(rawPath, workingDirectory: context.workingDirectory)
         if let sandbox {
             do {
-                try sandbox.assertAllowed(rawPath)
+                try sandbox.assertAllowed(resolved)
             } catch {
-                return SandboxGuard.reject("list_files", rawPath)
+                return SandboxGuard.reject("list_files", resolved)
             }
         }
-        let url = URL(fileURLWithPath: (rawPath as NSString).expandingTildeInPath)
+        let url = URL(fileURLWithPath: resolved)
         let fm = FileManager.default
         var isDir: ObjCBool = false
         guard fm.fileExists(atPath: url.path, isDirectory: &isDir) else {
@@ -182,7 +202,7 @@ public struct ExecCommandTool: Tool {
     }
 
     public let name = "exec_command"
-    public let description = "在系统 shell 中执行命令并返回输出（⚠️ 具备真实执行能力，请谨慎）"
+    public let description = "在系统 shell 中执行命令并返回输出（工作目录默认为当前会话工作区；⚠️ 具备真实执行能力，请谨慎）"
     public let parameterSchema = "{\"cmd\": \"要执行的 shell 命令\", \"timeout\": \"超时秒数，默认 30\"}"
     public let requiredParameters = ["cmd"]
 
@@ -195,6 +215,10 @@ public struct ExecCommandTool: Tool {
         var config = runner.configuration
         if let t = Double(args["timeout"] ?? "") {
             config.timeout = t
+        }
+        // 会话工作区接线：runner 未设默认工作目录时，exec 工作目录 = 会话工作目录
+        if config.workingDirectory == nil, let wd = context.workingDirectory {
+            config.workingDirectory = wd.path
         }
         do {
             let result = try await TerminalRunner(configuration: config).run(cmd, signal: context.signal)

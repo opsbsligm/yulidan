@@ -53,6 +53,8 @@ public actor AgentLoop {
     private let maxHistoryMessages: Int
     /// 工具执行器（参数校验/超时熔断/输出二次校验统一链路）
     private let executor: ToolExecutor
+    /// 会话工作目录解析器（nil = 不下发，工具沿用进程 cwd）
+    private let workingDirectoryProvider: (@Sendable (SessionID) async -> URL?)?
     /// 实时进度回调（跨 actor 调用，仅用于 UI 展示；生产/测试默认 nil）
     public nonisolated(unsafe) var onProgress: (@Sendable (AgentProgress) -> Void)?
 
@@ -78,7 +80,9 @@ public actor AgentLoop {
         maxHistoryMessages: Int = 200,
         executor: ToolExecutor? = nil,
         // 种子历史（如从会话存储恢复的既有上下文）；入参后立即按上限裁剪
-        history: [LLM.Message] = []
+        history: [LLM.Message] = [],
+        // 会话工作目录解析（P0.1.5：会话工作区 agents/\<sessionID\> 下发到工具上下文）
+        workingDirectoryProvider: (@Sendable (SessionID) async -> URL?)? = nil
     ) {
         self.id = id
         self.sessionID = sessionID
@@ -90,6 +94,7 @@ public actor AgentLoop {
         self.maxHistoryMessages = max(4, maxHistoryMessages)
         self.executor = executor ?? ToolExecutor()
         self.history = Self.trimHistory(history, max: maxHistoryMessages)
+        self.workingDirectoryProvider = workingDirectoryProvider
         inbox = Inbox()
     }
 
@@ -374,6 +379,7 @@ public actor AgentLoop {
     private func executeToolCall(_ call: LLM.ToolCallBlock, turn: Turn) async -> ToolResult {
         // 统一执行链路：查找 → 参数校验 → 熔断 → 超时 → 执行 → 输出二次校验
         let indexer = ChunkIndexer()
+        let workingDirectory = await workingDirectoryProvider?(sessionID)
         let context = ToolRunContext(
             signal: CancellationToken(),
             sessionID: sessionID,
@@ -386,7 +392,8 @@ public actor AgentLoop {
                         index: indexer.next()
                     ))
                 }
-            }
+            },
+            workingDirectory: workingDirectory
         )
         let toolCall = ToolCall(id: call.id, name: call.name, arguments: Self.parseArguments(call.arguments))
         let result = await executor.execute(toolCall, in: tools, context: context)

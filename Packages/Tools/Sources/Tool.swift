@@ -35,13 +35,17 @@ public struct ToolRunContext: @unchecked Sendable {
     public let metadata: [String: String]
     /// 流式进度回调（可选）：长耗时工具按块上报下载/执行进度
     public let onChunk: (@Sendable (String) -> Void)?
+    /// 会话工作目录（P0.1.5 工作区接线：会话工作区 agents/\<sessionID\>；
+    /// 文件工具相对路径与 exec 工作目录基于此解析；nil = 进程当前目录（旧行为））
+    public let workingDirectory: URL?
 
     public init(signal: CancellationToken, sessionID: SessionID, metadata: [String: String],
-                onChunk: (@Sendable (String) -> Void)? = nil) {
+                onChunk: (@Sendable (String) -> Void)? = nil, workingDirectory: URL? = nil) {
         self.signal = signal
         self.sessionID = sessionID
         self.metadata = metadata
         self.onChunk = onChunk
+        self.workingDirectory = workingDirectory
     }
 }
 

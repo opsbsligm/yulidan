@@ -21,8 +21,8 @@
 | SwiftFormat | ✅ 0 改动 | `swiftformat --lint . --config .swiftformat`（197 文件，P0.3 新增 2） |
 | SwiftLint | ✅ 0 违规 | `swiftlint lint --strict --config .swiftlint.yml`（197 文件，P0.3 新增 2） |
 | 编译 | ✅ 0 警告 | 全量冷编译（450 targets 含测试目标，覆盖率构建实测） |
-| 单元测试 | ✅ 640/640 | Swift Testing 640（131 suites），0 失败（P0.1.5 新增 18：App 工作区路由 15（fakes 全套）+ RAG indexURL 路由 2；工具枚举稳定序 1；社区主题包样例防漂移 1） |
-| 本地 CI 模拟 | ✅ pr+main 全绿（xcode 复用基线） | `tools/ci-local.sh`（P0.1.5：pr /tmp/p015_ci_pr7.log（640/640）+ main /tmp/p015_ci_main.log + leaks /tmp/p015_ci_leaks.log 全绿 零停滞 0 leaks（pr 累计 5 轮稳定性验证）；xcode 复用 P0.2 /tmp/p02_ci_xcode8.log 基线——本轮零工程结构变更（无新 target/依赖），结构变更时必复跑） |
+| 单元测试 | ✅ 642/642 | Swift Testing 642（133 suites）+ XCTest 0 失败（P0.1.5 消费端新增 5：SessionWorkspaceToolTests 3（XCTest）+ AgentLoop provider 下发 1 + App 全链路 e2e 1；前轮累计：App 工作区路由 15 + RAG indexURL 2 + 稳定序 1 + 样例防漂移 1） |
+| 本地 CI 模拟 | ✅ pr+main 全绿（xcode 复用基线） | `tools/ci-local.sh`（P0.1.5 消费端：pr /tmp/p015b_ci_pr2.log（642/642 + XCTest 0 失败，gate exit 0）；前轮基线 pr /tmp/p015_ci_pr7.log（640/640）+ main /tmp/p015_ci_main.log + leaks /tmp/p015_ci_leaks.log 全绿 0 leaks（pr 累计 5 轮稳定性验证）；xcode 复用 P0.2 /tmp/p02_ci_xcode8.log 基线——本轮零工程结构变更（无新 target/依赖），结构变更时必复跑） |
 | 本地镜像备份 | ✅ 每次提交后 | `git push --mirror /Users/liguangming/code/swift-harness-backup.git` |
 | GitHub 推送 | ⏸ 暂缓 | 按用户要求先本地版本控制，未推送远端（`.github/workflows/swift-ci.yml` 四 job 已就位；本地模拟 `tools/ci-local.sh [pr|leaks|xcode|main]` 可跑，leaks 门禁 0 leaks 实测） |
 
@@ -175,15 +175,18 @@
 | DSH 社区文件型主题包无 importer（P0.4.3 缺口） | `70a40a2`（ThemePackageImporter + FileThemePackagePlugin + PluginListView 导入入口 + 待重导横幅） |
 | AppViewModelToolPanelTests runRead 旧下标 latent bug（25s 等待期 refreshTools 按注册表字典序整体重建 tools 数组 → 旧 idx 越界致命崩溃，并发全量门禁 crash report 帧 runRead；既有 bug 被本轮启动刷新频率放大） | `70a40a2`（身份锁定：executeTool 前锁 tool.id，等待期按 id 重查；单套件 3/3 绿） |
 | 并发门禁另两处 flaky 点：① 缺参测试旧下标落错槽（lastResult nil——字典序重建使 read_file 显示位置漂移）② NavLoadState 技能目录占用测试在 refreshSkills 派发前读 skills 空列表（state 先于数据派发的顺序竞态，并行负载拉大窗口） | `70a40a2`（① 身份锁定 ② 双条件等待 state+数据落位） |
+| 会话 cwd 只存不消费（P0.1.2/1.3 验收缺口：SessionMetadata.cwd 已落盘但 Agent 工具链零消费，read/write/list/exec 无视会话工作区，iCloud 容器工作区实机验收必翻车） | 本轮（ToolRunContext.workingDirectory + resolveToolPath 先解析后沙箱校验（防相对路径绕过）+ Read/Write/List 相对路径进工作区 + exec 继承会话工作目录 + AgentLoop workingDirectoryProvider 注入 + AppViewModel 会话级 provider/UI executeTool 双端下发；5 新测试含 App 全链路 e2e） |
+| UserDefaults sandboxRoot 跨 suite 磁盘持久化泄漏（ToolPanel 沙箱场景写入全局 defaults 且进程退出前未落盘恢复 → 后续 VM 套件读到死根 → 会话工作区写入误判 outside_sandbox；swift test 管道吞退出码致「642 passed」表象下 XCTest 静默失败） | 本轮（AppWorkspaceFixture init 移除/cleanup 恢复 + synchronize 强制落盘 + ToolPanel defer 恢复后 synchronize；根因：UserDefaults 异步合批 + 进程被杀/中断时恢复未持久化） |
+| exec 输出断言格式漂移（testExecWorkingDirectoryFromContext 断言 pwd 原始路径，工具固定输出「✅ 退出码 N\n\n<output>」前缀 → 必败） | 本轮（断言改前缀 + contains 双条件，与 read/list 断言口径统一） |
 
 ## 五、代码统计
 
 | 项 | 数值 |
 |----|------|
-| 源码（Packages，92 源文件） | 13,655 行（P0.1.5：RAGEngine indexURL 注入 + resetIndexURL；ToolRegistry schemas() 稳定排序 +20） |
-| 源码（Apps，44 文件，HarnessApp + 辅助 target） | 10,637 行（P0.1.5 新增 4 文件：WorkspaceRouter 73 / PluginMetadataStore 93 / FileThemePackage 198 / PluginDetailComponents 48 + AppViewModel 接线 + PluginListView 导入入口） |
-| 源码合计（136 文件） | 24,292 行 |
-| 测试代码（78 文件） | 17,100 行（P0.1.5 新增：WorkspaceRoutingTests 522 行 15 场景 + SharedRAGEngineRoutingTests 54 行 2 场景 + 工具稳定序回归 1） |
+| 源码（Packages，92 源文件） | 13,690 行（P0.1.5 消费端：ToolRunContext.workingDirectory + resolveToolPath 相对路径解析 + AgentLoop workingDirectoryProvider，+35） |
+| 源码（Apps，44 文件，HarnessApp + 辅助 target） | 10,641 行（P0.1.5 消费端：AppViewModel obtainChatLoop workingDirectoryProvider + UI executeTool context 下发，+4） |
+| 源码合计（136 文件） | 24,331 行 |
+| 测试代码（79 文件） | 17,362 行（P0.1.5 消费端新增：SessionWorkspaceToolTests 3 场景 + AgentWorkingDirectoryTests 1 + WorkspaceRoutingE2ETests 全链路 e2e 1（自 WorkspaceRoutingTests 拆出，SwiftLint file_length≤600）+ fixture 沙箱隔离 +262） |
 | SPM 目标 | 22 库（17 后端包 + 5 辅助库 Workspace/Plan/Goal/HarnessCore/Account 扩展）/ 4 可执行 + 20 测试目标（单一 xctest 进程） |
 | 工具链 | Swift 6.3.3 / Xcode 26.6 / macOS arm64 / platforms .macOS(.v26) |
 | 覆盖率口径 | llvm-cov 仅统计 Packages/*（Apps/HarnessApp 层不在表内，既有口径）；P0.1.5 main 门禁核心包：AccountService 94.08% / AgentLoop 89.66% / MCP.swift 97.31% / StdioMCPClient 92.53% / RAGEngine 94.02%（+0.27，2 新路由测试）/ MemoryEngine 95.02% / XPCPluginHost 96.57% |
@@ -280,6 +283,7 @@ cf0e230  docs(quality): 刷新质量报告 — 前端阶段1/2 基线
 ## 七、下一阶段
 
 已完成（2026-08-22 P0.1.5 轮，`70a40a2`）：① 工作区运行时接线（P0.1.2/1.3 真缺口：WorkspaceRootProvider 存在但 App 层零消费）— WorkspaceRouter（current 根 / 五目录契约 / sessionCwd / refresh 根变化检测 / materialize）+ SharedRAGEngine indexURL 注入与 resetIndexURL（根变化重建索引）+ PluginMetadataStore（v1 清单原子写）+ AppViewModel 全接线（会话 cwd 路由 / 根变化 RAG reset + memoryEngine 重挂 + 文件主题重建 + reconcile 对账（isICloud 守卫）/ persistPluginMetadata）② P0.4.3 文件型主题包导入（spec.json 文件|目录、颜色校验、sanitizeID、themes/ 持久化 + 安装为 ThemeProviderPlugin + 停用删除 + MCP 待重导横幅 + fileImporter 入口 + PluginDetailComponents 拆出）③ runRead 越界崩溃修复（身份锁定，3/3 绿）+ 并发门禁两处 flaky 点（旧下标错槽 / skills state-数据竞态）④ 17 新单测（App 15 fakes 全套 + RAG 2）⑤ PR 门禁 638/638（131 suites）0 警告 0 停滞 ⑥ 工具枚举稳定序修复（schemas() 字典序漂移 → 分类序+名称，P2 闭环，639/639 + pr 连跑 3 轮稳定）。**P0 代码更完整闭环**（iCloud 存储分工 / 插件元数据跨设备同步 / 社区主题包兼容全部接线）。
+已完成（2026-08-22 P0.1.5 消费端轮，本轮提交）：⑦ 会话工作区「消费端」接线闭环（P0 验收前审计发现的真缺口——cwd 只存不消费）：ToolRunContext.workingDirectory + resolveToolPath（相对路径先解析进会话工作区再沙箱校验，防绕过）+ Read/Write/ListFiles 相对路径解析 + exec 继承会话工作目录 + AgentLoop workingDirectoryProvider（@Sendable 会话级解析）+ AppViewModel obtainChatLoop provider 下发 + UI executeTool context 下发（双端一致）；5 新测试（相对路径三工具解析 / 越界相对路径沙箱拒绝 / exec pwd==工作区 / provider 下发 / App 全链路 e2e：消息→write_file 相对路径→文件落 agents/<sessionID>）；PR 门禁 642/642 + XCTest 0 失败。**P0 验收前高风险项审计全过**（拖拽悬停高亮 / 对话内工具回显 / iCloud 权限降级+重新申请 / 主题卸载回落 / 跨模块 e2e 主链 / 多 Agent 创建+销毁；持有循环 router→accountService 单向 + sink 全 weak）。同轮闭环 2 处测试基建缺陷：UserDefaults sandboxRoot 跨 suite 磁盘持久化泄漏（fixture 隔离 + synchronize）+ exec 输出断言格式漂移。
 
 已完成（2026-08-21 P0.3 轮，`2ada315`）：① 6 导航项真实对接审计（零假 UI）② NavLoadState 三态状态层 + 四路 retry 重跑链路 ③ SkillStore.loadThrowing（目录被文件占用显式抛错）④ 三 UI 组件 + 四视图接线（空态闪烁防护/失败横幅/部分失败警告）⑤ 零警告基线修复（两处死 catch 消除）⑥ 3 场景单测 + 766/766 门禁（pr+main 全绿 0 停滞）⑦ 实机正常态验证（会话真实数据/插件 2/2 运行/窗口零幻影）。
 

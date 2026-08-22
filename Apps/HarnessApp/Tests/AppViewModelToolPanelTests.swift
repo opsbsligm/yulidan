@@ -188,6 +188,8 @@ struct AppViewModelToolPanelTests {
             } else {
                 UserDefaults.standard.removeObject(forKey: "sandboxRoot")
             }
+            // UserDefaults 写入异步合批：显式 flush，防进程退出前未落盘残留污染后续 run
+            UserDefaults.standard.synchronize()
         }
 
         let root = tempDir("sandbox-root")

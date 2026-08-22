@@ -351,3 +351,81 @@ final class WebFetchToolTests: XCTestCase {
         XCTAssertTrue(text(res).hasSuffix(String(repeating: "字", count: 10)))
     }
 }
+
+/// P0.1.5 会话工作区接线：相对路径解析 / 沙箱防绕过 / exec 工作目录
+final class SessionWorkspaceToolTests: XCTestCase {
+    // swiftlint:disable:next implicitly_unwrapped_optional
+    private var dir: URL!
+    // swiftlint:disable:next implicitly_unwrapped_optional
+    private var workspace: URL!
+
+    override func setUpWithError() throws {
+        dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("harness-wst-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        workspace = dir.appendingPathComponent("workspace", isDirectory: true)
+        try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
+    }
+
+    override func tearDownWithError() throws {
+        try? FileManager.default.removeItem(at: dir)
+    }
+
+    private func ctx(_ wd: URL?) -> ToolRunContext {
+        ToolRunContext(signal: CancellationToken(), sessionID: SessionID(),
+                       metadata: [:], workingDirectory: wd)
+    }
+
+    private func text(_ r: ToolResult) -> String {
+        r.content.compactMap { block -> String? in
+            if case let .text(t) = block {
+                return t
+            }
+            return nil
+        }.joined()
+    }
+
+    func testRelativePathsResolveAgainstSessionWorkspace() async throws {
+        // write_file 相对路径 → 落会话工作区
+        let w = try await WriteFileTool().execute(
+            ["path": "notes/hello.txt", "content": "workspace"], context: ctx(workspace)
+        )
+        XCTAssertNil(w.error, "write_file 应成功：\(w.error?.message ?? "")")
+        let landed = workspace.appendingPathComponent("notes/hello.txt")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: landed.path), "相对路径应解析进会话工作区")
+        XCTAssertEqual((try? String(contentsOf: landed, encoding: .utf8)) ?? "", "workspace")
+
+        // read_file 相对路径 → 读工作区文件
+        let r = try await ReadFileTool().execute(["path": "notes/hello.txt"], context: ctx(workspace))
+        XCTAssertTrue(text(r).contains("workspace"), "read_file 应能读工作区相对路径")
+
+        // list_files "." = 工作区根
+        let l = try await ListFilesTool().execute(["path": "."], context: ctx(workspace))
+        XCTAssertTrue(text(l).contains("notes"), "list_files 应列出工作区子目录")
+    }
+
+    func testRelativePathCannotBypassSandbox() async throws {
+        // 相对路径解析出沙箱外（两级上跳）必须拒绝
+        let outside = FileManager.default.temporaryDirectory
+            .appendingPathComponent("harness-wst-outside-\(UUID().uuidString).txt")
+        try "outside".write(to: outside, atomically: true, encoding: .utf8)
+        defer { try? FileManager.default.removeItem(at: outside) }
+
+        let tool = ReadFileTool(sandbox: PathSandbox(allowedRoots: [dir.path]))
+        let r = try await tool.execute(
+            ["path": "../../\(outside.lastPathComponent)"], context: ctx(workspace)
+        )
+        XCTAssertEqual(r.error?.code, "outside_sandbox", "解析出沙箱的相对路径必须拒绝")
+    }
+
+    func testExecWorkingDirectoryFromContext() async throws {
+        let r = try await ExecCommandTool().execute(
+            ["cmd": "pwd", "timeout": "15"], context: ctx(workspace)
+        )
+        XCTAssertNil(r.error, "exec 应成功：\(r.error?.message ?? "")")
+        // exec 输出固定格式「✅ 退出码 N\n\n<stdout>」：断言退出码 + pwd 内容
+        let out = text(r).trimmingCharacters(in: .whitespacesAndNewlines)
+        XCTAssertTrue(out.hasPrefix("✅ 退出码 0"), "pwd 应以退出码 0 结束：\(out)")
+        XCTAssertTrue(out.contains(workspace.path), "exec 工作目录应为会话工作区：\(out)")
+    }
+}

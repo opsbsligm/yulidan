@@ -37,6 +37,61 @@ actor ToolEventBox {
     }
 }
 
+// MARK: - 会话工作目录下发（P0.1.5）
+
+final class WdCaptureBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: URL?
+    var captured: URL? {
+        lock.withLock { value }
+    }
+
+    func set(_ v: URL?) {
+        lock.withLock { value = v }
+    }
+}
+
+struct WdCaptureTool: Tool {
+    let name = "wd_capture"
+    let description = "捕获上下文工作目录"
+    let parameterSchema = "{}"
+    let requiredParameters: [String] = []
+    let box: WdCaptureBox
+
+    func execute(_: [String: String], context: ToolRunContext) async throws -> ToolResult {
+        box.set(context.workingDirectory)
+        return ToolResult(content: [.text("wd captured")])
+    }
+}
+
+@Suite("AgentLoop 会话工作目录下发")
+struct AgentWorkingDirectoryTests {
+    @Test("workingDirectoryProvider 的值送达工具上下文")
+    func providerDelivery() async throws {
+        let wd = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("harness-agent-wd-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: wd, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: wd) }
+
+        let box = WdCaptureBox()
+        let registry = ToolRegistry()
+        await registry.register(WdCaptureTool(box: box))
+        let llm = ScriptedLLM(responses: [
+            LLMResponse(model: "mock-model", content: [],
+                        toolCalls: [LLM.ToolCallBlock(id: "c1", name: "wd_capture", arguments: "{}")],
+                        finishReason: .toolCalls),
+            textResponse("done"),
+        ])
+        let loop = AgentLoop(sessionID: SessionID(), llm: llm, tools: registry,
+                             model: "mock-model",
+                             workingDirectoryProvider: { _ in wd })
+        await loop.send(UserMessage(content: [.text("捕获")]), target: .nextTurn, wakeup: true)
+        let result = await loop.whenIdle()
+        #expect(result.error == nil, "turn 不应报错：\(String(describing: result.error))")
+        #expect(box.captured?.path == wd.path, "工具上下文应携带 provider 下发的工作目录")
+    }
+}
+
 // MARK: - AgentLoop × ToolExecutor 接线测试
 
 @Suite("AgentLoop 工具链路接线（ToolExecutor）")

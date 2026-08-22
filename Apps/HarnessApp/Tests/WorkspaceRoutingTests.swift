@@ -1,6 +1,7 @@
 import Account
 import Foundation
 @testable import HarnessApp
+import LLM
 import MCP
 import RAG
 import Testing
@@ -110,6 +111,8 @@ final class AppWorkspaceFixture {
     let probe: AppFakeUbiquityProbe
     let signing: AppFakeSigning
     let service: AccountService
+    /// 全局 UserDefaults 沙箱设置的隔离（防跨 suite 串扰 / 磁盘持久化残留）
+    private let prevSandboxRoot: String?
 
     init(icloudAvailable: Bool = true) throws {
         tempDir = URL(fileURLWithPath: NSTemporaryDirectory())
@@ -118,6 +121,9 @@ final class AppWorkspaceFixture {
         localRoot = tempDir.appendingPathComponent("LocalRoot", isDirectory: true)
         icloudContainer = tempDir.appendingPathComponent("iCloudContainer", isDirectory: true)
         try FileManager.default.createDirectory(at: icloudContainer, withIntermediateDirectories: true)
+        // 沙箱设置全局生效且持久化：fixture 一律移除，cleanup 恢复原值（VM 测试 hermetic）
+        prevSandboxRoot = UserDefaults.standard.string(forKey: "sandboxRoot")
+        UserDefaults.standard.removeObject(forKey: "sandboxRoot")
         probe = AppFakeUbiquityProbe(containerURL: icloudAvailable ? icloudContainer : nil)
         signing = AppFakeSigning()
         let rootProvider = WorkspaceRootProvider(localRoot: localRoot, probe: probe)
@@ -139,6 +145,12 @@ final class AppWorkspaceFixture {
     }
 
     func cleanup() {
+        if let prevSandboxRoot {
+            UserDefaults.standard.set(prevSandboxRoot, forKey: "sandboxRoot")
+        } else {
+            UserDefaults.standard.removeObject(forKey: "sandboxRoot")
+        }
+        UserDefaults.standard.synchronize()
         try? FileManager.default.removeItem(at: tempDir)
     }
 }
@@ -365,6 +377,23 @@ struct FileThemePackageTests {
 
 // MARK: - 套件 4：AppViewModel 工作区接线场景
 
+/// 全缝注入：临时 skill/DB/mcpConfig + 假账号路由 + 独立 RAG 实例（e2e 拆分文件复用）
+@MainActor
+func makeWorkspaceVM(_ fx: AppWorkspaceFixture) -> (vm: AppViewModel, mcpConfigURL: URL) {
+    UserDefaults.standard.removeObject(forKey: ThemePluginManager.activeKey)
+    let mcpConfigURL = fx.tempDir.appendingPathComponent("mcp/servers.json")
+    let ragIndex = fx.tempDir.appendingPathComponent("rag-instance/index.json")
+    let vm = AppViewModel(
+        skillUserDirectory: fx.tempDir.appendingPathComponent("skills"),
+        sessionDBURL: fx.tempDir.appendingPathComponent("sessions.sqlite"),
+        mcpConfigURLOverride: mcpConfigURL,
+        workspaceRouter: WorkspaceRouter(accountService: fx.service),
+        sharedRAG: SharedRAGEngine(indexURL: ragIndex),
+        accountService: fx.service
+    )
+    return (vm, mcpConfigURL)
+}
+
 @MainActor
 @Suite("AppViewModel P0.1.5 工作区接线", .serialized)
 struct AppViewModelWorkspaceRoutingTests {
@@ -372,27 +401,11 @@ struct AppViewModelWorkspaceRoutingTests {
         AppViewModel.notificationServiceFactory = { NoopNotificationService() }
     }
 
-    /// 全缝注入：临时 skill/DB/mcpConfig + 假账号路由 + 独立 RAG 实例
-    private func makeVM(_ fx: AppWorkspaceFixture) -> (vm: AppViewModel, mcpConfigURL: URL) {
-        UserDefaults.standard.removeObject(forKey: ThemePluginManager.activeKey)
-        let mcpConfigURL = fx.tempDir.appendingPathComponent("mcp/servers.json")
-        let ragIndex = fx.tempDir.appendingPathComponent("rag-instance/index.json")
-        let vm = AppViewModel(
-            skillUserDirectory: fx.tempDir.appendingPathComponent("skills"),
-            sessionDBURL: fx.tempDir.appendingPathComponent("sessions.sqlite"),
-            mcpConfigURLOverride: mcpConfigURL,
-            workspaceRouter: WorkspaceRouter(accountService: fx.service),
-            sharedRAG: SharedRAGEngine(indexURL: ragIndex),
-            accountService: fx.service
-        )
-        return (vm, mcpConfigURL)
-    }
-
     @Test("新会话 cwd = 活动工作区/agents/<sessionID>（本地根）")
     func newSessionCwdRoutesToWorkspace() throws {
         let fx = try AppWorkspaceFixture(icloudAvailable: false)
         defer { fx.cleanup() }
-        let (vm, _) = makeVM(fx)
+        let (vm, _) = makeWorkspaceVM(fx)
         vm.createNewSession(silent: true)
         guard let session = vm.sessions.first else {
             Issue.record("未创建会话")
@@ -408,7 +421,7 @@ struct AppViewModelWorkspaceRoutingTests {
     func switchToICloudReroutesRuntime() async throws {
         let fx = try AppWorkspaceFixture()
         defer { fx.cleanup() }
-        let (vm, _) = makeVM(fx)
+        let (vm, _) = makeWorkspaceVM(fx)
         vm.createNewSession(silent: true)
         let oldSession = vm.sessions.first
 
@@ -443,7 +456,7 @@ struct AppViewModelWorkspaceRoutingTests {
     func mcpMetadataPersistAndReconcile() async throws {
         let fx = try AppWorkspaceFixture()
         defer { fx.cleanup() }
-        let (vm, mcpConfigURL) = makeVM(fx)
+        let (vm, mcpConfigURL) = makeWorkspaceVM(fx)
 
         // 阶段 1（本地根）：导入真实可执行二进制（/bin/echo 类脚本，连接会失败但配置落 servers.json）
         let fakeBin = fx.tempDir.appendingPathComponent("fake-mcp-bin")
@@ -487,7 +500,7 @@ struct AppViewModelWorkspaceRoutingTests {
     func fileThemePackageLifecycle() async throws {
         let fx = try AppWorkspaceFixture(icloudAvailable: false)
         defer { fx.cleanup() }
-        let (vm, _) = makeVM(fx)
+        let (vm, _) = makeWorkspaceVM(fx)
         await vm.loadPluginsInfrastructure()
 
         let specFile = fx.tempDir.appendingPathComponent("mytheme.json")

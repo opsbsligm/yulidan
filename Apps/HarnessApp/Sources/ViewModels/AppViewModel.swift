@@ -1767,7 +1767,10 @@ final class AppViewModel: ObservableObject {
             tools: toolRegistry,
             model: context.cfg.modelName,
             systemPrompt: context.systemPrompt,
-            history: context.seed
+            history: context.seed,
+            workingDirectoryProvider: { [weak self] sid in
+                await MainActor.run { self?.sessions.first { $0.id == sid }?.metadata.cwd }
+            }
         )
         sessionLoops[sessionID] = loop
         sessionLoopContext[sessionID] = contextStamp
@@ -2576,7 +2579,8 @@ final class AppViewModel: ObservableObject {
                 let context = ToolRunContext(
                     signal: CancellationToken(),
                     sessionID: sessionId,
-                    metadata: ["source": "ui"]
+                    metadata: ["source": "ui"],
+                    workingDirectory: selectedSession?.metadata.cwd
                 )
                 let res = try await toolImpl.execute(Self.parseParams(params), context: context)
                 let text = res.content.compactMap { block -> String? in
