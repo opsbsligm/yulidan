@@ -22,7 +22,7 @@
 | SwiftLint | ✅ 0 违规 | `swiftlint lint --strict --config .swiftlint.yml`（197 文件，P0.3 新增 2） |
 | 编译 | ✅ 0 警告 | 全量冷编译（450 targets 含测试目标，覆盖率构建实测） |
 | 单元测试 | ✅ 642/642 | Swift Testing 642（133 suites）+ XCTest 0 失败（P0.1.5 消费端新增 5：SessionWorkspaceToolTests 3（XCTest）+ AgentLoop provider 下发 1 + App 全链路 e2e 1；前轮累计：App 工作区路由 15 + RAG indexURL 2 + 稳定序 1 + 样例防漂移 1） |
-| 本地 CI 模拟 | ✅ pr+main 全绿（xcode 复用基线） | `tools/ci-local.sh`（P0.1.5 消费端：pr /tmp/p015b_ci_pr2.log（642/642 + XCTest 0 失败，gate exit 0）；前轮基线 pr /tmp/p015_ci_pr7.log（640/640）+ main /tmp/p015_ci_main.log + leaks /tmp/p015_ci_leaks.log 全绿 0 leaks（pr 累计 5 轮稳定性验证）；xcode 复用 P0.2 /tmp/p02_ci_xcode8.log 基线——本轮零工程结构变更（无新 target/依赖），结构变更时必复跑） |
+| 本地 CI 模拟 | ✅ pr+main 全绿（xcode 复用基线） | `tools/ci-local.sh`（P0.1.5 消费端：pr /tmp/p015b_ci_pr2.log + main /tmp/p015b_ci_main.log（各 642/642，main 含覆盖率汇总，均 gate exit 0）；前轮基线 pr /tmp/p015_ci_pr7.log（640/640）+ main /tmp/p015_ci_main.log + leaks /tmp/p015_ci_leaks.log 全绿 0 leaks（pr 累计 5 轮稳定性验证）；xcode 复用 P0.2 /tmp/p02_ci_xcode8.log 基线——本轮零工程结构变更（无新 target/依赖），结构变更时必复跑） |
 | 本地镜像备份 | ✅ 每次提交后 | `git push --mirror /Users/liguangming/code/swift-harness-backup.git` |
 | GitHub 推送 | ⏸ 暂缓 | 按用户要求先本地版本控制，未推送远端（`.github/workflows/swift-ci.yml` 四 job 已就位；本地模拟 `tools/ci-local.sh [pr|leaks|xcode|main]` 可跑，leaks 门禁 0 leaks 实测） |
 
@@ -189,7 +189,7 @@
 | 测试代码（79 文件） | 17,362 行（P0.1.5 消费端新增：SessionWorkspaceToolTests 3 场景 + AgentWorkingDirectoryTests 1 + WorkspaceRoutingE2ETests 全链路 e2e 1（自 WorkspaceRoutingTests 拆出，SwiftLint file_length≤600）+ fixture 沙箱隔离 +262） |
 | SPM 目标 | 22 库（17 后端包 + 5 辅助库 Workspace/Plan/Goal/HarnessCore/Account 扩展）/ 4 可执行 + 20 测试目标（单一 xctest 进程） |
 | 工具链 | Swift 6.3.3 / Xcode 26.6 / macOS arm64 / platforms .macOS(.v26) |
-| 覆盖率口径 | llvm-cov 仅统计 Packages/*（Apps/HarnessApp 层不在表内，既有口径）；P0.1.5 main 门禁核心包：AccountService 94.08% / AgentLoop 89.66% / MCP.swift 97.31% / StdioMCPClient 92.53% / RAGEngine 94.02%（+0.27，2 新路由测试）/ MemoryEngine 95.02% / XPCPluginHost 96.57% |
+| 覆盖率口径 | llvm-cov 仅统计 Packages/*（Apps/HarnessApp 层不在表内，既有口径）；P0.1.5 消费端 main 门禁核心包（/tmp/p015b_ci_main.log）：AccountService 94.08% / AgentLoop 89.72%（+0.06，provider 下发路径）/  MCP.swift 97.31% / StdioMCPClient 92.53% / RAGEngine 94.02%（+0.27，2 新路由测试）/ MemoryEngine 95.02% / XPCPluginHost 96.57% |
 | 提交总数 | 134（P0.1.5：`70a40a2` feat + `62ff3ff` 消费端接线 + 各 docs/fix 提交） |
 
 ### 八大后端模块代码级需求审计（2026-08-20 跨会话核验轮）
