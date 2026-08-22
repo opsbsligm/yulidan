@@ -1,4 +1,4 @@
-# P0 实机验收清单（2026-08-22，HEAD f8e2fc5）
+# P0 实机验收清单（2026-08-22，HEAD e78db01）
 
 > 用法：逐项操作 → 对照「预期」打勾。全部通过后回复「P0 验收通过」，即解锁 P1 Liquid Glass。
 > 验收环境要求：当前开发机即可（无 Apple Team 时 SSO/iCloud 走「无 entitlements 优雅降级」，属预期行为非缺陷）。
@@ -14,6 +14,7 @@
 | 原生登录 | 设置 →「账号与同步」→ Sign in with Apple | AuthenticationServices 原生弹窗（非网页）；无描述文件时显示「需配置 entitlement/描述文件」+ 重新申请入口（优雅降级，非缺陷） |
 | 双模式隔离 | 本地模式正常使用后（若有 Team）切 iCloud 再切回 | 两套根严格隔离，数据互不污染、不自动迁移（WorkspaceRouter 双根） |
 | iCloud 存储分工 | （有 Team 时）iCloud 模式新建会话 / 触发 RAG 入库 / 导入插件 | Agent 产出→容器 agents/<sessionID>；RAG 索引→容器 rag/index.json；插件元数据→容器 plugins-meta/installed.json |
+| 会话工作区（P0.1.5 消费端） | 新建会话 → 对话中让 Agent 用 write_file 写**相对路径**文件（如「把内容 ws-check 写入 check.txt」）→ 检查文件系统 | 文件落 `agents/<会话ID>/check.txt`（本地模式在本地根；iCloud 模式在容器内）；read_file/list_files 相对路径同目录可读；exec `pwd` = 会话工作区；`../` 越界相对路径被沙箱拒绝（outside_sandbox） |
 | 离线优先 | iCloud 模式断网操作 | 完整可用，本地优先落盘 |
 | 冲突 UI | （有 Team 时）双设备改同一元数据 | 冲突挂起 + 设置页裁决卡（本地/云端双栏 + 保留本地/保留云端） |
 | 权限降级 | 拒绝 iCloud 权限 | 自动降级本地模式 + 设置页显示原因 +「重新申请 iCloud 权限」按钮 |
@@ -55,11 +56,12 @@
 | 项 | 操作 | 预期 |
 |---|---|---|
 | 流式输出 | 发送消息（配置可用模型后） | Harness Agent 主循环流式输出 |
+| 停止生成（P2 ①） | 生成中点「停止」 | 即时停止：在途模型请求被**联动中断**（不再后台跑完浪费配额）；无错误消息残留、无半成品回答入会话；再发消息正常继续（wire 历史不被丢弃响应污染） |
 | 工具回显 | 触发工具调用 | 对话内每调用一条可折叠 .tool 行（ToolTraceRow） |
 | 快捷提示 | 点击 chips | **填充输入框**（可编辑）+ 聚焦，非直接发送 |
 | 模型下拉 | composer 右下角模型名 | 提供商→模型两级下拉，切换即时生效 |
 | 加号菜单 | 输入框 + | 文件附件 + 插件工具入口（按 category 分组，选中插入 @toolName） |
 
 ## 七、质量基线（已实测，供核对）
-- PR 门禁 639/639（131 suites，连跑 4 轮 0 停滞）；main 门禁 638/638 + 覆盖率（RAGEngine 94.02% / AgentLoop 89.66% / AccountService 94.08%）；leaks 0；build 0 警告
+- PR 门禁 645/645（134 suites）+ main 门禁 645/645 + 覆盖率（RAGEngine 94.02% / AgentLoop 89.98% / AccountService 94.08%）+ leaks 0（turn Task 化后复验）；build 0 警告；日志 /tmp/p2cancel_ci_pr2.log / p2cancel_ci_main.log / p2cancel_ci_leaks.log
 - 本地镜像备份：`/Users/liguangming/code/swift-harness-backup.git`（每次提交后 mirror 同步）
