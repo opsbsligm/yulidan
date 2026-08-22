@@ -190,7 +190,7 @@
 | SPM 目标 | 22 库（17 后端包 + 5 辅助库 Workspace/Plan/Goal/HarnessCore/Account 扩展）/ 4 可执行 + 20 测试目标（单一 xctest 进程） |
 | 工具链 | Swift 6.3.3 / Xcode 26.6 / macOS arm64 / platforms .macOS(.v26) |
 | 覆盖率口径 | llvm-cov 仅统计 Packages/*（Apps/HarnessApp 层不在表内，既有口径）；P0.1.5 main 门禁核心包：AccountService 94.08% / AgentLoop 89.66% / MCP.swift 97.31% / StdioMCPClient 92.53% / RAGEngine 94.02%（+0.27，2 新路由测试）/ MemoryEngine 95.02% / XPCPluginHost 96.57% |
-| 提交总数 | 130（P0.1.5：`70a40a2` feat + 本次入册 docs 提交） |
+| 提交总数 | 134（P0.1.5：`70a40a2` feat + `62ff3ff` 消费端接线 + 各 docs/fix 提交） |
 
 ### 八大后端模块代码级需求审计（2026-08-20 跨会话核验轮）
 
@@ -244,6 +244,12 @@
 ## 六、提交链（近期）
 
 ```
+62ff3ff  fix(app): 会话工作区消费端接线 — ToolRunContext.workingDirectory 全链路下发（AgentLoop provider + UI executeTool 双端 + 相对路径解析 + 沙箱防绕过 + exec 工作目录，P0.1.2/1.3 闭环 + 5 新测试，642/642）
+9f68c5b  docs(acceptance): P0 验收清单 + 社区主题包样例（demos/）+ 样例防漂移测试（640/640）
+f8e2fc5  fix(tools): ToolRegistry.schemas() 稳定排序 — 分类序+名称，消除字典序漂移（P2 闭环 + 回归测试）
+ddde1e9  docs(quality): P0.1.5 四门禁基线入册 + KVS 裁决 UI 待办核销 + memory 路由设计待确认项
+4b76462  docs(quality): P0.1.5 工作区运行时接线 + P0.4.3 文件型主题包导入入册（638/638 门禁基线）
+70a40a2  feat(app): P0.1.5 工作区运行时接线 + P0.4.3 文件型主题包导入（iCloud 容器路由 + 元数据跨设备对账 + runRead 越界修复 + 17 新测试）
 2ada315  feat(app): P0.3 侧边栏导航真实数据对接 + 加载三态异常 UI（NavLoadState 四 Tab 状态层 + 四路 retry + 三 UI 组件 + SkillStore.loadThrowing + 3 场景单测，766/766 全绿）
 4beb21d  fix(app): 看门狗尊重用户可见窗口（macOS 27 beta 窗口服务器幻影报告反拉锯，763/763 复跑全绿）
 97f45e9  feat(workspace): P0.2 侧边栏【项目】模块（Workspace 包 + SessionDB v2 + WorkspaceSyncEngine + 项目模块 UI + 看门狗选屏反馈回路修复，763/763 全绿）
