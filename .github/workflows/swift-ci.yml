@@ -111,7 +111,9 @@ jobs:
         with:
           fetch-depth: 0
 
+      # 门控：免费私有仓库不可用 CodeQL；启用方法 = Settings→Variables 加 ENABLE_CODEQL=true（需付费计划）
       - name: CodeQL Init（置于构建前，使构建被 instrumented）
+        if: vars.ENABLE_CODEQL == 'true'
         uses: github/codeql-action/init@v3
         with:
           languages: swift
@@ -137,11 +139,14 @@ jobs:
           done
 
       - name: CodeQL Analysis
+        if: vars.ENABLE_CODEQL == 'true'
         uses: github/codeql-action/analyze@v3
         with:
           category: "/language/swift"
 
+      # 门控：私有仓库需 CODECOV_TOKEN secret；启用方法 = 配好 secret 后 Settings→Variables 加 ENABLE_CODECOV=true
       - name: Upload Coverage
+        if: vars.ENABLE_CODECOV == 'true'
         uses: codecov/codecov-action@v4
         with:
           fail_ci_if_error: false
