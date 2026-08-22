@@ -21,8 +21,8 @@
 | SwiftFormat | ✅ 0 改动 | `swiftformat --lint . --config .swiftformat`（197 文件，P0.3 新增 2） |
 | SwiftLint | ✅ 0 违规 | `swiftlint lint --strict --config .swiftlint.yml`（197 文件，P0.3 新增 2） |
 | 编译 | ✅ 0 警告 | 全量冷编译（450 targets 含测试目标，覆盖率构建实测） |
-| 单元测试 | ✅ 645/645 | Swift Testing 645（134 suites）+ XCTest 0 失败（P2 ① 新增 3：在途 LLM 联动取消——支持取消 provider 请求即时中断 / 不支持取消 provider 延迟响应丢弃不污染 wire 历史 / 无取消正常 turn 回归；前轮累计：P0.1.5 消费端 5 + App 工作区路由 15 + RAG indexURL 2 + 稳定序 1 + 样例防漂移 1；2026-08-22 flaky 修复后 App 运行负载下连跑 2 轮全量 + 3 轮定向套件全绿，日志 /tmp/ci_pr_flakefix{,2}.log） |
-| 本地 CI 模拟 | ✅ pr+main 全绿（xcode 复用基线） | `tools/ci-local.sh`（P2 ① 在途取消：pr /tmp/p2cancel_ci_pr2.log + main /tmp/p2cancel_ci_main.log（各 645/645，main 含覆盖率汇总，均 gate exit 0）；前轮基线（P0.1.5 消费端：pr /tmp/p015b_ci_pr2.log + main /tmp/p015b_ci_main.log 各 642/642）；更早基线 pr /tmp/p015_ci_pr7.log（640/640）+ main /tmp/p015_ci_main.log + leaks /tmp/p015_ci_leaks.log 全绿 0 leaks（pr 累计 5 轮稳定性验证）；xcode 复用 P0.2 /tmp/p02_ci_xcode8.log 基线——本轮零工程结构变更（无新 target/依赖），结构变更时必复跑） |
+| 单元测试 | ✅ 649/649 | Swift Testing 649（135 suites）+ XCTest 0 失败（P2 ① 新增 3：在途 LLM 联动取消——支持取消 provider 请求即时中断 / 不支持取消 provider 延迟响应丢弃不污染 wire 历史 / 无取消正常 turn 回归；前轮累计：P0.1.5 消费端 5 + App 工作区路由 15 + RAG indexURL 2 + 稳定序 1 + 样例防漂移 1；2026-08-22 flaky 修复后 App 运行负载下连跑 2 轮全量 + 3 轮定向套件全绿，日志 /tmp/ci_pr_flakefix{,2}.log；本轮 watchdog 修复 +4 测试 /tmp/ci_pr_watchdogfix.log） |
+| 本地 CI 模拟 | ✅ pr+main 全绿（xcode 复用基线） | `tools/ci-local.sh`（本轮 watchdog 修复 pr /tmp/ci_pr_watchdogfix.log（649/649，gate exit 0）；P2 ① 在途取消：pr /tmp/p2cancel_ci_pr2.log + main /tmp/p2cancel_ci_main.log（各 645/645，main 含覆盖率汇总，均 gate exit 0）；前轮基线（P0.1.5 消费端：pr /tmp/p015b_ci_pr2.log + main /tmp/p015b_ci_main.log 各 642/642）；更早基线 pr /tmp/p015_ci_pr7.log（640/640）+ main /tmp/p015_ci_main.log + leaks /tmp/p015_ci_leaks.log 全绿 0 leaks（pr 累计 5 轮稳定性验证）；xcode 复用 P0.2 /tmp/p02_ci_xcode8.log 基线——本轮零工程结构变更（无新 target/依赖），结构变更时必复跑） |
 | 本地镜像备份 | ✅ 每次提交后 | `git push --mirror /Users/liguangming/code/swift-harness-backup.git` |
 | GitHub 推送 | ⏸ 暂缓（流水线已就绪） | 按用户要求先本地版本控制，未推送远端。`.github/workflows/swift-ci.yml` 四 job（pr-check：SwiftLint+SwiftFormat+build+单测 / xcode-check / leaks / main-check：release+全量测试+覆盖率+CodeQL+制品）+ `weekly-regression.yml`（schedule cron 周日 02:23 UTC 全量回归 + workflow_dispatch 手动触发；独立文件避免 schedule 触发重复跑 4 job 的 macOS runner 成本）；激活前置：建 GitHub 仓库并 push（私有仓库需 Settings→Actions 启用 scheduled workflows；CODECOV_TOKEN 仅私有仓库需要）；本地模拟 `tools/ci-local.sh [pr|leaks|xcode|main]` 可跑，leaks 门禁 0 leaks 实测 |
 
@@ -124,7 +124,8 @@
 | Apple LLVM 21（Xcode 26.6 / macOS 27 beta）`llvm-profdata merge -f` 参数 bug | `-f` 存在时（任意参数序）报 `error: <out>: No such file or directory` 且 rc=1；输出路径可写、输入 profraw 可读（`show` 正常）→ 工具自身 bug。三组实验实锤：`-f -o out files` 失败 / `files -f -o out` 失败 / `files -o out` 成功（覆盖已存在输出文件亦可）。曾致 `tools/ci-local.sh main` 覆盖率汇总步骤失败（测试门禁本身通过） | 已绕过（`50fb2be`）：merge 行改 `merge *.profraw -o out`（省略 -f、-o 置输入文件后），182 个 profraw 全量验证 + ci-local main 复跑全绿；官方工具链修复后可恢复 -f |
 | ~~KVS workspace 冲突裁决 UI 未接~~（已过时，核销） | 2026-08-22 实码核验：WorkspaceSyncEngine 无独立冲突路径；workspace KVS 键（WorkspaceSyncPayload.kvsKey）经 attachWorkspaceStore 的 configure(managedKeys:) 纳入 MetadataSyncService 管理，与 accountMode 共享 onConflict → AppViewModel awaitUserResolution 裁决卡（「账号与同步」子页双栏 UI，P0.1.4 `de9bdc8`）。工作区载荷本身的跨设备差异为按字段合并纯函数（无挂起态），设计上无需用户裁决 | 已闭环（P0.1.5 `70a40a2` 接线 + 本轮实码核验） |
 | 项目手动重排 UI 未暴露 | `ProjectOperations.reorder` 纯函数已测（跨项目移动 sortOrder 计算 + 边界），但侧边栏未提供项目拖拽排序入口（会话拖拽已有） | 后续 UI 打磨项 |
-| macOS 27 beta 窗口服务器幻影 CGWindowList 报告（本机双屏 + 1.74x 非标缩放内屏环境） | 现象：窗口服务器对本 App 窗口间歇性报 Dock 缩略图尺寸（137-221×150-179）或屏外（x=-255~-271）边界，同窗口服务器侧报告 true/false 翻转，新窗口首启动即中（4/4 实测）；连带：SCK ShareableContent 不列该窗口（窗口级截图 API 全部失效）、screencapture -l 报 could not create image from window、窗口服务器 clamp setFrame 结果（根因已定位 `eb48909`：NSWindow.setFrame 内部 constrainFrameRect 用幻影 visibleFrame 二次裁剪；双屏副屏环境报带 234px 幻影 dock inset 的幻影 visibleFrame → 看门狗 recreate 后用户窗口 1920→1686 宽缩小，实锤）；残留幻影窗口在进程退出后仍滞留 CGWindowList（39976-39981 实测） | **P2（缓解已扩充，`4beb21d` + `eb48909`）**：看门狗反拉锯三层策略（用户可见禁 remap / 掉屏才 remap 升级链 / 持续幻影 n≥8 recreate 自愈，预算 2 次/30s 防无限重建）+ `eb48909` 两层 frame 修复（recreateRestoreFrame 恢复旧应用侧 frame 纯函数 + UnconstrainedWindow 覆写 constrainFrameRect 为 no-op 根除幻影裁剪，实机两次重建保持 1920×1050 且日志不再出现 1686）；窗口实际渲染不受幻影元数据影响（实机截图实证）；mismatch 日志行（userManaged=true）为噪音；macOS 官方正式版修复后复核移除缓解 |
+| macOS 27 beta 窗口服务器幻影 CGWindowList 报告（本机双屏 + 1.74x 非标缩放内屏环境） | 现象：窗口服务器对本 App 窗口间歇性报 Dock 缩略图尺寸（137-221×150-179）或屏外（x=-255~-271）边界，同窗口服务器侧报告 true/false 翻转，新窗口首启动即中（4/4 实测）；连带：SCK ShareableContent 不列该窗口（窗口级截图 API 全部失效）、screencapture -l 报 could not create image from window、窗口服务器 clamp setFrame 结果（根因已定位 `eb48909`：NSWindow.setFrame 内部 constrainFrameRect 用幻影 visibleFrame 二次裁剪；双屏副屏环境报带 234px 幻影 dock inset 的幻影 visibleFrame → 看门狗 recreate 后用户窗口 1920→1686 宽缩小，实锤）；残留幻影窗口在进程退出后仍滞留 CGWindowList（39976-39981 实测） | **P2（缓解已扩充，`4beb21d` + `eb48909`）**：看门狗反拉锯三层策略（用户可见禁 remap / 掉屏才 remap 升级链 / 持续幻影 n≥8 recreate 自愈，预算共 2 次、间隔 ≥30s 防无限重建）+ `eb48909` 两层 frame 修复（recreateRestoreFrame 恢复旧应用侧 frame 纯函数 + UnconstrainedWindow 覆写 constrainFrameRect 为 no-op 根除幻影裁剪，实机两次重建保持 1920×1050 且日志不再出现 1686）；窗口实际渲染不受幻影元数据影响（实机截图实证）；mismatch 日志行（userManaged=true）为噪音；macOS 官方正式版修复后复核移除缓解 |
+| userManaged 窗口掉屏卡死、recreate 预算耗尽后永不自愈（2026-08-22 4K 外屏掉线现场实测） | 现象：4K 屏掉出窗口服务器后 `NSScreen.screens` 残留死屏，`userManaged` 推断滞后为 true → 看门狗冻结（禁 remap），recreate 预算（2 次/进程）耗尽后窗口永久不可见（18:29 实例窗口卡 4K 坐标，budgetOK=false 持续 10min+）；根因：userManaged 依 NSScreen.screens（AppKit 侧）推断，而窗口可见性由窗口服务器（CGWindowList 侧）决定，掉屏窗口期二者不一致 | 已闭环（本轮 `c6dd787`）：看门狗加服务器侧不可见连击计数（未映射/碎片化），偏离目标屏持续 20s / 位于目标屏持续 60s（beta 幻影防撕裂高档阈值）→ 强制一次性 remap 回目标屏，不走 n 阈值、不消耗 recreate 预算（shouldOverrideRemap 纯决策函数 + 4 新测试，649/649）；期间应急旁路：`HARNESS_FRAME` 环境变量定点摆放 |
 | 演示数据注入脚本 SQL 拼接 bug（一次性 /tmp 脚本，非工程代码） | seed 脚本 heredoc 内 `'..."'$P1'"'` 缺 `|| '...'` 结构 → sqlite 把 UUID 当标识符解析（首跑报 parse error）；修复后二次注入又漏闭合 `}` 致 2 行 metadata_json 非法 JSON（json_valid 校验捕获），已逐行从备份重建并全表 json_valid=1 复核 | 现场教训已处理；真实 DB 操作前必须 json_valid 全表校验 + 备份（本轮备份 /tmp/harness_sessions_backup_20260820_231140.sqlite） |
 
 ### 已闭环（本周期）
@@ -187,13 +188,13 @@
 | 项 | 数值 |
 |----|------|
 | 源码（Packages，92 源文件） | 13,728 行（P2 ①：AgentLoop turn Task 化 + 联动取消 + 取消中性收敛 helper，+38） |
-| 源码（Apps，44 文件，HarnessApp + 辅助 target） | 10,649 行（子任务历史 URL 实例级测试缝：init 参数 + 实例计算属性 + init 体加载） |
-| 源码合计（136 文件） | 24,377 行 |
-| 测试代码（80 文件） | 17,530 行（P2 ① 新增 AgentInFlightCancellationTests 3 场景 + 子任务历史 URL 实例缝迁移 2 文件） |
+| 源码（Apps，44 文件，HarnessApp + 辅助 target） | 10,688 行（watchdog 修复轮：shouldOverrideRemap 纯决策函数 + 服务器侧不可见连击计数，+39） |
+| 源码合计（136 文件） | 24,458 行 |
+| 测试代码（80 文件） | 17,572 行（watchdog 修复轮 WatchdogOverrideRemapTests 4 场景，+42） |
 | SPM 目标 | 22 库（17 后端包 + 5 辅助库 Workspace/Plan/Goal/HarnessCore/Account 扩展）/ 4 可执行 + 20 测试目标（单一 xctest 进程） |
 | 工具链 | Swift 6.3.3 / Xcode 26.6 / macOS arm64 / platforms .macOS(.v26) |
 | 覆盖率口径 | llvm-cov 仅统计 Packages/*（Apps/HarnessApp 层不在表内，既有口径）；P2 ① main 门禁核心包（/tmp/p2cancel_ci_main.log）：AccountService 94.08% / AgentLoop 89.98%（联动取消路径覆盖）/  MCP.swift 97.31% / StdioMCPClient 92.53% / RAGEngine 94.02%（+0.27，2 新路由测试）/ MemoryEngine 95.02% / XPCPluginHost 96.57%；模块7 Skill 关键文件（同 log）：SkillEvolution 100 / SkillRegistry 100 / SkillStore 95.07 / SkillDebugger 98.94 / SkillVersioning 95.59 / SkillTools 92.00；模块8 LLM 关键文件：Adapters 92.14 / OpenAICompatChat 92.40 / LLMResponseNormalizer 96.40 / LLMProvider 89.66 / Message 76.92（DTO 纯数据文件 100） |
-| 提交总数 | 137（P2 ①：在途 LLM 联动取消 + 子任务历史 URL 实例缝；前轮 P0.1.5 消费端 `62ff3ff` 等） |
+| 提交总数 | 145（watchdog 修复轮 `c6dd787` + P1 前置文档 2 + 验收清单 2 + flaky 修复 1 + 质量入册 1；前轮 P2 ① 在途 LLM 联动取消 + 子任务历史 URL 实例缝） |
 
 ### 八大后端模块代码级需求审计（2026-08-20 跨会话核验轮）
 
@@ -247,6 +248,14 @@
 ## 六、提交链（近期）
 
 ```
+c6dd787  fix(app): 看门狗持续不可见覆盖 remap — 屏掉出窗口服务器后 userManaged 窗口卡死自愈（shouldOverrideRemap + 双档不可见连击阈值，+4 测试 649/649）
+897ea30  docs(p1): 官方文档行为语义核验（6 API 实拉 developer.apple.com）+ P1 实施计划（文件映射/5 阶段/测试策略/验收口径）
+4b60453  docs(p1): Liquid Glass SDK API 核验记录（铁律 1 前置：5 个目标 API 在 macOS 26.5 SDK SwiftUICore 全部存在，签名逐字摘录 + 需求映射 + 规格差异决策点）
+7bd2e4f  docs(acceptance): 补「会话重命名」实机验证行（目标 P0 §2.3 验收项对照审计发现的清单缺行）
+2b1ead4  chore(acceptance): 会话工作区落盘核验辅助脚本 + 报告补模块7/8 文件级覆盖率
+6b65356  fix(tests): 测试固定 sleep flaky 断言改有界轮询（5 处）+ 每周回归拆独立 schedule workflow
+01243eb  docs(acceptance): 验收清单更新（会话工作区/停止生成验证项）+ 核销 workspace 冲突 UI 过期 P2 行（实码核验已接）
+e78db01  docs(quality): P2 ① 在途取消入册 — 645/645 双门禁基线 + stopGenerating 权衡项闭环 + 子任务历史静态竞态闭环 + 提交链（cd00527）
 cd00527  feat(agent): 在途 LLM 调用联动取消（P2 ①）+ 子任务历史 URL 实例级测试缝（turn Task 化 + cancel 联动中断 + 延迟响应丢弃 + 跨 suite 静态竞态修复，645/645）
 84f7308  docs(quality): P0.1.5 消费端 main 门禁基线入册（642/642 + 覆盖率，AgentLoop 89.72%）
 4fe40b9  docs(quality): P0.1.5 消费端轮入册 — 642/642 门禁基线 + 会话 cwd 消费闭环/沙箱泄漏/exec 断言三行已闭环
