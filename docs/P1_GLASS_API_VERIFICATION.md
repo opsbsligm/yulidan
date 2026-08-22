@@ -51,3 +51,18 @@
 - [x] `GlassSurface` 三层降级链已就位（P0 资产：native/legacy/solid；reduceTransparency 最高优先级）
 - [ ] P0 实机验收通过（铁律 2 解锁条件）
 - [ ] §四 两个设计决策点与用户确认（模糊/曲率/高光口径；legacy 分支去留）
+
+## 六、官方文档行为语义核验（铁律 1：developer.apple.com 实拉，2026-08-22）
+
+来源：`https://developer.apple.com/tutorials/data/documentation/swiftui/<page>.json`（官方文档数据端点，本机实拉成功；`Glass`/`GlassEffectContainer`/`GlassEffectTransition` 文档挂在 `swiftui` 命名空间下，类型宿主模块虽为 SwiftUICore）
+
+| API | 官方语义（原文摘录） | 对 P1 的约束 |
+|---|---|---|
+| `glassEffect(_:in:)` | "Renders a shape anchored behind a view with the Liquid Glass material. Applies the foreground effects of Liquid Glass over a view."；默认 `.regular` + `DefaultGlassEffectShape`；"anchored to a view's bounds"（含 padding）；"typically used with [glassEffectID] to combine multiple Liquid Glass shapes into a single shape that can morph into one another" | 玻璃锚定 view bounds（改 frame 即改玻璃）；morph 必须配 glassEffectID |
+| `glassEffectUnion(id:namespace:)` | "multiple views' geometries to contribute to a single Liquid Glass effect shape... All Liquid Glass effects with the same shape and Liquid Glass variant will be combined into a single shape" | 并集融合要求同 shape + 同材质变体——**Tab 分段与 morph 目标面必须用同一 Glass 变体与同型 shape** |
+| `glassEffectID(_:in:)` | "You use this modifier with the [glassEffect] view modifier and a [Namespace] view. When used together, SwiftUI uses the identifier to animate shapes to and from each other during transitions" | 官方确认 = 目标 P1 §2 的 morph 机制（非模拟） |
+| `GlassEffectContainer` | "combines multiple Liquid Glass shapes into a single shape that can morph individual shapes into one another... SwiftUI renders the effects together, improving rendering performance and allowing the effects to interact with and morph into one another... The higher the spacing, the sooner blending begins" | 官方确认 = 目标 P1 §1「同区域光学采样一致 + 性能」；`spacing:` 控制融合提前量（可调参项） |
+| `GlassEffectTransition` | "describes changes to apply when a glass effect is added or removed from the view hierarchy"；预设 `.matchedGeometry`/`.materialize`/`.identity` | 弹窗/侧栏出入场挂 `.glassEffectTransition`（配 withAnimation） |
+| `Glass` | "defines the configuration of the Liquid Glass material... combine Liquid Glass effects using a [GlassEffectContainer], which supports morphing views... based on the geometry of their associated views" | 材质配置入口 = 预设 + tint + interactive（与 §四 差异点一致：无数值模糊/曲率/高光参数） |
+
+**悬停/交互反馈**：SDK 签名 `Glass.interactive(_:)` 存在（交互开关，默认 true）+ 官方「foreground effects」措辞 → 悬停/按压反馈属材质自带行为，P1 验收以实机观察为准（文档未单列 hover 小节）。
