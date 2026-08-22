@@ -246,6 +246,9 @@
 ## 六、提交链（近期）
 
 ```
+cd00527  feat(agent): 在途 LLM 调用联动取消（P2 ①）+ 子任务历史 URL 实例级测试缝（turn Task 化 + cancel 联动中断 + 延迟响应丢弃 + 跨 suite 静态竞态修复，645/645）
+84f7308  docs(quality): P0.1.5 消费端 main 门禁基线入册（642/642 + 覆盖率，AgentLoop 89.72%）
+4fe40b9  docs(quality): P0.1.5 消费端轮入册 — 642/642 门禁基线 + 会话 cwd 消费闭环/沙箱泄漏/exec 断言三行已闭环
 62ff3ff  fix(app): 会话工作区消费端接线 — ToolRunContext.workingDirectory 全链路下发（AgentLoop provider + UI executeTool 双端 + 相对路径解析 + 沙箱防绕过 + exec 工作目录，P0.1.2/1.3 闭环 + 5 新测试，642/642）
 9f68c5b  docs(acceptance): P0 验收清单 + 社区主题包样例（demos/）+ 样例防漂移测试（640/640）
 f8e2fc5  fix(tools): ToolRegistry.schemas() 稳定排序 — 分类序+名称，消除字典序漂移（P2 闭环 + 回归测试）
