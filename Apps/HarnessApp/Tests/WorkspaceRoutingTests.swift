@@ -519,4 +519,43 @@ struct AppViewModelWorkspaceRoutingTests {
         await vm.refreshThemes()
         #expect(!vm.themeOptions.contains { $0.id == "lifecase" })
     }
+
+    /// 向上查找 .git 定位仓库根（首选测试进程 cwd = SwiftPM 包根；测试二进制在 Xcode 工具链目录，#file 为模块相对路径，均不可靠）
+    private static func findRepoRoot() -> URL? {
+        let fm = FileManager.default
+        let candidates = [
+            URL(fileURLWithPath: fm.currentDirectoryPath),
+            URL(fileURLWithPath: Bundle.main.bundlePath),
+            URL(fileURLWithPath: CommandLine.arguments.first ?? ""),
+        ]
+        for start in candidates {
+            var dir = start.standardizedFileURL
+            for _ in 0 ... 12 {
+                if fm.fileExists(atPath: dir.appendingPathComponent(".git").path) {
+                    return dir
+                }
+                let parent = dir.deletingLastPathComponent()
+                if parent.path == dir.path {
+                    break
+                }
+                dir = parent
+            }
+        }
+        return nil
+    }
+
+    @Test("真实样例包：demos/community-theme-demo/spec.json 可解析（P0.4.3 验收样例防漂移）")
+    func realSampleThemePackage() throws {
+        guard let repoRoot = Self.findRepoRoot() else {
+            Issue.record("无法定位仓库根（cwd/bundle/argv0 向上均无 .git）")
+            return
+        }
+        let sample = repoRoot.appendingPathComponent("demos/community-theme-demo/spec.json")
+        let sampleExists = FileManager.default.fileExists(atPath: sample.path)
+        try #require(sampleExists, "样例主题包缺失：\(sample.path)")
+        let spec = try ThemePackageImporter.parse(fileURL: sample)
+        #expect(spec.id == "community-demo-teal")
+        #expect(spec.accentHex == "#0FB5A6")
+        #expect(spec.name.contains("社区样例"))
+    }
 }

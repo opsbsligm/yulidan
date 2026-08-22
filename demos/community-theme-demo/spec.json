@@ -1,0 +1,8 @@
+{
+  "id": "community-demo-teal",
+  "name": "Tahoe Teal（社区样例）",
+  "accentHex": "#0FB5A6",
+  "userMessageHex": "#0D3B38",
+  "assistantMessageHex": "#10222E",
+  "description": "DSH 社区文件型主题包样例（P0.4.3 导入验证）：青绿强调色 + 深绿气泡色调；导入后出现在设置主题列表，切换即时生效；停用插件即删除主题。"
+}

@@ -21,8 +21,8 @@
 | SwiftFormat | ✅ 0 改动 | `swiftformat --lint . --config .swiftformat`（197 文件，P0.3 新增 2） |
 | SwiftLint | ✅ 0 违规 | `swiftlint lint --strict --config .swiftlint.yml`（197 文件，P0.3 新增 2） |
 | 编译 | ✅ 0 警告 | 全量冷编译（450 targets 含测试目标，覆盖率构建实测） |
-| 单元测试 | ✅ 639/639 | Swift Testing 639（131 suites），0 失败（P0.1.5 新增 17：App 工作区路由 15（fakes 全套）+ RAG indexURL 路由 2；工具枚举稳定序 1） |
-| 本地 CI 模拟 | ✅ pr+main 全绿（xcode 复用基线） | `tools/ci-local.sh`（P0.1.5：pr /tmp/p015_ci_pr6.log（639/639）+ main /tmp/p015_ci_main.log + leaks /tmp/p015_ci_leaks.log 全绿 零停滞 0 leaks（pr 连跑 3 轮稳定性验证）；xcode 复用 P0.2 /tmp/p02_ci_xcode8.log 基线——本轮零工程结构变更（无新 target/依赖），结构变更时必复跑） |
+| 单元测试 | ✅ 640/640 | Swift Testing 640（131 suites），0 失败（P0.1.5 新增 18：App 工作区路由 15（fakes 全套）+ RAG indexURL 路由 2；工具枚举稳定序 1；社区主题包样例防漂移 1） |
+| 本地 CI 模拟 | ✅ pr+main 全绿（xcode 复用基线） | `tools/ci-local.sh`（P0.1.5：pr /tmp/p015_ci_pr7.log（640/640）+ main /tmp/p015_ci_main.log + leaks /tmp/p015_ci_leaks.log 全绿 零停滞 0 leaks（pr 累计 5 轮稳定性验证）；xcode 复用 P0.2 /tmp/p02_ci_xcode8.log 基线——本轮零工程结构变更（无新 target/依赖），结构变更时必复跑） |
 | 本地镜像备份 | ✅ 每次提交后 | `git push --mirror /Users/liguangming/code/swift-harness-backup.git` |
 | GitHub 推送 | ⏸ 暂缓 | 按用户要求先本地版本控制，未推送远端（`.github/workflows/swift-ci.yml` 四 job 已就位；本地模拟 `tools/ci-local.sh [pr|leaks|xcode|main]` 可跑，leaks 门禁 0 leaks 实测） |
 
@@ -50,7 +50,7 @@
 | P0.1.4 | iCloud 多设备同步冲突裁决 UI（goal P0.1.4「多设备冲突弹出 UI，由用户选择保留版本」）：SyncConflict public init / AccountService.setConflictHandler（幂等覆盖，激活时下发）+ kvsStoreFactory 测试缝 + testPublish 缝 / AppViewModel 冲突状态机（awaitUserResolution 回调挂起 + 待裁决列表 + toast / resolveSyncConflict 保留本地·云端，胜者写回 KVS 并解除挂起 / 超时 10min 安全网自动保留本地=离线优先）/ 设置「账号与同步」冲突裁决卡（本地/云端双栏预览 + 保留本地/保留云端） | `de9bdc8` | ✅ 闭环（7 项新测：App 5 + Account 转发链 e2e 2，胜者写回 KVS 验证） |
 | P0.5 | 对话 composer 闭环（goal P0.5.2 三项缺口清零）：输入框加号 → PlusMenuButton 菜单（文件附件 + 插件工具入口，工具源=真实注册表按 categoryDisplay 分组，选中插入 @toolName 提及 token，发送后进入用户消息供 AgentLoop 工具循环保留优先调用）/ 快捷提示 chips 由直接发送改为**填充输入框 + 聚焦**（用户可编辑再发送）/ composer 底行右下角模型名 → ModelSwitcherMenu 下拉（提供商→模型两级，与顶栏 pill 复用同一共享组件，两套切换逻辑归一） | `bad57d0` | ✅ 闭环（3 项提及 token 纯函数测试） |
 | P0.1.5 | 工作区运行时接线（P0.1.2/1.3 真缺口：WorkspaceRootProvider 存在但 App 层零消费——会话 cwd=home 硬编码 / RAG=~/.harness/rag 硬编码 / 插件元数据与主题资源不落工作区容器）：WorkspaceRouter（current 根 / 五目录契约 agents·rag·plugins-meta·themes / sessionCwd(UUID) / refresh→根变化检测 / materialize）/ SharedRAGEngine indexURL 注入 + resetIndexURL（engine=nil 下次 get 重建）/ PluginMetadataStore（PluginMetaManifest v1：id·name·version·origin·enabled·localPath·mcpCommand，temp+delete+move 原子写，损坏→空）/ AppViewModel 全接线（新会话 cwd→工作区容器 / 根变化：RAG reset + memoryEngine 重挂 + 文件主题重建 + 对账 / persistPluginMetadata（active 态 + MCP 用户意图）/ reconcilePluginMetadata 跨设备对账（isICloud 守卫=生产语义：仅跨设备容器需恢复，防并行测试跨套件互写本地根）） | `70a40a2` | ✅ 闭环（15 项 App fakes 全套单测 + 2 项 RAG 路由单测；PR 门禁 638/638） |
-| P0.4.3 | DSH 社区文件型主题包导入（兼容缺口）：ThemePackageImporter（spec.json 文件\|目录双入口，nil 颜色=合法 / 非 nil 须 #RRGGBB 或 #AARRGGBB，sanitizeID ≤40，落 themes/\<id\>/spec.json）/ FileThemePackagePlugin（ThemeProviderPlugin，pluginID=theme-file-\<id\>）/ PluginListView「导入主题包…」按钮 + .fileImporter([.json, .folder]) + MCP 待重导橙色横幅 / PluginDetailComponents 拆出（600 行门禁）/ 文件主题包停用删 themes/ 目录 + 清单清除 | `70a40a2` | ✅ 闭环（P0.1.5 单测集内主题包场景：导入→安装+清单落盘→停用删除目录+清单清除） |
+| P0.4.3 | DSH 社区文件型主题包导入（兼容缺口，含验收样例 `demos/community-theme-demo/spec.json` + 防漂移测试）：ThemePackageImporter（spec.json 文件\|目录双入口，nil 颜色=合法 / 非 nil 须 #RRGGBB 或 #AARRGGBB，sanitizeID ≤40，落 themes/\<id\>/spec.json）/ FileThemePackagePlugin（ThemeProviderPlugin，pluginID=theme-file-\<id\>）/ PluginListView「导入主题包…」按钮 + .fileImporter([.json, .folder]) + MCP 待重导橙色横幅 / PluginDetailComponents 拆出（600 行门禁）/ 文件主题包停用删 themes/ 目录 + 清单清除 | `70a40a2` | ✅ 闭环（P0.1.5 单测集内主题包场景：导入→安装+清单落盘→停用删除目录+清单清除） |
 
 ### 前端打磨阶段（后端全部闭环后启动）
 
