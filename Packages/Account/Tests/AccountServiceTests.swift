@@ -100,7 +100,13 @@ struct AccountServiceTests {
         fx.service.signInWithApple() // 第二次应被忽略
         #expect(signer.signInCalls == 1)
 
-        try await settle(200)
+        // 有界等待 delayed 投递（30ms）+ 激活链完成（固定 200ms 可被负载下调度滞后突破；P1 flake 修复）
+        for _ in 0 ..< 150 {
+            if fx.service.state == .icloudReady {
+                break
+            }
+            try await Task.sleep(for: .milliseconds(20))
+        }
         #expect(fx.service.state == .icloudReady)
         #expect(signer.signInCalls == 1)
     }
@@ -318,6 +324,15 @@ struct AccountServiceConflictTests {
         service.signInWithApple()
         try await settle(300)
         #expect(service.state == .icloudReady)
+        // 有界等待激活期 fire-and-forget KVS publish（"ssoIcloud"）落盘：
+        // 迟落会覆盖后续冲突裁决终值（P1 flake 根因：9 字节 "ssoIcloud" 覆盖裁决值）
+        for _ in 0 ..< 150 {
+            if kvs.data(forKey: AccountService.keyAccountMode) != nil {
+                break
+            }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(kvs.data(forKey: AccountService.keyAccountMode) != nil, "激活 publish 应落 KVS")
 
         let box = ConflictBox()
         // 用户裁决：保留云端
@@ -368,6 +383,15 @@ struct AccountServiceConflictTests {
         service.signInWithApple()
         try await settle(300)
         #expect(service.state == .icloudReady)
+        // 有界等待激活期 fire-and-forget KVS publish（"ssoIcloud"）落盘：
+        // 迟落会覆盖后续冲突裁决终值（P1 flake 根因：9 字节 "ssoIcloud" 覆盖裁决值）
+        for _ in 0 ..< 150 {
+            if kvs.data(forKey: AccountService.keyAccountMode) != nil {
+                break
+            }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(kvs.data(forKey: AccountService.keyAccountMode) != nil, "激活 publish 应落 KVS")
 
         let foreign = SyncedValue(value: Data("remote-x".utf8), updatedAt: .now, deviceId: "dev-B")
         kvs.set(Self.encode(foreign), forKey: AccountService.keyAccountMode)

@@ -1,0 +1,46 @@
+name: Weekly Regression
+
+# 每周全量回归（独立文件：避免在 swift-ci.yml 上加 schedule 触发器导致
+# 每周重复跑全部 4 个 job——macOS runner 成本 10x，一周只需一次全量测试）
+on:
+  schedule:
+    # 每周日 02:23 UTC（= 北京时间周一 10:23）
+    - cron: '23 2 * * 0'
+  workflow_dispatch: {}
+
+concurrency:
+  group: ci-weekly-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  XCODE_DERIVED_DATA: ./ci-derived-data
+
+jobs:
+  full-regression:
+    name: Full Test Suite (Weekly)
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache SPM
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/org.swift.swiftpm
+          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: ${{ runner.os }}-spm-
+
+      - name: SwiftLint（门禁：0 违规）
+        run: |
+          brew install swiftlint || true
+          swiftlint lint --strict --config .swiftlint.yml
+
+      - name: Full Test Suite
+        # 有界重试：macOS 存在瞬态协作池调度停滞（线程空闲但任务不派发，~10-13s，见 QUALITY_REPORT P1）；
+        # 停滞属环境故障，真实回归重试仍会失败，重试一次用于区分二者
+        run: |
+          for attempt in 1 2; do
+            swift test --parallel && break
+            if [ "$attempt" -eq 2 ]; then exit 1; fi
+            echo "⚠️ 首轮全量失败 — 有限重试一次（环境调度停滞容忍，非代码回归）"
+          done

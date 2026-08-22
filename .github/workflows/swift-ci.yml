@@ -168,24 +168,3 @@ jobs:
           name: HarnessApp-macos
           path: HarnessApp-macos.zip
           retention-days: 30
-
-  # ==================== 每周回归（定时全量测试；依赖升级由 Dependabot 负责） ====================
-  weekly-regression:
-    name: Weekly Regression
-    runs-on: macos-latest
-    if: github.event_name == 'schedule'
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Resolve Dependencies
-        run: swift package resolve
-
-      - name: Full Test Suite
-        # 有界重试：同 Unit Tests（macOS 瞬态调度停滞容忍，见 QUALITY_REPORT P1）
-        run: |
-          for attempt in 1 2; do
-            swift test --parallel && break
-            if [ "$attempt" -eq 2 ]; then exit 1; fi
-            echo "⚠️ 首轮全量失败 — 有限重试一次（环境调度停滞容忍，非代码回归）"
-          done

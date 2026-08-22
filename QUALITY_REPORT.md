@@ -21,10 +21,10 @@
 | SwiftFormat | ✅ 0 改动 | `swiftformat --lint . --config .swiftformat`（197 文件，P0.3 新增 2） |
 | SwiftLint | ✅ 0 违规 | `swiftlint lint --strict --config .swiftlint.yml`（197 文件，P0.3 新增 2） |
 | 编译 | ✅ 0 警告 | 全量冷编译（450 targets 含测试目标，覆盖率构建实测） |
-| 单元测试 | ✅ 645/645 | Swift Testing 645（134 suites）+ XCTest 0 失败（P2 ① 新增 3：在途 LLM 联动取消——支持取消 provider 请求即时中断 / 不支持取消 provider 延迟响应丢弃不污染 wire 历史 / 无取消正常 turn 回归；前轮累计：P0.1.5 消费端 5 + App 工作区路由 15 + RAG indexURL 2 + 稳定序 1 + 样例防漂移 1） |
+| 单元测试 | ✅ 645/645 | Swift Testing 645（134 suites）+ XCTest 0 失败（P2 ① 新增 3：在途 LLM 联动取消——支持取消 provider 请求即时中断 / 不支持取消 provider 延迟响应丢弃不污染 wire 历史 / 无取消正常 turn 回归；前轮累计：P0.1.5 消费端 5 + App 工作区路由 15 + RAG indexURL 2 + 稳定序 1 + 样例防漂移 1；2026-08-22 flaky 修复后 App 运行负载下连跑 2 轮全量 + 3 轮定向套件全绿，日志 /tmp/ci_pr_flakefix{,2}.log） |
 | 本地 CI 模拟 | ✅ pr+main 全绿（xcode 复用基线） | `tools/ci-local.sh`（P2 ① 在途取消：pr /tmp/p2cancel_ci_pr2.log + main /tmp/p2cancel_ci_main.log（各 645/645，main 含覆盖率汇总，均 gate exit 0）；前轮基线（P0.1.5 消费端：pr /tmp/p015b_ci_pr2.log + main /tmp/p015b_ci_main.log 各 642/642）；更早基线 pr /tmp/p015_ci_pr7.log（640/640）+ main /tmp/p015_ci_main.log + leaks /tmp/p015_ci_leaks.log 全绿 0 leaks（pr 累计 5 轮稳定性验证）；xcode 复用 P0.2 /tmp/p02_ci_xcode8.log 基线——本轮零工程结构变更（无新 target/依赖），结构变更时必复跑） |
 | 本地镜像备份 | ✅ 每次提交后 | `git push --mirror /Users/liguangming/code/swift-harness-backup.git` |
-| GitHub 推送 | ⏸ 暂缓 | 按用户要求先本地版本控制，未推送远端（`.github/workflows/swift-ci.yml` 四 job 已就位；本地模拟 `tools/ci-local.sh [pr|leaks|xcode|main]` 可跑，leaks 门禁 0 leaks 实测） |
+| GitHub 推送 | ⏸ 暂缓（流水线已就绪） | 按用户要求先本地版本控制，未推送远端。`.github/workflows/swift-ci.yml` 四 job（pr-check：SwiftLint+SwiftFormat+build+单测 / xcode-check / leaks / main-check：release+全量测试+覆盖率+CodeQL+制品）+ `weekly-regression.yml`（schedule cron 周日 02:23 UTC 全量回归 + workflow_dispatch 手动触发；独立文件避免 schedule 触发重复跑 4 job 的 macOS runner 成本）；激活前置：建 GitHub 仓库并 push（私有仓库需 Settings→Actions 启用 scheduled workflows；CODECOV_TOKEN 仅私有仓库需要）；本地模拟 `tools/ci-local.sh [pr|leaks|xcode|main]` 可跑，leaks 门禁 0 leaks 实测 |
 
 ## 二、八大后端模块交付状态
 
@@ -108,7 +108,7 @@
 ### P1
 | 问题 | 现象/复现 | 状态 |
 |------|-----------|------|
-| macOS 27 beta 瞬态协作池调度停滞（`--parallel` 全量偶发失败） | 现象：`swift test --parallel`（或直接调 xctest）下 `CoordinatorLifecycleTests/testShutdownCancelsAllAndClears` 约 1/8~1/10 概率失败（blocker 10s 未 running → cancelCount=0）。**根因（现场 sample 实锤）**：新 xctest 进程偶发「协作池任务 ~10-13s 不派发，而池线程全部空闲」（证据：主线程阻塞于 XCTest async 桥接 mach_msg 等待、全部池/wq 线程 `__workq_kernreturn` 空闲、无任何线程执行排队的 Swift 任务；样本 /tmp/stall_sample_19.txt）。**环境故障，非协调器逻辑缺陷**：停滞解除后 run 任务立即执行且行为完全符合规范（排队取消不执行/运行取消/无僵尸残留）。排除链：最小 actor+Task 复现包 15/15 绿（非通用 actor 问题）；直接 xctest 调用 1/10 复现（与 SPM --parallel 无关）；串行 swift test 健康窗口 8/8 绿；AC 电源（非电池节流） | 修复双层：①测试层 — 前置等待 10s→30s、4 个 `eventually` helper 默认窗口 3s→5s（正常路径毫秒级返回，仅停滞时拉长）②CI 层 — pr/xcode/main/weekly 全量测试步骤加**有界单次重试**（停滞属环境故障，真实回归重试仍会失败）。**残留风险**：停滞超 30s，或其余固定 sleep 断言点（MCP 300-500ms / Agent 10-100ms / ServiceContainer 150ms 等）撞上停滞窗口仍可能偶发失败，由 CI 重试兜底；若 macOS 正式版仍复现再升级处理 | **修复已验证（观察期）**：Subagent 模块 15/15（其中 9 轮处于停滞窗口、11-12s 慢通过，测试内重试在真实窗口下全部存活）+ 全量 `--parallel` ×2（628）+ 串行 ×1（628）+ ci-local main ×2 + ci-local pr 全绿（`50fb2be` 提交前实测）。观察期：若 macOS 正式版仍复现再升级处理。**观察累计（2026-08-20）**：F6–F11 开发期全量回归累计 8+ 轮（各模块 full+main 及 manifest 修复后连续 2 轮）0 次停滞致失败；07:02 跨会话核验轮 ci-local pr + main 复跑 666 全绿 0 停滞。观察继续 |
+| macOS 27 beta 瞬态协作池调度停滞（`--parallel` 全量偶发失败） | 现象：`swift test --parallel`（或直接调 xctest）下 `CoordinatorLifecycleTests/testShutdownCancelsAllAndClears` 约 1/8~1/10 概率失败（blocker 10s 未 running → cancelCount=0）。**根因（现场 sample 实锤）**：新 xctest 进程偶发「协作池任务 ~10-13s 不派发，而池线程全部空闲」（证据：主线程阻塞于 XCTest async 桥接 mach_msg 等待、全部池/wq 线程 `__workq_kernreturn` 空闲、无任何线程执行排队的 Swift 任务；样本 /tmp/stall_sample_19.txt）。**环境故障，非协调器逻辑缺陷**：停滞解除后 run 任务立即执行且行为完全符合规范（排队取消不执行/运行取消/无僵尸残留）。排除链：最小 actor+Task 复现包 15/15 绿（非通用 actor 问题）；直接 xctest 调用 1/10 复现（与 SPM --parallel 无关）；串行 swift test 健康窗口 8/8 绿；AC 电源（非电池节流） | 修复双层：①测试层 — 前置等待 10s→30s、4 个 `eventually` helper 默认窗口 3s→5s（正常路径毫秒级返回，仅停滞时拉长）②CI 层 — pr/xcode/main/weekly 全量测试步骤加**有界单次重试**（停滞属环境故障，真实回归重试仍会失败）。**残留风险**：停滞超 30s，或其余固定 sleep 断言点（MCP 300-500ms / ServiceContainer 150ms 等）撞上停滞窗口仍可能偶发失败，由 CI 重试兜底（Agent 100ms×2 / Account 200-300ms×3 断言点已改有界轮询，见已闭环「测试固定 sleep flaky 断言」行；若 macOS 正式版仍复现再升级处理） | **修复已验证（观察期）**：Subagent 模块 15/15（其中 9 轮处于停滞窗口、11-12s 慢通过，测试内重试在真实窗口下全部存活）+ 全量 `--parallel` ×2（628）+ 串行 ×1（628）+ ci-local main ×2 + ci-local pr 全绿（`50fb2be` 提交前实测）。观察期：若 macOS 正式版仍复现再升级处理。**观察累计（2026-08-20）**：F6–F11 开发期全量回归累计 8+ 轮（各模块 full+main 及 manifest 修复后连续 2 轮）0 次停滞致失败；07:02 跨会话核验轮 ci-local pr + main 复跑 666 全绿 0 停滞。观察继续 |
 
 ### P2
 | 问题 | 说明 | 状态 |
@@ -180,6 +180,7 @@
 | exec 输出断言格式漂移（testExecWorkingDirectoryFromContext 断言 pwd 原始路径，工具固定输出「✅ 退出码 N\n\n<output>」前缀 → 必败） | 本轮（断言改前缀 + contains 双条件，与 read/list 断言口径统一） |
 | 跨 suite 静态 subagentHistoryURLOverride 竞态（Subagent 套件与 ChatOps 套件并行时互覆/互清 static override → 一方的 vm 回落到真实 `~/Library/Application Support/Harness/subagent_history.json`，该文件被历史 run 累积 46 条测试条目 → clearFinishedSubagents 断言失败，跨 run 复现） | 本轮（实例级测试缝：AppViewModel init 增 `subagentHistoryURLOverride:` 参数 + 实例 `subagentHistoryURL` 计算属性（实例覆盖 > 默认目录），删除 static override；`subagents` 初始值从属性默认值移入 init 体（全部存储属性初始化后按实例 URL 加载）；两测试文件 7 处改实例参数；真实历史文件备份后重置为空） |
 | in-flight LLM 调用不可取消（stopGenerating 仅协调层释放，远程请求配额浪费） | 本轮（AgentLoop turn Task 化 + cancel 联动取消 + isCancellationError 判定 CancellationError/URLError.cancelled + 延迟响应双点丢弃（循环顶 + 请求后）+ 3 新测试；AgentLoop 覆盖率 89.72%→89.98%） |
+| 测试固定 sleep flaky 断言（2 类根因，5 断言点）：① AgentTests send-with-wakeup/followup 固定 sleep(100ms) 后断言 idle——processInbox 异步 turn 在负载下调度滞后即未收敛 ② AccountServiceTests 冲突裁决两用例假设 `state==.icloudReady` ⇒ 激活期 fire-and-forget KVS publish("ssoIcloud") 已完成——迟落则覆盖后续裁决终值（失败现场：9 字节 "ssoIcloud" 覆盖 "local-y"/"remote-v"，两轮门禁同窗口复现，属 CI 重试兜不住的**真竞态**）；doubleSignInWhilePendingIsIgnored 同型（固定 200ms 覆盖不了 delayed 投递 30ms+激活链） | 本轮（5 处固定 sleep→有界轮询（20ms×100/150 上限 2-3s）：Agent×2 轮询 currentStatus==.idle；Account 冲突两用例轮询 KVS keyAccountMode!=nil（等激活 publish 落盘）；doubleSignIn 轮询 .icloudReady；正常路径毫秒级返回、仅停滞/滞后时拉长，与 P1 停滞条目观察口径一致） |
 
 ## 五、代码统计
 

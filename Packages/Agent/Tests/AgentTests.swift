@@ -134,7 +134,13 @@ struct AgentLoopExtendedTests {
         let loop = makeLoop()
         let msg = UserMessage(content: [.text("test")])
         await loop.send(msg, target: .nextTurn, wakeup: true)
-        try? await Task.sleep(for: .milliseconds(100))
+        // 有界等待 processInbox 异步 turn 收敛（固定 100ms 可被负载下调度滞后突破；P1 flake 修复）
+        for _ in 0 ..< 100 {
+            if await loop.currentStatus == .idle {
+                break
+            }
+            try? await Task.sleep(for: .milliseconds(20))
+        }
         #expect(await loop.currentStatus == .idle)
     }
 
@@ -143,7 +149,13 @@ struct AgentLoopExtendedTests {
         let loop = makeLoop()
         let msg = UserMessage(content: [.text("followup")])
         await loop.followup(msg)
-        try? await Task.sleep(for: .milliseconds(100))
+        // 有界等待 processInbox 异步 turn 收敛（固定 100ms 可被负载下调度滞后突破；P1 flake 修复）
+        for _ in 0 ..< 100 {
+            if await loop.currentStatus == .idle {
+                break
+            }
+            try? await Task.sleep(for: .milliseconds(20))
+        }
         #expect(await loop.currentStatus == .idle)
     }
 
