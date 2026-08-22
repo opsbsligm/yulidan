@@ -173,17 +173,39 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         return oldFrame
     }
 
+    /// userManaged 窗口持续不可见覆盖阈值（tick 数，2s/tick）
+    /// 偏离目标屏（窗口明确卡死屏）→ 10 = 20s；短暂（<20s）抖动会在屏恢复后自愈，无需干预
+    nonisolated static let serverInvisibleRemapThreshold = 10
+    /// 位于目标屏但服务器持续报不可见（目标屏自身掉线 / macOS 27 beta 幻影报告）→ 30 = 60s。
+    /// 更高阈值防止撕裂实际可见窗口（beta 幻影为间歇 true/false 翻转，连击会被打断，不会误触发）
+    nonisolated static let serverInvisibleRemapThresholdOnTarget = 30
+
+    /// 判定是否对 userManaged 窗口强制一次性 remap（纯决策函数，供单元测试）：
+    /// userManaged（用户摆放）且窗口服务器连续 N tick 报该窗口未映射/碎片化 →
+    /// 死屏残留在 NSScreen.screens 使 userManaged 推断滞后，窗口实际不可见 → 强制 remap 回目标屏。
+    /// 阈值按窗口是否位于目标屏分档（见上两条常量）
+    nonisolated static func shouldOverrideRemap(userManaged: Bool, appSideOK: Bool, serverInvisibleStreak: Int) -> Bool {
+        guard userManaged else { return false }
+        let threshold = appSideOK ? serverInvisibleRemapThresholdOnTarget : serverInvisibleRemapThreshold
+        return serverInvisibleStreak >= threshold
+    }
+
     /// 看门狗：无头/远程环境下显示配置可能抖动（窗口掉屏、被窗口服务器压成碎片、被最小化）；
     /// macOS 27 beta 窗口服务器还会对本 App 窗口间歇性报告幻影 CGWindowList 边界（P0.2 现场实测）。
     /// 每 2 秒检查：应用侧 frame 与窗口服务器实际边界是否一致（用 CGWindowList 对账）。
     /// 干预策略（反拉锯）：
-    /// - 用户看不到窗口（掉屏/未映射）→ n>=2 钉回用户面对屏并强制重映射，n>=4 重建窗口（预算 2 次/30s）
+    /// - 用户看不到窗口（掉屏/未映射）→ n>=2 钉回用户面对屏并强制重映射，n>=4 重建窗口（预算共 2 次、间隔 ≥30s）
     /// - 用户看得到窗口但服务器报幻影碎片 → 禁止 remap（orderOut 会撕裂可见窗口并抢焦点），
     ///   持续 n>=8 才允许 recreate 自愈（ghost 渲染唯一可靠恢复手段，实测 4s 自愈）
+    /// - userManaged 窗口服务器侧持续不可见（屏掉出服务器后死屏残留 / 目标屏自身掉线）→
+    ///   偏离目标屏持续 20s 或位于目标屏持续 60s → 强制一次性 remap 回目标屏自愈，
+    ///   不走 n 阈值、不消耗 recreate 预算（shouldOverrideRemap；现场实测 4K 掉线+预算耗尽=永久卡死）
     private var frameWatchdog: Timer?
 
     /// 帧监视器连续异常计数（主线程 Timer 回调使用）
     private var frameMismatch = OSAllocatedUnfairLock<Int>(initialState: 0)
+    /// 窗口服务器侧不可见连击（未映射/碎片化）；持续超阈值 → 强制 userManaged 窗口一次性 remap（shouldOverrideRemap）
+    private var serverInvisibleStreak = OSAllocatedUnfairLock<Int>(initialState: 0)
     /// 看门狗目标屏缓存：仅屏幕配置变化时重算，避免每 tick 动态打分造成目标屏振荡
     private var watchdogTarget: NSScreen?
     private var watchdogScreenSig: String?
@@ -230,10 +252,27 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // 形成拉锯（P0.2 现场实测：用户缩窄窗口后被每 2s 拉回全屏）
         let userManaged = window.frame != .zero
             && NSScreen.screens.contains { $0.visibleFrame.intersects(window.frame) }
+        // 窗口服务器侧不可见连击（未映射/碎片化）；健康即清零。
+        // 屏掉出窗口服务器时 NSScreen.screens 残留死屏，userManaged 滞后为 true 而窗口实际不可见 → 见 shouldOverrideRemap
+        let serverInvisible = cg == nil || serverFragmented
+        serverInvisibleStreak.withLock { $0 = serverInvisible ? $0 + 1 : 0 }
         let serverDesc = cg.map { "srv=(\(Int($0.minX)),\(Int($0.minY)),\(Int($0.width)),\(Int($0.height)))" } ?? "srv=nil"
 
         if (appSideOK && serverConsistent) || (userManaged && !serverFragmented) {
             frameMismatch.withLock { $0 = 0 }
+            return
+        }
+        // 持续不可见自愈：屏掉出窗口服务器后窗口卡死屏且 recreate 预算耗尽时永远无法自愈（现场实测）。
+        // 服务器连续 20s（偏离目标屏）/ 60s（位于目标屏、beta 幻影误报防护）报未映射/碎片化 →
+        // 覆盖 userManaged 冻结，强制一次性 remap 回目标屏（不消耗 recreate 预算）
+        let invisibleStreak = serverInvisibleStreak.withLock { $0 }
+        if AppDelegate.shouldOverrideRemap(userManaged: userManaged, appSideOK: appSideOK, serverInvisibleStreak: invisibleStreak) {
+            frameMismatch.withLock { $0 = 0 }
+            serverInvisibleStreak.withLock { $0 = 0 }
+            window.orderOut(nil)
+            window.setFrame(target.visibleFrame, display: true)
+            window.makeKeyAndOrderFront(nil)
+            AppDelegate.debugLog("watchdog OVERRIDE-REMAP userManaged window (server invisible \(invisibleStreak) ticks) -> \(target.visibleFrame) frame=\(window.frame)")
             return
         }
         let screenDesc = String(describing: window.screen?.frame)

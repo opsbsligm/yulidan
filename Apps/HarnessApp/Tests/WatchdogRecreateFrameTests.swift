@@ -34,3 +34,51 @@ struct WatchdogRecreateFrameTests {
         #expect(result == target)
     }
 }
+
+// MARK: - 看门狗持续不可见覆盖 remap 决策（掉屏卡死自愈，现场实测：4K 掉线 + recreate 预算耗尽 = 永久卡死）
+
+@Suite("看门狗持续不可见覆盖 remap 决策")
+struct WatchdogOverrideRemapTests {
+    @Test("偏离目标屏 + 服务器持续不可见达 20s 阈值 → 强制 remap")
+    func firesWhenOffTargetAtThreshold() {
+        #expect(AppDelegate.shouldOverrideRemap(
+            userManaged: true, appSideOK: false,
+            serverInvisibleStreak: AppDelegate.serverInvisibleRemapThreshold
+        ) == true)
+        #expect(AppDelegate.shouldOverrideRemap(
+            userManaged: true, appSideOK: false,
+            serverInvisibleStreak: AppDelegate.serverInvisibleRemapThreshold + 7
+        ) == true)
+    }
+
+    @Test("连击未达阈值（短暂掉屏会自愈）→ 不干预")
+    func belowThresholdNoIntervention() {
+        #expect(AppDelegate.shouldOverrideRemap(
+            userManaged: true, appSideOK: false,
+            serverInvisibleStreak: AppDelegate.serverInvisibleRemapThreshold - 1
+        ) == false)
+        #expect(AppDelegate.shouldOverrideRemap(
+            userManaged: true, appSideOK: false, serverInvisibleStreak: 0
+        ) == false)
+    }
+
+    @Test("位于目标屏 → 走 60s 高档阈值（防 beta 幻影撕裂可见窗口）")
+    func onTargetUsesHigherThreshold() {
+        #expect(AppDelegate.shouldOverrideRemap(
+            userManaged: true, appSideOK: true,
+            serverInvisibleStreak: AppDelegate.serverInvisibleRemapThreshold + 10
+        ) == false)
+        #expect(AppDelegate.shouldOverrideRemap(
+            userManaged: true, appSideOK: true,
+            serverInvisibleStreak: AppDelegate.serverInvisibleRemapThresholdOnTarget
+        ) == true)
+    }
+
+    @Test("非 userManaged 窗口 → 走原有 n 阈值路径，不触发覆盖")
+    func notUserManagedNeverOverrides() {
+        #expect(AppDelegate.shouldOverrideRemap(
+            userManaged: false, appSideOK: false,
+            serverInvisibleStreak: AppDelegate.serverInvisibleRemapThresholdOnTarget + 100
+        ) == false)
+    }
+}
