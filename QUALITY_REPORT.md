@@ -22,7 +22,7 @@
 | SwiftLint | ✅ 0 违规 | `swiftlint lint --strict --config .swiftlint.yml`（197 文件，P0.3 新增 2） |
 | 编译 | ✅ 0 警告 | 全量冷编译（450 targets 含测试目标，覆盖率构建实测） |
 | 单元测试 | ✅ 649/649 | Swift Testing 649（135 suites）+ XCTest 0 失败（P2 ① 新增 3：在途 LLM 联动取消——支持取消 provider 请求即时中断 / 不支持取消 provider 延迟响应丢弃不污染 wire 历史 / 无取消正常 turn 回归；前轮累计：P0.1.5 消费端 5 + App 工作区路由 15 + RAG indexURL 2 + 稳定序 1 + 样例防漂移 1；2026-08-22 flaky 修复后 App 运行负载下连跑 2 轮全量 + 3 轮定向套件全绿，日志 /tmp/ci_pr_flakefix{,2}.log；本轮 watchdog 修复 +4 测试 /tmp/ci_pr_watchdogfix.log） |
-| 本地 CI 模拟 | ✅ pr+main 全绿（xcode 复用基线） | `tools/ci-local.sh`（本轮 watchdog 修复 pr /tmp/ci_pr_watchdogfix.log（649/649，gate exit 0）；P2 ① 在途取消：pr /tmp/p2cancel_ci_pr2.log + main /tmp/p2cancel_ci_main.log（各 645/645，main 含覆盖率汇总，均 gate exit 0）；前轮基线（P0.1.5 消费端：pr /tmp/p015b_ci_pr2.log + main /tmp/p015b_ci_main.log 各 642/642）；更早基线 pr /tmp/p015_ci_pr7.log（640/640）+ main /tmp/p015_ci_main.log + leaks /tmp/p015_ci_leaks.log 全绿 0 leaks（pr 累计 5 轮稳定性验证）；xcode 复用 P0.2 /tmp/p02_ci_xcode8.log 基线——本轮零工程结构变更（无新 target/依赖），结构变更时必复跑） |
+| 本地 CI 模拟 | ✅ 四门禁全绿（pr+main+leaks+xcode，HEAD 7eae9a1 全覆盖，2026-08-22） | `tools/ci-local.sh`：pr /tmp/ci_pr_watchdogfix.log（649/649，19:36）+ main /tmp/ci_main_goal.log（Release 构建 + 全量 649/649（135 suites）+ llvm-cov 覆盖率汇总，21:59）+ leaks /tmp/ci_leaks_goal.log（MemProbe 500 → **0 leaks / 0 字节**，22:06）+ xcode /tmp/ci_xcode_goal.log（xcodegen + xcodebuild build+test **TEST SUCCEEDED**，22:07）；历史基线：P2①在途取消 645/645 双门禁 / P0.1.5 642/642 / 早前 leaks 0 leaks；GitHub 远端激活前四门禁以 ci-local 为准 |
 | 本地镜像备份 | ✅ 每次提交后 | `git push --mirror /Users/liguangming/code/swift-harness-backup.git` |
 | GitHub 推送 | ⏸ 暂缓（流水线已就绪） | 按用户要求先本地版本控制，未推送远端。`.github/workflows/swift-ci.yml` 四 job（pr-check：SwiftLint+SwiftFormat+build+单测 / xcode-check / leaks / main-check：release+全量测试+覆盖率+CodeQL+制品）+ `weekly-regression.yml`（schedule cron 周日 02:23 UTC 全量回归 + workflow_dispatch 手动触发；独立文件避免 schedule 触发重复跑 4 job 的 macOS runner 成本）；激活前置：建 GitHub 仓库并 push（私有仓库需 Settings→Actions 启用 scheduled workflows；CODECOV_TOKEN 仅私有仓库需要）；本地模拟 `tools/ci-local.sh [pr|leaks|xcode|main]` 可跑，leaks 门禁 0 leaks 实测 |
 
@@ -249,6 +249,10 @@
 ## 六、提交链（近期）
 
 ```
+7eae9a1  docs(quality): 追加 08-22 21:12 外部终止事故记录（内建屏幻影报告后无崩溃报告被杀，环境侧同型，HARNESS_FRAME 重启恢复）
+1452b25  docs(acceptance): 验收前置条件入册 — 当前 LLM 配置指向本地 Ollama :11434 未安装（实测端点无响应），对话类验收项需先装 Ollama 或切换远程服务商；HEAD 号与质量基线同步（649/649）
+2c6c24e  docs(quality): 登记 SPM build 不同步 .app bundle 二进制坑位（nm+mtime 双核验 + cp 覆盖应急）
+cb711c6  docs(quality): watchdog 持续不可见覆盖 remap 入册 — 649/649 门禁基线 + 掉屏卡死 P2 行闭环 + 提交链补全（e78db01..c6dd787）
 c6dd787  fix(app): 看门狗持续不可见覆盖 remap — 屏掉出窗口服务器后 userManaged 窗口卡死自愈（shouldOverrideRemap + 双档不可见连击阈值，+4 测试 649/649）
 897ea30  docs(p1): 官方文档行为语义核验（6 API 实拉 developer.apple.com）+ P1 实施计划（文件映射/5 阶段/测试策略/验收口径）
 4b60453  docs(p1): Liquid Glass SDK API 核验记录（铁律 1 前置：5 个目标 API 在 macOS 26.5 SDK SwiftUICore 全部存在，签名逐字摘录 + 需求映射 + 规格差异决策点）
