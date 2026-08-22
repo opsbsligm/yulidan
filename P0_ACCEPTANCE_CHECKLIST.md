@@ -1,7 +1,9 @@
-# P0 实机验收清单（2026-08-22，HEAD 2b1ead4）
+# P0 实机验收清单（2026-08-22，HEAD 2c6c24e）
 
 > 用法：逐项操作 → 对照「预期」打勾。全部通过后回复「P0 验收通过」，即解锁 P1 Liquid Glass。
 > 验收环境要求：当前开发机即可（无 Apple Team 时 SSO/iCloud 走「无 entitlements 优雅降级」，属预期行为非缺陷）。
+>
+> ⚠️ **前置条件（2026-08-22 核验发现）**：对话类验收项（§二会话工作区 / §五全链路 / §六流式·停止生成·工具回显）依赖**可用 LLM**。当前模型配置指向本地 Ollama `http://localhost:11434/v1`（模型 o4-mini），而 **Ollama 未安装**（无 /Applications/Ollama.app、无二进制、无模型库——实测端点无响应）。开始对话类验收前二选一：① 安装 Ollama 并 `ollama pull` 一个模型；② 在 composer 右下角模型下拉切换为可用的远程服务商（需自备 API key）。不依赖 LLM 的项（§三 全部 / §四 导航 / 会话重命名）可先行验收。
 
 ## 一、基线
 | 项 | 操作 | 预期 |
@@ -64,5 +66,5 @@
 | 加号菜单 | 输入框 + | 文件附件 + 插件工具入口（按 category 分组，选中插入 @toolName） |
 
 ## 七、质量基线（已实测，供核对）
-- PR 门禁 645/645（134 suites）+ main 门禁 645/645 + 覆盖率（RAGEngine 94.02% / AgentLoop 89.98% / AccountService 94.08%）+ leaks 0（turn Task 化后复验）；build 0 警告；日志 /tmp/p2cancel_ci_pr2.log / p2cancel_ci_main.log / p2cancel_ci_leaks.log
+- PR 门禁 649/649（135 suites，watchdog 修复轮，日志 /tmp/ci_pr_watchdogfix.log）；前轮基线：main 门禁 645/645 + 覆盖率（RAGEngine 94.02% / AgentLoop 89.98% / AccountService 94.08%）+ leaks 0；build 0 警告
 - 本地镜像备份：`/Users/liguangming/code/swift-harness-backup.git`（每次提交后 mirror 同步）
