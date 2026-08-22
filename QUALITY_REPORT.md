@@ -21,8 +21,8 @@
 | SwiftFormat | ✅ 0 改动 | `swiftformat --lint . --config .swiftformat`（197 文件，P0.3 新增 2） |
 | SwiftLint | ✅ 0 违规 | `swiftlint lint --strict --config .swiftlint.yml`（197 文件，P0.3 新增 2） |
 | 编译 | ✅ 0 警告 | 全量冷编译（450 targets 含测试目标，覆盖率构建实测） |
-| 单元测试 | ✅ 649/649 | Swift Testing 649（135 suites）+ XCTest 0 失败（P2 ① 新增 3：在途 LLM 联动取消——支持取消 provider 请求即时中断 / 不支持取消 provider 延迟响应丢弃不污染 wire 历史 / 无取消正常 turn 回归；前轮累计：P0.1.5 消费端 5 + App 工作区路由 15 + RAG indexURL 2 + 稳定序 1 + 样例防漂移 1；2026-08-22 flaky 修复后 App 运行负载下连跑 2 轮全量 + 3 轮定向套件全绿，日志 /tmp/ci_pr_flakefix{,2}.log；本轮 watchdog 修复 +4 测试 /tmp/ci_pr_watchdogfix.log） |
-| 本地 CI 模拟 | ✅ 四门禁全绿（pr+main+leaks+xcode，HEAD 7eae9a1 全覆盖，2026-08-22） | `tools/ci-local.sh`：pr /tmp/ci_pr_watchdogfix.log（649/649，19:36）+ main /tmp/ci_main_goal.log（Release 构建 + 全量 649/649（135 suites）+ llvm-cov 覆盖率汇总，21:59）+ leaks /tmp/ci_leaks_goal.log（MemProbe 500 → **0 leaks / 0 字节**，22:06）+ xcode /tmp/ci_xcode_goal.log（xcodegen + xcodebuild build+test **TEST SUCCEEDED**，22:07）；历史基线：P2①在途取消 645/645 双门禁 / P0.1.5 642/642 / 早前 leaks 0 leaks；GitHub 远端激活前四门禁以 ci-local 为准 |
+| 单元测试 | ✅ 653/653 | Swift Testing 653（137 suites）+ XCTest 0 失败（本轮契约 v2 +4：SharedMemoryEngine 重路由 2 / App 记忆路由+迁移 2 / 契约断言 5→6 更新；前轮：watchdog 修复 +4 /tmp/ci_pr_watchdogfix.log、P2 ① 联动取消 3、P0.1.5 消费端 5 + App 工作区路由 15 + RAG indexURL 2 + 稳定序 1 + 样例防漂移 1；日志 /tmp/ci_pr_memv2.log） |
+| 本地 CI 模拟 | ✅ 四门禁全绿（pr+main+leaks+xcode，契约 v2 轮全覆盖，2026-08-23） | `tools/ci-local.sh`：pr /tmp/ci_pr_memv2.log（653/653，137 suites）+ main /tmp/ci_main_memv2.log（Release + 全量 653/653 + 覆盖率：MemoryEngine 95.17%）+ leaks /tmp/ci_leaks_memv2.log（MemProbe 500 → **0 leaks**）+ xcode /tmp/ci_xcode_memv2.log（**TEST SUCCEEDED**）；前轮基线：649/649 四门禁（/tmp/ci_{pr_watchdogfix,main_goal,leaks_goal,xcode_goal}.log）；GitHub 远端激活前四门禁以 ci-local 为准 |
 | 本地镜像备份 | ✅ 每次提交后 | `git push --mirror /Users/liguangming/code/swift-harness-backup.git` |
 | GitHub 推送 | ⏸ 暂缓（流水线已就绪） | 按用户要求先本地版本控制，未推送远端。`.github/workflows/swift-ci.yml` 四 job（pr-check：SwiftLint+SwiftFormat+build+单测 / xcode-check / leaks / main-check：release+全量测试+覆盖率+CodeQL+制品）+ `weekly-regression.yml`（schedule cron 周日 02:23 UTC 全量回归 + workflow_dispatch 手动触发；独立文件避免 schedule 触发重复跑 4 job 的 macOS runner 成本）；激活前置：建 GitHub 仓库并 push（私有仓库需 Settings→Actions 启用 scheduled workflows；CODECOV_TOKEN 仅私有仓库需要）；本地模拟 `tools/ci-local.sh [pr|leaks|xcode|main]` 可跑，leaks 门禁 0 leaks 实测 |
 
@@ -35,7 +35,7 @@
 | 3 | 工具调用完整链路（ToolExecutor/参数校验/超时熔断/异常回传/流式进度/输出二次校验） | `10f7f86` | ✅ 闭环 |
 | 4 | MCP 标准协议（能力协商/双向通信/会话生命周期/服务发现/工具自动注册） | `1ba4bb8` | ✅ 闭环 |
 | 5 | RAG 检索增强（加载解析/切片/向量化/向量存储/召回/重排/过滤/溯源） | `6fcd98d` | ✅ 闭环 |
-| 6 | 记忆系统（短期蒸馏/长期持久/意义评估/一致性冲突/反馈闭环迭代 RAG+记忆库） | `b800e91` | ✅ 闭环 |
+| 6 | 记忆系统（短期蒸馏/长期持久/意义评估/一致性冲突/反馈闭环迭代 RAG+记忆库 + **契约 v2：长期记忆随工作区根漫游**） | `b800e91` + 本轮 | ✅ 闭环（契约 v2：WorkspaceLayout 六目录 + SharedMemoryEngine.resetFileURL 重路由 + App 启动重路由到当前根 + 切根重路由 + 旧固定路径一次性迁移（本地根且目标缺失/旧文件保留/iCloud 不迁移/幂等）；4 新测试） |
 | 7 | Skill 技能体系（Hermes 范式：观测→评估→自动生成→复用/编辑/调试/版本/销毁） | `68270a9` | ✅ 闭环 |
 | 8 | 多模型服务商抽象适配层（ProviderProfile 画像/tools 下发/tool_calls 解析/SSE 聚合/参数归一化） | `d890934` | ✅ 闭环 |
 
@@ -120,7 +120,7 @@
 | ~~KVS 跨设备冲突用户裁决 UI 未接~~（已过时） | P0.1.4 `de9bdc8` 已接入「账号与同步」冲突裁决卡（本地/云端双栏 + 保留本地/保留云端 + 10min 安全网）。另核 P0.1.5 轮：工作区载荷（WorkspaceSyncPayload.applyChanges）为**按字段合并**纯函数（远端值逐字段求差落库），无挂起冲突态，设计上无需用户裁决 UI | 已闭环（`de9bdc8`） |
 | AppleSignInService 低覆盖 13.1%（18/137，P0.2 口径） | ASAuthorizationController 系统对话框包装层（NS_SWIFT_UI_ACTOR），无头环境结构性不可测，同类 Notifications UN 包装层；纯逻辑（nonce 生成 / 错误归类 userCancelled / 凭证状态查询）已全测 | 设计面（已知） |
 | 工具枚举顺序不稳定（ToolRegistry.schemas() 裸字典序迭代 → 展示列表/LLM wire 每次重建顺序漂移；2026-08-22 并发门禁 3 处测试 flaky 共同根因） | `70a40a2`+本轮（schemas() 稳定排序：分类序（文件/终端/MCP/网络/代理/技能/通用，对齐 ToolListView 分类栏）→ 名称；1 项回归测试覆盖乱序注册/反序重建/窗口内扩容三场景） |
-| 长期记忆存储不在五目录契约内（固定 ~/.harness/memory/longterm.json） | P0.1 五目录契约（agents/rag/plugins-meta/themes/sync）未含 memory；iCloud 模式下长期记忆不随容器漫游（本地/iCloud 两模式共用同一固定路径，SharedMemoryEngine.get() 硬编码 defaultFileURL）。属契约设计取舍（P0.1.5 接线范围=Agent 产出/RAG/插件元数据/主题资源 四项，不含 memory），非本轮缺陷 | 待确认（设计问题：是否将 memory 纳入契约第五目录之外的扩展目录；若纳入需契约 v2 + 迁移策略，P0 验收后决策） |
+| ~~长期记忆存储不在五目录契约内（固定 ~/.harness/memory/longterm.json）~~ | **已闭环（本轮契约 v2，用户授权决策"纳入"）**：WorkspaceLayout 六目录契约（+memory）；SharedMemoryEngine.fileURL 可重路由（resetFileURL 丢弃旧实例，同 SharedRAGEngine 语义）；App 启动单 Task 链「迁移→重路由到当前根→注册工具」；切根 handleWorkspaceRootChanged 重路由+重挂（严格隔离不迁移）；一次性迁移旧 ~/.harness/memory/longterm.json→本地根 memory/（仅本地模式+目标缺失，旧文件保留，iCloud 容器从空开始，幂等）；legacyMemoryURLOverride 测试缝防测试读真实 ~/.harness；4 新测试（SharedMemoryEngineTests 2 + App 路由/迁移 2 + 契约断言更新） | ✅ 闭环（653/653 四门禁；实机验收项：切模式后记忆分根隔离，随 P0 验收核对） |
 | Apple LLVM 21（Xcode 26.6 / macOS 27 beta）`llvm-profdata merge -f` 参数 bug | `-f` 存在时（任意参数序）报 `error: <out>: No such file or directory` 且 rc=1；输出路径可写、输入 profraw 可读（`show` 正常）→ 工具自身 bug。三组实验实锤：`-f -o out files` 失败 / `files -f -o out` 失败 / `files -o out` 成功（覆盖已存在输出文件亦可）。曾致 `tools/ci-local.sh main` 覆盖率汇总步骤失败（测试门禁本身通过） | 已绕过（`50fb2be`）：merge 行改 `merge *.profraw -o out`（省略 -f、-o 置输入文件后），182 个 profraw 全量验证 + ci-local main 复跑全绿；官方工具链修复后可恢复 -f |
 | ~~KVS workspace 冲突裁决 UI 未接~~（已过时，核销） | 2026-08-22 实码核验：WorkspaceSyncEngine 无独立冲突路径；workspace KVS 键（WorkspaceSyncPayload.kvsKey）经 attachWorkspaceStore 的 configure(managedKeys:) 纳入 MetadataSyncService 管理，与 accountMode 共享 onConflict → AppViewModel awaitUserResolution 裁决卡（「账号与同步」子页双栏 UI，P0.1.4 `de9bdc8`）。工作区载荷本身的跨设备差异为按字段合并纯函数（无挂起态），设计上无需用户裁决 | 已闭环（P0.1.5 `70a40a2` 接线 + 本轮实码核验） |
 | 项目手动重排 UI 未暴露 | `ProjectOperations.reorder` 纯函数已测（跨项目移动 sortOrder 计算 + 边界），但侧边栏未提供项目拖拽排序入口（会话拖拽已有） | 后续 UI 打磨项 |
@@ -249,6 +249,8 @@
 ## 六、提交链（近期）
 
 ```
+dd902b8  ci(remote): CodeQL/codecov 步骤加仓库变量门控（免费私有仓库适配，启用方法入注释），actionlint 通过
+（本轮契约 v2 提交见下）
 7eae9a1  docs(quality): 追加 08-22 21:12 外部终止事故记录（内建屏幻影报告后无崩溃报告被杀，环境侧同型，HARNESS_FRAME 重启恢复）
 1452b25  docs(acceptance): 验收前置条件入册 — 当前 LLM 配置指向本地 Ollama :11434 未安装（实测端点无响应），对话类验收项需先装 Ollama 或切换远程服务商；HEAD 号与质量基线同步（649/649）
 2c6c24e  docs(quality): 登记 SPM build 不同步 .app bundle 二进制坑位（nm+mtime 双核验 + cp 覆盖应急）

@@ -41,6 +41,11 @@ public final class WorkspaceRouter: ObservableObject {
         current.url(for: WorkspaceLayout.themeResources)
     }
 
+    /// 长期记忆库（契约 v2：iCloud 模式 = 容器/memory/longterm.json，双根严格隔离）
+    public var memoryStoreURL: URL {
+        current.url(for: WorkspaceLayout.memoryStore).appendingPathComponent("longterm.json")
+    }
+
     /// 每会话 Agent 工作目录（会话创建时落定；切模式不影响既有会话）
     public func sessionCwd(_ sessionID: UUID) -> URL {
         agentOutputs.appendingPathComponent(sessionID.uuidString, isDirectory: true)

@@ -57,12 +57,14 @@ struct WorkspaceRootTests {
         #expect(!icloud.rootURL.path.hasPrefix(local.rootURL.path))
     }
 
-    @Test func layoutContractContainsAllFiveDirectories() {
-        #expect(WorkspaceLayout.allDirectories.count == 5)
+    @Test func layoutContractContainsAllDirectories() {
+        // 契约 v2：六目录（memory 随工作区根漫游，双根严格隔离）
+        #expect(WorkspaceLayout.allDirectories.count == 6)
         #expect(WorkspaceLayout.allDirectories.contains("agents"))
         #expect(WorkspaceLayout.allDirectories.contains("rag"))
         #expect(WorkspaceLayout.allDirectories.contains("plugins-meta"))
         #expect(WorkspaceLayout.allDirectories.contains("themes"))
         #expect(WorkspaceLayout.allDirectories.contains("sync"))
+        #expect(WorkspaceLayout.allDirectories.contains("memory"))
     }
 }

@@ -18,8 +18,10 @@ public enum WorkspaceLayout {
     public static let themeResources = "themes"
     /// 同步暂存（离线队列等）
     public static let syncStaging = "sync"
+    /// 长期记忆库（契约 v2：长期记忆随工作区根漫游，双根严格隔离不迁移）
+    public static let memoryStore = "memory"
 
-    public static let allDirectories: [String] = [agentOutputs, ragStore, pluginMeta, themeResources, syncStaging]
+    public static let allDirectories: [String] = [agentOutputs, ragStore, pluginMeta, themeResources, syncStaging, memoryStore]
 }
 
 public struct WorkspaceRoot: Equatable, Sendable {

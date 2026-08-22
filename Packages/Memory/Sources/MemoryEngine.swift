@@ -318,11 +318,25 @@ public actor SharedMemoryEngine {
 
     private var engine: MemoryEngine?
 
+    /// 当前长期记忆路径（契约 v2：工作区根切换时经 resetFileURL 重路由，双根严格隔离不迁移）
+    private var fileURL: URL
+
+    public init(fileURL: URL? = nil) {
+        self.fileURL = fileURL ?? LongTermMemoryStore.defaultFileURL
+    }
+
+    /// 契约 v2：工作区根切换（本地 ⇄ iCloud）后重路由长期记忆路径；
+    /// 丢弃既有引擎实例，下次 get() 在新路径上重建（严格隔离，不自动迁移数据）
+    public func resetFileURL(_ url: URL) {
+        fileURL = url
+        engine = nil
+    }
+
     public func get() -> MemoryEngine {
         if let engine {
             return engine
         }
-        let engine = MemoryEngine(store: LongTermMemoryStore(fileURL: LongTermMemoryStore.defaultFileURL))
+        let engine = MemoryEngine(store: LongTermMemoryStore(fileURL: fileURL))
         self.engine = engine
         return engine
     }

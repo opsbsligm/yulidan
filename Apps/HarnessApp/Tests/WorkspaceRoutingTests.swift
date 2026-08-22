@@ -3,6 +3,7 @@ import Foundation
 @testable import HarnessApp
 import LLM
 import MCP
+import Memory
 import RAG
 import Testing
 
@@ -175,6 +176,7 @@ struct WorkspaceRouterTests {
         #expect(router.ragIndexURL == fx.localRoot.appendingPathComponent("rag/index.json"))
         #expect(router.pluginMetaURL == fx.localRoot.appendingPathComponent("plugins-meta/installed.json"))
         #expect(router.themeResources == fx.localRoot.appendingPathComponent("themes", isDirectory: true))
+        #expect(router.memoryStoreURL == fx.localRoot.appendingPathComponent("memory/longterm.json"))
         for dir in WorkspaceLayout.allDirectories {
             var isDir: ObjCBool = false
             FileManager.default.fileExists(
@@ -383,13 +385,16 @@ func makeWorkspaceVM(_ fx: AppWorkspaceFixture) -> (vm: AppViewModel, mcpConfigU
     UserDefaults.standard.removeObject(forKey: ThemePluginManager.activeKey)
     let mcpConfigURL = fx.tempDir.appendingPathComponent("mcp/servers.json")
     let ragIndex = fx.tempDir.appendingPathComponent("rag-instance/index.json")
+    let memStore = fx.tempDir.appendingPathComponent("memory-instance/longterm.json")
     let vm = AppViewModel(
         skillUserDirectory: fx.tempDir.appendingPathComponent("skills"),
         sessionDBURL: fx.tempDir.appendingPathComponent("sessions.sqlite"),
         mcpConfigURLOverride: mcpConfigURL,
         workspaceRouter: WorkspaceRouter(accountService: fx.service),
         sharedRAG: SharedRAGEngine(indexURL: ragIndex),
-        accountService: fx.service
+        sharedMemory: SharedMemoryEngine(fileURL: memStore),
+        accountService: fx.service,
+        legacyMemoryURLOverride: fx.tempDir.appendingPathComponent("legacy-none/longterm.json")
     )
     return (vm, mcpConfigURL)
 }

@@ -458,6 +458,7 @@ final class AppViewModel: ObservableObject {
     let workspaceRouter: WorkspaceRouter
     /// 共享 RAG 引擎实例（生产 = .shared；测试注入独立实例防并行套件互踩）
     let sharedRAG: SharedRAGEngine
+    let sharedMemory: SharedMemoryEngine
     /// 文件型主题包插件（P0.4.3：资源在活动工作区 themes/；卸载删目录）
     private var fileThemePackages: [FileThemePackagePlugin] = []
     @Published private(set) var fileThemePackageIDs: Set<String> = []
@@ -495,7 +496,9 @@ final class AppViewModel: ObservableObject {
     /// - Parameter skillUserDirectory: 用户技能目录（测试注入隔离目录；生产默认 ~/.harness/skills）
     init(skillUserDirectory: URL? = nil, sessionDBURL: URL? = nil, mcpConfigURLOverride: URL? = nil,
          workspaceRouter: WorkspaceRouter? = nil, sharedRAG: SharedRAGEngine? = nil,
-         accountService: AccountService? = nil, subagentHistoryURLOverride: URL? = nil) {
+         sharedMemory: SharedMemoryEngine? = nil,
+         accountService: AccountService? = nil, subagentHistoryURLOverride: URL? = nil,
+         legacyMemoryURLOverride: URL? = nil) {
         self.mcpConfigURLOverride = mcpConfigURLOverride
         subagentHistoryURLOverrideInstance = subagentHistoryURLOverride
         let container = ServiceContainer()
@@ -526,13 +529,13 @@ final class AppViewModel: ObservableObject {
         self.accountService.restore()
         self.workspaceRouter = workspaceRouter ?? WorkspaceRouter(accountService: self.accountService)
         self.sharedRAG = sharedRAG ?? .shared
+        self.sharedMemory = sharedMemory ?? .shared
         // 先占位（init 两阶段初始化限制），onEvent 由 registerSubagentRuntime 后置赋值
         subagentCoordinator = SubagentCoordinator(maxConcurrent: 4)
         // 全部存储属性初始化完成后：按实例历史 URL 加载磁盘历史（实例覆盖优先，避免 init 默认值阶段 static 竞态）
         subagents = loadSubagentHistoryItems()
-
-        // 启动工具：内置工具（沙箱）+ MCP 演示服务器 + 技能系统
-        Task { await self.registerStartupTools() }
+        // 启动工具：契约 v2 迁移 + 记忆重路由（当前根）+ 注册链路（单 Task 链保证顺序，见 bootstrapMemoryAndTools）
+        bootstrapMemoryAndTools(legacyURL: legacyMemoryURLOverride ?? LongTermMemoryStore.defaultFileURL)
 
         // 安装真实内置插件（P0.3：失败不阻塞启动但传播到插件页异常 UI）
         Task {
@@ -668,7 +671,7 @@ final class AppViewModel: ObservableObject {
             await toolRegistry.register(tool)
         }
         // 记忆系统：长期记忆 + 反馈闭环（~/.harness/memory/longterm.json；与 RAG 联动）
-        let memoryEngine = await SharedMemoryEngine.shared.get()
+        let memoryEngine = await sharedMemory.get()
         await memoryEngine.attachRAG(ragEngine)
         for tool in MemoryTools.makeAll(engine: memoryEngine) {
             await toolRegistry.register(tool)
@@ -975,17 +978,46 @@ final class AppViewModel: ObservableObject {
 
     /// 工作区根切换（本地 ⇄ iCloud）：重路由运行时目录集
     func handleWorkspaceRootChanged() async {
-        // ① RAG 索引重路由 + 记忆引擎重新挂接（严格隔离，不迁移数据）
+        // ① RAG 索引重路由 + 长期记忆路径重路由（契约 v2）+ 记忆引擎重新挂接（严格隔离，不迁移数据）
         await sharedRAG.resetIndexURL(workspaceRouter.ragIndexURL)
-        if let memoryEngine {
-            await memoryEngine.attachRAG(sharedRAG.get())
-        }
+        await sharedMemory.resetFileURL(workspaceRouter.memoryStoreURL)
+        let memoryEngine = await sharedMemory.get()
+        await memoryEngine.attachRAG(sharedRAG.get())
+        self.memoryEngine = memoryEngine
         // ② 文件型主题包从新根重建（新根缺失的包 → 主题刷新时自动回落系统基准）
         await loadFileThemePackagesFromWorkspace()
         // ③ 插件元数据对账（本地二进制存在的 localMCP 条目恢复连接；缺失 → 需重新导入）
         await reconcilePluginMetadata()
         // ④ 刷新主题选项（激活主题来源消失 → 自动回落）
         await refreshThemes()
+    }
+
+    /// 启动链（契约 v2）：旧固定路径记忆一次性迁移（同步，仅本地根且目标缺失）→
+    /// 重路由长期记忆到当前根 → 注册启动工具；单 Task 链保证「重路由先于首次 get()」，消除竞态。
+    private func bootstrapMemoryAndTools(legacyURL: URL) {
+        _ = migrateLegacyMemoryIfNeeded(legacyURL: legacyURL)
+        Task {
+            await self.sharedMemory.resetFileURL(self.workspaceRouter.memoryStoreURL)
+            await self.registerStartupTools()
+        }
+    }
+
+    /// 契约 v2 一次性迁移：旧固定路径长期记忆（~/.harness/memory/longterm.json）→ 当前根 memory/
+    /// 仅本地模式且目标缺失时复制（iCloud 模式不迁移——双根严格隔离；目标已存在不覆盖）；旧文件保留不删除。
+    /// 返回 true = 实际发生迁移。
+    @discardableResult
+    func migrateLegacyMemoryIfNeeded(legacyURL: URL = LongTermMemoryStore.defaultFileURL) -> Bool {
+        let target = workspaceRouter.memoryStoreURL
+        guard !workspaceRouter.isICloud else { return false }
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: legacyURL.path), !fm.fileExists(atPath: target.path) else { return false }
+        do {
+            try fm.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try fm.copyItem(at: legacyURL, to: target)
+            return true
+        } catch {
+            return false
+        }
     }
 
     /// 插件元数据清单持久化（元数据 + 启用意图 + 配置；MCP 二进制永不入清单文件同步）
