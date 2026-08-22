@@ -13,6 +13,7 @@ xcuserdata/
 # 覆盖率/报告产物
 *.xctestplan.bak
 coverage/.xcbuild/
+*.profraw
 
 # macOS
 .DS_Store
