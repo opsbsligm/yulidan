@@ -191,17 +191,14 @@ struct AppViewModelChatOpsTests {
         // 子任务历史文件隔离（防跨 run 累积：终态条目会写入历史，下次 init 加载）
         let historyURL = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("harness-chatops-history-\(UUID().uuidString).json")
-        AppViewModel.subagentHistoryURLOverride = historyURL
-        defer {
-            AppViewModel.subagentHistoryURLOverride = nil
-            try? FileManager.default.removeItem(at: historyURL)
-        }
+        defer { try? FileManager.default.removeItem(at: historyURL) }
         let dbURL = tempDBURL()
         defer { try? FileManager.default.removeItem(at: dbURL) }
         let skillDir = tempSkillDir()
         defer { try? FileManager.default.removeItem(at: skillDir) }
 
-        let vm = AppViewModel(skillUserDirectory: skillDir, sessionDBURL: dbURL)
+        let vm = AppViewModel(skillUserDirectory: skillDir, sessionDBURL: dbURL,
+                              subagentHistoryURLOverride: historyURL)
         vm.llmConfig.provider = .local
         vm.providerFactoryOverride = { _, _ in provider }
         defer { vm.providerFactoryOverride = nil }

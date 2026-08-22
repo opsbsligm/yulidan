@@ -21,8 +21,8 @@
 | SwiftFormat | ✅ 0 改动 | `swiftformat --lint . --config .swiftformat`（197 文件，P0.3 新增 2） |
 | SwiftLint | ✅ 0 违规 | `swiftlint lint --strict --config .swiftlint.yml`（197 文件，P0.3 新增 2） |
 | 编译 | ✅ 0 警告 | 全量冷编译（450 targets 含测试目标，覆盖率构建实测） |
-| 单元测试 | ✅ 642/642 | Swift Testing 642（133 suites）+ XCTest 0 失败（P0.1.5 消费端新增 5：SessionWorkspaceToolTests 3（XCTest）+ AgentLoop provider 下发 1 + App 全链路 e2e 1；前轮累计：App 工作区路由 15 + RAG indexURL 2 + 稳定序 1 + 样例防漂移 1） |
-| 本地 CI 模拟 | ✅ pr+main 全绿（xcode 复用基线） | `tools/ci-local.sh`（P0.1.5 消费端：pr /tmp/p015b_ci_pr2.log + main /tmp/p015b_ci_main.log（各 642/642，main 含覆盖率汇总，均 gate exit 0）；前轮基线 pr /tmp/p015_ci_pr7.log（640/640）+ main /tmp/p015_ci_main.log + leaks /tmp/p015_ci_leaks.log 全绿 0 leaks（pr 累计 5 轮稳定性验证）；xcode 复用 P0.2 /tmp/p02_ci_xcode8.log 基线——本轮零工程结构变更（无新 target/依赖），结构变更时必复跑） |
+| 单元测试 | ✅ 645/645 | Swift Testing 645（134 suites）+ XCTest 0 失败（P2 ① 新增 3：在途 LLM 联动取消——支持取消 provider 请求即时中断 / 不支持取消 provider 延迟响应丢弃不污染 wire 历史 / 无取消正常 turn 回归；前轮累计：P0.1.5 消费端 5 + App 工作区路由 15 + RAG indexURL 2 + 稳定序 1 + 样例防漂移 1） |
+| 本地 CI 模拟 | ✅ pr+main 全绿（xcode 复用基线） | `tools/ci-local.sh`（P2 ① 在途取消：pr /tmp/p2cancel_ci_pr2.log + main /tmp/p2cancel_ci_main.log（各 645/645，main 含覆盖率汇总，均 gate exit 0）；前轮基线（P0.1.5 消费端：pr /tmp/p015b_ci_pr2.log + main /tmp/p015b_ci_main.log 各 642/642）；更早基线 pr /tmp/p015_ci_pr7.log（640/640）+ main /tmp/p015_ci_main.log + leaks /tmp/p015_ci_leaks.log 全绿 0 leaks（pr 累计 5 轮稳定性验证）；xcode 复用 P0.2 /tmp/p02_ci_xcode8.log 基线——本轮零工程结构变更（无新 target/依赖），结构变更时必复跑） |
 | 本地镜像备份 | ✅ 每次提交后 | `git push --mirror /Users/liguangming/code/swift-harness-backup.git` |
 | GitHub 推送 | ⏸ 暂缓 | 按用户要求先本地版本控制，未推送远端（`.github/workflows/swift-ci.yml` 四 job 已就位；本地模拟 `tools/ci-local.sh [pr|leaks|xcode|main]` 可跑，leaks 门禁 0 leaks 实测） |
 
@@ -114,7 +114,7 @@
 | 问题 | 说明 | 状态 |
 |------|------|------|
 | `dsh web` 与"非 Web 服务"约束边界 | 需用户确认约束口径（WebUI 为本地 127.0.0.1 调试服务，非对外 Web 服务） | 待确认 |
-| stopGenerating 不中断在途 LLM 调用（设计权衡） | 现象：`AgentLoop.cancel` 仅标记 cancelFlag + 唤醒 whenIdle 等待者，在途 `llm.request` 在后台自行完成（代码注释明示「在途 LLM 调用在后台自行完成，不再阻塞协调器」，F5 决策）。本地模型无副作用；远程模型会浪费一次请求配额。**已验证不变量**（`56efd78` 场景测试锁定）：延迟响应到达后不追加进会话消息流、无错误消息残留 | 已知设计（观察项）：若后续远程多模型成本敏感，可升级为「cancel 联动中断在途请求」（需 AgentLoop 持有在途 Task 引用，属架构扩展，本轮不做） |
+| ~~stopGenerating 不中断在途 LLM 调用（设计权衡）~~（已升级） | 原现象：`AgentLoop.cancel` 仅标记 cancelFlag，在途 `llm.request` 后台自行完成，远程模型浪费一次请求配额。**P2 ① 已升级为联动取消**：turn 入可取消 Task，cancel() 联动中断在途请求（全部 URLSession 适配器支持取消，即时中止）；不支持取消的 provider 其延迟响应被 runTurn 丢弃（不进 wire 历史 / 不作最终回答 / 不产错误消息）。**不变量保持**：取消路径无错误消息残留、无会话流污染（新增 3 测试 + `56efd78` 场景测试继续锁定） | 已闭环（本轮，645/645） |
 | 冷 scratch 偶发 emit-module 工具链崩溃 | `no such module 'Agent'`，同 scratch 重试即过（环境坑非代码） | 已知 |
 | SSO + iCloud 真机验收待 Developer Team | 无描述文件时本地 ad-hoc 签名无法携带 applesignin/icloud entitlements（Xcode ad-hoc 拒绝 team 级 entitlements，实测）；已按「无 entitlements 优雅降级」设计交付（UI 显示「需配置 entitlement/描述文件」+ 重新申请入口 + retryICloud），真实 SSO 登录 / KVS 跨设备漫游验收待用户提供 Team | 待用户（不阻塞） |
 | ~~KVS 跨设备冲突用户裁决 UI 未接~~（已过时） | P0.1.4 `de9bdc8` 已接入「账号与同步」冲突裁决卡（本地/云端双栏 + 保留本地/保留云端 + 10min 安全网）。另核 P0.1.5 轮：工作区载荷（WorkspaceSyncPayload.applyChanges）为**按字段合并**纯函数（远端值逐字段求差落库），无挂起冲突态，设计上无需用户裁决 UI | 已闭环（`de9bdc8`） |
@@ -178,19 +178,21 @@
 | 会话 cwd 只存不消费（P0.1.2/1.3 验收缺口：SessionMetadata.cwd 已落盘但 Agent 工具链零消费，read/write/list/exec 无视会话工作区，iCloud 容器工作区实机验收必翻车） | 本轮（ToolRunContext.workingDirectory + resolveToolPath 先解析后沙箱校验（防相对路径绕过）+ Read/Write/List 相对路径进工作区 + exec 继承会话工作目录 + AgentLoop workingDirectoryProvider 注入 + AppViewModel 会话级 provider/UI executeTool 双端下发；5 新测试含 App 全链路 e2e） |
 | UserDefaults sandboxRoot 跨 suite 磁盘持久化泄漏（ToolPanel 沙箱场景写入全局 defaults 且进程退出前未落盘恢复 → 后续 VM 套件读到死根 → 会话工作区写入误判 outside_sandbox；swift test 管道吞退出码致「642 passed」表象下 XCTest 静默失败） | 本轮（AppWorkspaceFixture init 移除/cleanup 恢复 + synchronize 强制落盘 + ToolPanel defer 恢复后 synchronize；根因：UserDefaults 异步合批 + 进程被杀/中断时恢复未持久化） |
 | exec 输出断言格式漂移（testExecWorkingDirectoryFromContext 断言 pwd 原始路径，工具固定输出「✅ 退出码 N\n\n<output>」前缀 → 必败） | 本轮（断言改前缀 + contains 双条件，与 read/list 断言口径统一） |
+| 跨 suite 静态 subagentHistoryURLOverride 竞态（Subagent 套件与 ChatOps 套件并行时互覆/互清 static override → 一方的 vm 回落到真实 `~/Library/Application Support/Harness/subagent_history.json`，该文件被历史 run 累积 46 条测试条目 → clearFinishedSubagents 断言失败，跨 run 复现） | 本轮（实例级测试缝：AppViewModel init 增 `subagentHistoryURLOverride:` 参数 + 实例 `subagentHistoryURL` 计算属性（实例覆盖 > 默认目录），删除 static override；`subagents` 初始值从属性默认值移入 init 体（全部存储属性初始化后按实例 URL 加载）；两测试文件 7 处改实例参数；真实历史文件备份后重置为空） |
+| in-flight LLM 调用不可取消（stopGenerating 仅协调层释放，远程请求配额浪费） | 本轮（AgentLoop turn Task 化 + cancel 联动取消 + isCancellationError 判定 CancellationError/URLError.cancelled + 延迟响应双点丢弃（循环顶 + 请求后）+ 3 新测试；AgentLoop 覆盖率 89.72%→89.98%） |
 
 ## 五、代码统计
 
 | 项 | 数值 |
 |----|------|
-| 源码（Packages，92 源文件） | 13,690 行（P0.1.5 消费端：ToolRunContext.workingDirectory + resolveToolPath 相对路径解析 + AgentLoop workingDirectoryProvider，+35） |
-| 源码（Apps，44 文件，HarnessApp + 辅助 target） | 10,641 行（P0.1.5 消费端：AppViewModel obtainChatLoop workingDirectoryProvider + UI executeTool context 下发，+4） |
-| 源码合计（136 文件） | 24,331 行 |
-| 测试代码（79 文件） | 17,362 行（P0.1.5 消费端新增：SessionWorkspaceToolTests 3 场景 + AgentWorkingDirectoryTests 1 + WorkspaceRoutingE2ETests 全链路 e2e 1（自 WorkspaceRoutingTests 拆出，SwiftLint file_length≤600）+ fixture 沙箱隔离 +262） |
+| 源码（Packages，92 源文件） | 13,728 行（P2 ①：AgentLoop turn Task 化 + 联动取消 + 取消中性收敛 helper，+38） |
+| 源码（Apps，44 文件，HarnessApp + 辅助 target） | 10,649 行（子任务历史 URL 实例级测试缝：init 参数 + 实例计算属性 + init 体加载） |
+| 源码合计（136 文件） | 24,377 行 |
+| 测试代码（80 文件） | 17,530 行（P2 ① 新增 AgentInFlightCancellationTests 3 场景 + 子任务历史 URL 实例缝迁移 2 文件） |
 | SPM 目标 | 22 库（17 后端包 + 5 辅助库 Workspace/Plan/Goal/HarnessCore/Account 扩展）/ 4 可执行 + 20 测试目标（单一 xctest 进程） |
 | 工具链 | Swift 6.3.3 / Xcode 26.6 / macOS arm64 / platforms .macOS(.v26) |
-| 覆盖率口径 | llvm-cov 仅统计 Packages/*（Apps/HarnessApp 层不在表内，既有口径）；P0.1.5 消费端 main 门禁核心包（/tmp/p015b_ci_main.log）：AccountService 94.08% / AgentLoop 89.72%（+0.06，provider 下发路径）/  MCP.swift 97.31% / StdioMCPClient 92.53% / RAGEngine 94.02%（+0.27，2 新路由测试）/ MemoryEngine 95.02% / XPCPluginHost 96.57% |
-| 提交总数 | 134（P0.1.5：`70a40a2` feat + `62ff3ff` 消费端接线 + 各 docs/fix 提交） |
+| 覆盖率口径 | llvm-cov 仅统计 Packages/*（Apps/HarnessApp 层不在表内，既有口径）；P2 ① main 门禁核心包（/tmp/p2cancel_ci_main.log）：AccountService 94.08% / AgentLoop 89.98%（联动取消路径覆盖）/  MCP.swift 97.31% / StdioMCPClient 92.53% / RAGEngine 94.02%（+0.27，2 新路由测试）/ MemoryEngine 95.02% / XPCPluginHost 96.57% |
+| 提交总数 | 137（P2 ①：在途 LLM 联动取消 + 子任务历史 URL 实例缝；前轮 P0.1.5 消费端 `62ff3ff` 等） |
 
 ### 八大后端模块代码级需求审计（2026-08-20 跨会话核验轮）
 
@@ -303,4 +305,4 @@ cf0e230  docs(quality): 刷新质量报告 — 前端阶段1/2 基线
 
 1. 用户依赖（不阻塞）：① Apple Developer Team/描述文件（SSO + iCloud 真机验收；当前按「无 entitlements 优雅降级」设计，UI 显示「需配置 entitlement/描述文件」+ 重新申请入口）② 「账号与同步」设置子页 + P0.2 项目模块实机视觉验收（演示数据已注入真实 DB，可右键删除项目清理）③ GitHub Actions 远端仍暂缓（ci-local 四模式本地模拟；KVS 冲突裁决 UI 已随 P0.1.4 闭环，原待办项核销）
 2. 持续观察：P1 macOS 27 beta 协作池调度停滞（每轮全量回归观察，CI 有界重试兜底；macOS 正式版若复现再升级）+ P2 macOS 27 beta 窗口服务器幻影 CGWindowList 报告（缓解已上线 `4beb21d`，实机渲染不受影响；macOS 官方正式版修复后复核并移除缓解逻辑）
-3. 持续迭代候选（均不阻塞）：① in-flight LLM 调用 cancel 联动中断（P2，AgentLoop 架构扩展）② KVS 冲突裁决 UI（含 workspace 冲突）③ 项目拖拽排序 UI 暴露 ④ 覆盖率工具链口径统一（官方工具链修复 profdata -f bug 后恢复）
+3. 持续迭代候选（均不阻塞）：① ~~in-flight LLM 调用 cancel 联动中断~~（**本轮已闭环**：turn Task 化 + 联动取消，645/645）② KVS 冲突裁决 UI（含 workspace 冲突）③ 项目拖拽排序 UI 暴露 ④ 覆盖率工具链口径统一（官方工具链修复 profdata -f bug 后恢复）

@@ -127,12 +127,8 @@ struct AppViewModelSubagentTests {
     @Test("refreshSubagents：新终态写入历史文件并合并进列表")
     func refreshMergesAndPersists() async {
         let url = freshOverrideURL()
-        AppViewModel.subagentHistoryURLOverride = url
-        defer {
-            AppViewModel.subagentHistoryURLOverride = nil
-            try? FileManager.default.removeItem(at: url)
-        }
-        let vm = AppViewModel()
+        let vm = AppViewModel(subagentHistoryURLOverride: url)
+        defer { try? FileManager.default.removeItem(at: url) }
         let id = await vm.subagentCoordinator.spawn(agent: makeTestAgentLoop(text: "单测完成"), spec: .init(name: "单测任务", task: "完成任务"))
         let item = await waitFor(vm, id: id.rawValue.uuidString)
         #expect(item?.phase == .succeeded)
@@ -146,12 +142,8 @@ struct AppViewModelSubagentTests {
     @Test("重复 refresh 不重复写历史（幂等去重）")
     func refreshIdempotent() async {
         let url = freshOverrideURL()
-        AppViewModel.subagentHistoryURLOverride = url
-        defer {
-            AppViewModel.subagentHistoryURLOverride = nil
-            try? FileManager.default.removeItem(at: url)
-        }
-        let vm = AppViewModel()
+        let vm = AppViewModel(subagentHistoryURLOverride: url)
+        defer { try? FileManager.default.removeItem(at: url) }
         let id = await vm.subagentCoordinator.spawn(agent: makeTestAgentLoop(text: "幂等"), spec: .init(name: "幂等任务", task: "t"))
         _ = await waitFor(vm, id: id.rawValue.uuidString)
         await vm.refreshSubagents()
@@ -167,12 +159,8 @@ struct AppViewModelSubagentTests {
             SubagentHistoryItem(id: "hist-1", name: "历史任务", phase: .succeeded, resultText: "历史结果",
                                 error: nil, elapsed: 1.5, stepLines: ["步骤1 · 回复 历史结果"], finishedAt: Date()),
         ], url: url)
-        AppViewModel.subagentHistoryURLOverride = url
-        defer {
-            AppViewModel.subagentHistoryURLOverride = nil
-            try? FileManager.default.removeItem(at: url)
-        }
-        let vm = AppViewModel()
+        let vm = AppViewModel(subagentHistoryURLOverride: url)
+        defer { try? FileManager.default.removeItem(at: url) }
         #expect(vm.subagents.count == 1)
         #expect(vm.subagents.first?.name == "历史任务")
         #expect(vm.subagents.first?.phase == .succeeded)
@@ -181,12 +169,8 @@ struct AppViewModelSubagentTests {
     @Test("clearFinishedSubagents：协调器与历史文件一并清空")
     func clearFinished() async {
         let url = freshOverrideURL()
-        AppViewModel.subagentHistoryURLOverride = url
-        defer {
-            AppViewModel.subagentHistoryURLOverride = nil
-            try? FileManager.default.removeItem(at: url)
-        }
-        let vm = AppViewModel()
+        let vm = AppViewModel(subagentHistoryURLOverride: url)
+        defer { try? FileManager.default.removeItem(at: url) }
         let id = await vm.subagentCoordinator.spawn(agent: makeTestAgentLoop(text: "将被清理"), spec: .init(name: "清理任务", task: "t"))
         _ = await waitFor(vm, id: id.rawValue.uuidString)
         #expect(vm.subagents.count == 1)
@@ -200,12 +184,8 @@ struct AppViewModelSubagentTests {
     @Test("cancelSubagent：运行中的子任务被取消")
     func cancelRunning() async {
         let url = freshOverrideURL()
-        AppViewModel.subagentHistoryURLOverride = url
-        defer {
-            AppViewModel.subagentHistoryURLOverride = nil
-            try? FileManager.default.removeItem(at: url)
-        }
-        let vm = AppViewModel()
+        let vm = AppViewModel(subagentHistoryURLOverride: url)
+        defer { try? FileManager.default.removeItem(at: url) }
         let id = await vm.subagentCoordinator.spawn(agent: makeTestAgentLoop(text: "很慢", delay: 3), spec: .init(name: "取消任务", task: "t"))
         // 等到运行中
         let running = await waitFor(vm, id: id.rawValue.uuidString, terminal: false, timeout: 3)
@@ -222,12 +202,8 @@ struct AppViewModelSubagentTests {
     @Test("spawnSubagentFromChat：无输入 → toast 拦截")
     func spawnFromChatValidation() {
         let url = freshOverrideURL()
-        AppViewModel.subagentHistoryURLOverride = url
-        defer {
-            AppViewModel.subagentHistoryURLOverride = nil
-            try? FileManager.default.removeItem(at: url)
-        }
-        let vm = AppViewModel()
+        let vm = AppViewModel(subagentHistoryURLOverride: url)
+        defer { try? FileManager.default.removeItem(at: url) }
         vm.lastUserMessage = ""
         vm.spawnSubagentFromChat("   ")
         #expect(vm.toastMessage == "没有可派生的输入内容")

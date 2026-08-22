@@ -19,6 +19,24 @@ public enum AgentError: Error, LocalizedError, Sendable {
     }
 }
 
+/// 判定取消语义错误（Task 协作取消 / URLSession 任务取消），与真实 LLM 错误区分
+private func isCancellationError(_ error: Error) -> Bool {
+    if error is CancellationError {
+        return true
+    }
+    if let urlError = error as? URLError, urlError.code == .cancelled {
+        return true
+    }
+    return false
+}
+
+/// 取消时 turn 中性收敛：无错误消息（不污染会话流）、无最终回答、无历史污染
+private func cancelledResult(_ turn: Turn, _ steps: [AssistantMessage],
+                             _ traces: [ToolTraceEntry]) async -> AgentResult {
+    await turn.complete()
+    return AgentResult(status: .idle, steps: steps, toolTraces: traces)
+}
+
 /// Agent Loop — 驱动 Agent 对话循环
 ///
 /// 每个 turn：把用户消息追加进上下文 → 循环调用 LLM →
@@ -41,6 +59,8 @@ public actor AgentLoop {
     private var idleWaiters: [OnceIdleContinuation] = []
     /// 取消标记：置位后 whenIdle 立即返回；新的 send/followup 会清除
     private var cancelFlag = false
+    /// 在途 turn Task（processInbox 创建、收敛后置 nil；cancel() 联动取消以中断在途 LLM 调用）
+    private var inFlightTurn: Task<AgentResult, Never>?
 
     private let llm: any LLMProvider
     private let tools: ToolRegistry
@@ -136,10 +156,13 @@ public actor AgentLoop {
             inbox.clear()
         }
         cancelFlag = true
-        // 打断运行中的 turn：标记 idle 并唤醒 whenIdle 等待者
-        // （在途 LLM 调用在后台自行完成，不再阻塞协调器）
+        // 在途 turn 联动取消（P2 ①）：支持取消的 provider（全部 URLSession 适配器）立即中止请求；
+        // 不支持取消的 provider 在其自身请求时长内完成后，runTurn 丢弃延迟响应（不进 wire 历史）
+        inFlightTurn?.cancel()
         if status != .idle {
-            status = .idle
+            // 先唤醒 whenIdle 等待者（调用方任务通常已取消，结果仅作收敛）；
+            // 不在此翻 status：旧 turn Task 尚未收敛，status 由 processInbox defer 释放，
+            // 防止旧 turn 未收敛时新 turn 准入（并发写 history 竞态）
             notifyIdleWaiters()
         }
     }
@@ -174,9 +197,7 @@ public actor AgentLoop {
     /// 取消路径唤醒：立即以当前结果 resume（调用方任务已取消，结果仅作收敛）；
     /// 不中断运行中的 turn（OnceBox 与正常完成路径互斥，恰好一方生效）
     private func wakeIdleWaiter(_ box: OnceIdleContinuation) {
-        if let idx = idleWaiters.firstIndex(where: { $0 === box }) {
-            idleWaiters.remove(at: idx)
-        }
+        idleWaiters.removeAll { $0 === box }
         box.resume(lastResult)
     }
 
@@ -189,8 +210,13 @@ public actor AgentLoop {
             notifyIdleWaiters()
         }
 
-        while let batch = inbox.claimNext() {
-            lastResult = await runTurn(batch)
+        while !cancelFlag, let batch = inbox.claimNext() {
+            // turn 在可取消 Task 中执行：cancel() 可中断在途 LLM 调用（联动取消，P2 ①）；
+            // status 保持 .running 直至 Task 收敛，保证 turn 串行（无并发 history 写）
+            let turnTask = Task { await self.runTurn(batch) }
+            inFlightTurn = turnTask
+            lastResult = await turnTask.value
+            inFlightTurn = nil
         }
     }
 
@@ -232,6 +258,10 @@ public actor AgentLoop {
         do {
             var step = 0
             while step < maxSteps {
+                // 已取消：中性结束本 turn，不再发起新 LLM 调用 / 执行新工具
+                if Task.isCancelled {
+                    return await cancelledResult(turn, stepMessages, toolTraces)
+                }
                 step += 1
                 // 能力门控：provider 画像不支持工具调用时不下发 tools（如未细分的本地引擎），模型直接作答
                 let request = await LLMRequest(
@@ -241,6 +271,10 @@ public actor AgentLoop {
                     tools: llm.profile.supportsToolCalls ? tools.schemas() : nil
                 )
                 let response = try await llm.request(request)
+                // 已取消：不支持取消的 provider 延迟返回的响应必须丢弃（不进 wire 历史、不作最终回答）
+                if Task.isCancelled {
+                    return await cancelledResult(turn, stepMessages, toolTraces)
+                }
 
                 // 记录助手消息（含工具调用块，下一轮 wire 请求需回传）
                 history.append(Self.assistantHistoryMessage(response))
@@ -277,6 +311,10 @@ public actor AgentLoop {
             trimHistory()
             return AgentResult(status: .idle, error: error.localizedDescription, steps: stepMessages, toolTraces: toolTraces)
         } catch {
+            // 在途 LLM 调用被 cancel 中断（CancellationError / URLError.cancelled）：中性收敛
+            if isCancellationError(error) {
+                return await cancelledResult(turn, stepMessages, toolTraces)
+            }
             await turn.fail(with: error)
             return AgentResult(status: .idle, error: error.localizedDescription, steps: stepMessages, toolTraces: toolTraces)
         }

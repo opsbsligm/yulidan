@@ -428,6 +428,9 @@ final class AppViewModel: ObservableObject {
         mcpConfigURLOverride ?? MCPDiscovery.defaultURL
     }
 
+    /// 子任务历史文件 URL 测试缝（实例级，同 mcpConfigURLOverride 隔离纪律）
+    private let subagentHistoryURLOverrideInstance: URL?
+
     /// 基础设施（真实组件）
     var sessionDB: SessionDB?
     /// 会话 DB 路径（加载失败后重试时重新打开）
@@ -465,8 +468,8 @@ final class AppViewModel: ObservableObject {
     let skillUserDirectory: URL
     @Published var skills: [Skill] = []
 
-    /// 多 Agent（默认值 = 磁盘历史，重启后终态子任务仍可见）
-    @Published var subagents: [SubagentDisplayItem] = AppViewModel.loadSubagentHistoryItems()
+    /// 多 Agent（init 中按实例历史 URL 加载磁盘历史，重启后终态子任务仍可见）
+    @Published var subagents: [SubagentDisplayItem] = []
 
     private var generateTask: Task<Void, Never>?
     /// 当前生成所用的 AgentLoop（stopGenerating 时同步取消；nil = 无进行中生成）
@@ -492,8 +495,9 @@ final class AppViewModel: ObservableObject {
     /// - Parameter skillUserDirectory: 用户技能目录（测试注入隔离目录；生产默认 ~/.harness/skills）
     init(skillUserDirectory: URL? = nil, sessionDBURL: URL? = nil, mcpConfigURLOverride: URL? = nil,
          workspaceRouter: WorkspaceRouter? = nil, sharedRAG: SharedRAGEngine? = nil,
-         accountService: AccountService? = nil) {
+         accountService: AccountService? = nil, subagentHistoryURLOverride: URL? = nil) {
         self.mcpConfigURLOverride = mcpConfigURLOverride
+        subagentHistoryURLOverrideInstance = subagentHistoryURLOverride
         let container = ServiceContainer()
         let eventBus = EventBus()
         pluginManager = PluginManager(container: container, eventBus: eventBus,
@@ -524,6 +528,8 @@ final class AppViewModel: ObservableObject {
         self.sharedRAG = sharedRAG ?? .shared
         // 先占位（init 两阶段初始化限制），onEvent 由 registerSubagentRuntime 后置赋值
         subagentCoordinator = SubagentCoordinator(maxConcurrent: 4)
+        // 全部存储属性初始化完成后：按实例历史 URL 加载磁盘历史（实例覆盖优先，避免 init 默认值阶段 static 竞态）
+        subagents = loadSubagentHistoryItems()
 
         // 启动工具：内置工具（沙箱）+ MCP 演示服务器 + 技能系统
         Task { await self.registerStartupTools() }
@@ -1978,7 +1984,7 @@ final class AppViewModel: ObservableObject {
     func stopGenerating() {
         generateTask?.cancel()
         generateTask = nil
-        // 同步取消 AgentLoop：whenIdle 立即返回，在途 LLM 调用后台自行完成（不再阻塞）
+        // 同步取消 AgentLoop：whenIdle 立即返回，在途 LLM 调用联动中断（支持取消的 provider 立即中止请求；延迟响应由 AgentLoop 丢弃）
         Task { [chatAgent] in await chatAgent?.cancel(keepInbox: false) }
         isGenerating = false
         generatingSessionId = nil
@@ -2422,8 +2428,6 @@ final class AppViewModel: ObservableObject {
     // MARK: - 多 Agent 协作（真实 SubagentCoordinator 编排）
 
     /// 历史文件路径覆盖（单元测试隔离用；生产为 nil）
-    static var subagentHistoryURLOverride: URL?
-
     /// 通知服务工厂覆盖（单元测试隔离用；生产为 nil → 系统通知）
     static var notificationServiceFactory: (@Sendable () -> any NotificationService)?
     /// 模型供应商工厂覆盖（单元测试隔离用；生产为 nil → 真实 API 适配器）
@@ -2433,11 +2437,15 @@ final class AppViewModel: ObservableObject {
     /// 多个 suite 并行时避免静态工厂被跨 suite 覆盖导致脚本化 LLM 错配；生产为 nil）
     var providerFactoryOverride: (@Sendable (LLMConfig, String) -> (any LLMProvider))?
 
-    /// 子任务历史文件（~/Library/Application Support/Harness/，与 XPC plist 同目录约定）
-    static var subagentHistoryURL: URL {
-        if let override = subagentHistoryURLOverride {
+    /// 子任务历史文件（实例级覆盖 = 单测隔离缝；默认 ~/Library/Application Support/Harness/，与 XPC plist 同目录约定）
+    var subagentHistoryURL: URL {
+        if let override = subagentHistoryURLOverrideInstance {
             return override
         }
+        return Self.defaultSubagentHistoryURL
+    }
+
+    static var defaultSubagentHistoryURL: URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support")
         let dir = base.appendingPathComponent("Harness", isDirectory: true)
@@ -2445,20 +2453,20 @@ final class AppViewModel: ObservableObject {
         return dir.appendingPathComponent("subagent_history.json")
     }
 
-    static func loadSubagentHistoryItems() -> [SubagentDisplayItem] {
+    func loadSubagentHistoryItems() -> [SubagentDisplayItem] {
         SubagentHistoryStore.load(url: subagentHistoryURL).map { SubagentDisplayItem(from: $0) }
     }
 
     func refreshSubagents() async {
         let states = await subagentCoordinator.allStates()
         let live = states.map { SubagentDisplayItem(state: $0) }
-        var history = SubagentHistoryStore.load(url: Self.subagentHistoryURL)
+        var history = SubagentHistoryStore.load(url: subagentHistoryURL)
         let knownIDs = Set(history.map(\.id))
         // 新到终态的条目写入历史（去重、最新在前、带上限）
         let fresh = live.filter { $0.phase.isTerminal && !knownIDs.contains($0.id) }
         if !fresh.isEmpty {
             history = Array((fresh.map(\.toHistory) + history).prefix(SubagentHistoryStore.defaultCap))
-            SubagentHistoryStore.save(history, url: Self.subagentHistoryURL)
+            SubagentHistoryStore.save(history, url: subagentHistoryURL)
         }
         let liveIDs = Set(live.map(\.id))
         subagents = live + history.filter { !liveIDs.contains($0.id) }.map { SubagentDisplayItem(from: $0) }
@@ -2544,8 +2552,8 @@ final class AppViewModel: ObservableObject {
     func clearFinishedSubagents() {
         Task {
             let removed = await subagentCoordinator.removeFinished()
-            let historyCount = SubagentHistoryStore.load(url: Self.subagentHistoryURL).count
-            SubagentHistoryStore.save([], url: Self.subagentHistoryURL)
+            let historyCount = SubagentHistoryStore.load(url: subagentHistoryURL).count
+            SubagentHistoryStore.save([], url: subagentHistoryURL)
             await refreshSubagents()
             let total = removed + historyCount
             if total > 0 {
