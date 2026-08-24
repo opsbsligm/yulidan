@@ -22,13 +22,13 @@
 | SwiftLint | ✅ 0 违规 | `swiftlint lint --strict --config .swiftlint.yml`（197 文件，P0.3 新增 2） |
 | 编译 | ✅ 0 警告 | 全量冷编译（450 targets 含测试目标，覆盖率构建实测） |
 | 单元测试 | ✅ 658/658 | Swift Testing 658（138 suites）+ XCTest 0 失败（本轮 P2 日期注入 +5：CurrentDateContext 幂等注入/星期文案/固定日历锚定 2026-08-24=周一/已有上下文不干扰/子 Agent 路径；前轮契约 v2 +4：SharedMemoryEngine 重路由 2 / App 记忆路由+迁移 2 / 契约断言 5→6 更新；日志 /tmp/ci_pr_datectx.log） |
-| 本地 CI 模拟 | ✅ 四门禁全绿（pr+main+leaks+xcode，P2 日期注入轮全覆盖，2026-08-24 复跑 @a9f270e） | `tools/ci-local.sh`：pr /tmp/ci_pr_datectx.log（658/658，138 suites）+ main /tmp/ci_main_datectx.log（Release + 全量 658/658 + 覆盖率：核心 14 包 94.04% 均 ≥90% / 18 包全量 92.55% / MemoryEngine 95.17%）+ leaks /tmp/ci_leaks_datectx.log（MemProbe 500 → **0 leaks**）+ xcode /tmp/ci_xcode_datectx.log（**TEST SUCCEEDED**）；前轮基线：653/653 四门禁契约 v2（/tmp/ci_{pr,main,leaks,xcode}_memv2.log）/ 649/649 四门禁；GitHub 远端激活前四门禁以 ci-local 为准 |
+| 本地 CI 模拟 | ✅ 四门禁全绿（pr+main+leaks+xcode，P2 日期注入轮全覆盖，2026-08-24 复跑 @4a28a5d） | `tools/ci-local.sh`：pr /tmp/ci_pr_cli_date.log（658/658，138 suites）+ main /tmp/ci_main_cli_date.log（Release + 全量 658/658 + 覆盖率：核心 14 包 94.06% 均 ≥90% / 18 包全量 92.56% / MemoryEngine 95.17%）+ leaks /tmp/ci_leaks_cli_date.log（MemProbe 500 → **0 leaks**）+ xcode /tmp/ci_xcode_cli_date.log（**TEST SUCCEEDED**，含 CurrentDateContext 迁移后 pbxproj 一致性验证）；前轮基线：653/653 四门禁契约 v2（/tmp/ci_{pr,main,leaks,xcode}_memv2.log）/ 649/649 四门禁；GitHub 远端激活前四门禁以 ci-local 为准 |
 | 本地镜像备份 | ✅ 每次提交后 | `git push --mirror /Users/liguangming/code/swift-harness-backup.git` |
 | GitHub 推送 | ⏸ 暂缓（流水线已就绪） | 按用户要求先本地版本控制，未推送远端。`.github/workflows/swift-ci.yml` 四 job（pr-check：SwiftLint+SwiftFormat+build+单测 / xcode-check / leaks / main-check：release+全量测试+覆盖率+CodeQL+制品）+ `weekly-regression.yml`（schedule cron 周日 02:23 UTC 全量回归 + workflow_dispatch 手动触发；独立文件避免 schedule 触发重复跑 4 job 的 macOS runner 成本）；激活前置：建 GitHub 仓库并 push（私有仓库需 Settings→Actions 启用 scheduled workflows；CODECOV_TOKEN 仅私有仓库需要）；本地模拟 `tools/ci-local.sh [pr|leaks|xcode|main]` 可跑，leaks 门禁 0 leaks 实测 |
 
 > **2026-08-23 周末无人值守复核（HEAD `c18289c`，docs-only 提交）**：pr 门禁复跑全绿 — SwiftLint 0 违规 / SwiftFormat 0 改动 / 编译 0 警告 / 单测 653/653（137 suites），日志 /tmp/ci_pr_weekend.log；DSHCLI e2e 无人值守复跑通过（`dsh run` + local/qwen3:4b，2 次工具调用 write_file→read_file → `weekend-check.txt` 10 字节 md5 dfcec55e… 落盘一致，MCP 测试服务器优雅降级一致，日志 /tmp/dsh_e2e_weekend.log）；锁屏长时压力持续（OVERRIDE-REMAP 自愈链，见 §四 P2 幻影行 2026-08-23 实证段）。
 
-> **2026-08-24（用户不在公司）无人值守复核（HEAD `a9f270e`，P2 日期注入轮代码 `82f3f30`）**：四门禁复跑全绿 — pr 658/658（138 suites）/tmp/ci_pr_datectx.log；main Release + 全量 658/658 + 覆盖率刷新：核心 14 包 94.04%（6645/7066，均 ≥90%，最低 Agent 91.33%）、18 包全量 92.55%（9174/9913）、MemoryEngine 95.17% /tmp/ci_main_datectx.log；leaks MemProbe 500 → 0 leaks /tmp/ci_leaks_datectx.log；xcode TEST SUCCEEDED /tmp/ci_xcode_datectx.log。被动核验（未触碰 UI）：sessions.sqlite 实证 10:56 走查会话「今天星期几」被 4B 模型答「星期二」= 幻觉实锤（实为周一 2026-08-24，与 §四 P2 日期行登记一致，修复 `82f3f30` 下次 App 重启生效，运行实例未打断）；watchdog 日志无新事故（仅已知 userManaged mismatch 噪音 + OVERRIDE-REMAP 自愈链，末次自愈 11:45 本地），无崩溃报告；Ollama 0.32.15 + qwen3:4b 端点正常。
+> **2026-08-24（用户不在公司）无人值守复核（HEAD `a9f270e`，P2 日期注入轮代码 `82f3f30`）**：四门禁复跑全绿 — pr 658/658（138 suites）/tmp/ci_pr_datectx.log；main Release + 全量 658/658 + 覆盖率刷新：核心 14 包 94.04%（6645/7066，均 ≥90%，最低 Agent 91.33%）、18 包全量 92.55%（9174/9913）、MemoryEngine 95.17% /tmp/ci_main_datectx.log；leaks MemProbe 500 → 0 leaks /tmp/ci_leaks_datectx.log；xcode TEST SUCCEEDED /tmp/ci_xcode_datectx.log。被动核验（未触碰 UI）：sessions.sqlite 实证 10:56 走查会话「今天星期几」被 4B 模型答「星期二」= 幻觉实锤（实为周一 2026-08-24，与 §四 P2 日期行登记一致，修复 `82f3f30` 下次 App 重启生效，运行实例未打断）；watchdog 日志无新事故（仅已知 userManaged mismatch 噪音 + OVERRIDE-REMAP 自愈链，末次自愈 11:45 本地），无崩溃报告；Ollama 0.32.15 + qwen3:4b 端点正常。后续闭环：发现 DSHCLI 无头路径无日期上下文（`82f3f30` 仅接入 App 4 处）→ `4a28a5d` CurrentDateContext 纯函数下沉 Prompt 包（public，App+CLI 共享单一实现）+ DSHMain run/subagent 双路接入；四门禁复跑全绿（pr /tmp/ci_pr_cli_date.log——首轮全量遇 swiftpm-testing-helper SIGABRT 环境调度停滞，门禁内置单次重试通过 / main /tmp/ci_main_cli_date.log / xcode /tmp/ci_xcode_cli_date.log / leaks /tmp/ci_leaks_cli_date.log）；CLI 日期探针 3/3 答「星期一」实锤（修复前无上下文 4B 采样曾答「星期二」= 50/50 幻觉；期间 1 次 Ollama 瞬时超时属环境侧，重试通过）；4K 外接屏断开后窗口自动回落内建屏（watchdog 06:02 起 frame (0,63,1470,860)，无崩溃）。
 
 ## 二、八大后端模块交付状态
 
@@ -118,7 +118,7 @@
 | 问题 | 说明 | 状态 |
 |------|------|------|
 | `dsh web` 与"非 Web 服务"约束边界 | 需用户确认约束口径（WebUI 为本地 127.0.0.1 调试服务，非对外 Web 服务） | 待确认 |
-| 本地小模型（qwen3:4b）当前日期/星期问答幻觉（2026-08-24 11:00 验收观察：问「今天星期几」答「今天是星期二」，实为周一；App 链路流式/落盘/路由均正确，纯模型自身能力问题） | 现象：本地 4B 模型无实时日期上下文时自推日期出错 | **已闭环（`82f3f30`，2026-08-24）**：CurrentDateContext 纯函数（幂等注入「当前时间：YYYY-MM-DD（星期X）」，固定日历可测）+ 3 处接入（主聊天 buildSystemPrompt 双路 + 子 Agent 2 处）+ 5 回归测试（锚定 2026-08-24=周一）；pr 门禁 658/658（138 suites）/tmp/ci_pr_datectx.log；下次 App 重启生效（运行实例未打断，用户走查中） |
+| 本地小模型（qwen3:4b）当前日期/星期问答幻觉（2026-08-24 11:00 验收观察：问「今天星期几」答「今天是星期二」，实为周一；App 链路流式/落盘/路由均正确，纯模型自身能力问题） | 现象：本地 4B 模型无实时日期上下文时自推日期出错 | **已闭环（`82f3f30` + `4a28a5d`，2026-08-24）**：CurrentDateContext 纯函数（幂等注入「当前时间：YYYY-MM-DD（星期X）」，固定日历可测）+ App 4 处接入（主聊天 buildSystemPrompt 双路 + 子 Agent 2 处）+ 5 回归测试（锚定 2026-08-24=周一）；pr 门禁 658/658（138 suites）/tmp/ci_pr_datectx.log；App 下次重启生效（运行实例未打断，用户走查中）。扩展闭环 `4a28a5d`：DSHCLI 无头路径原无日期上下文 → 纯函数下沉 Prompt 包（public 共享）+ DSHMain run/subagent 双路接入，CLI 日期探针 3/3「星期一」 |
 | ~~stopGenerating 不中断在途 LLM 调用（设计权衡）~~（已升级） | 原现象：`AgentLoop.cancel` 仅标记 cancelFlag，在途 `llm.request` 后台自行完成，远程模型浪费一次请求配额。**P2 ① 已升级为联动取消**：turn 入可取消 Task，cancel() 联动中断在途请求（全部 URLSession 适配器支持取消，即时中止）；不支持取消的 provider 其延迟响应被 runTurn 丢弃（不进 wire 历史 / 不作最终回答 / 不产错误消息）。**不变量保持**：取消路径无错误消息残留、无会话流污染（新增 3 测试 + `56efd78` 场景测试继续锁定） | 已闭环（本轮，645/645） |
 | 冷 scratch 偶发 emit-module 工具链崩溃 | `no such module 'Agent'`，同 scratch 重试即过（环境坑非代码） | 已知 |
 | SSO + iCloud 真机验收待 Developer Team | 无描述文件时本地 ad-hoc 签名无法携带 applesignin/icloud entitlements（Xcode ad-hoc 拒绝 team 级 entitlements，实测）；已按「无 entitlements 优雅降级」设计交付（UI 显示「需配置 entitlement/描述文件」+ 重新申请入口 + retryICloud），真实 SSO 登录 / KVS 跨设备漫游验收待用户提供 Team | 待用户（不阻塞） |
@@ -193,14 +193,14 @@
 
 | 项 | 数值 |
 |----|------|
-| 源码（Packages，92 源文件） | 13,744 行（2026-08-24 重测：较 watchdog 修复轮 +16） |
-| 源码（Apps，45 文件，HarnessApp + 辅助 target） | 10,768 行（+CurrentDateContext.swift 39 行 + watchdog/主题插件等变更，+80） |
-| 源码合计（137 文件） | 24,512 行 |
+| 源码（Packages，93 源文件） | 13,784 行（2026-08-24：+40，CurrentDateContext 下沉 Prompt 包 public 化） |
+| 源码（Apps，44 文件，HarnessApp + 辅助 target） | 10,733 行（CurrentDateContext 迁出 −39 行 / DSHMain 双路日期注入 +6 行，净 −35） |
+| 源码合计（137 文件） | 24,517 行 |
 | 测试代码（83 文件） | 17,817 行（+CurrentDateContextTests 5 用例等，+245） |
 | SPM 目标 | 22 库（17 后端包 + 5 辅助库 Workspace/Plan/Goal/HarnessCore/Account 扩展）/ 4 可执行 + 20 测试目标（单一 xctest 进程） |
 | 工具链 | Swift 6.3.3 / Xcode 26.6 / macOS arm64 / platforms .macOS(.v26) |
 | 覆盖率口径 | llvm-cov 仅统计 Packages/*（Apps/HarnessApp 层不在表内，既有口径）；P2 ① main 门禁核心包（/tmp/p2cancel_ci_main.log）：AccountService 94.08% / AgentLoop 89.98%（联动取消路径覆盖）/  MCP.swift 97.31% / StdioMCPClient 92.53% / RAGEngine 94.02%（+0.27，2 新路由测试）/ MemoryEngine 95.02% / XPCPluginHost 96.57%；模块7 Skill 关键文件（同 log）：SkillEvolution 100 / SkillRegistry 100 / SkillStore 95.07 / SkillDebugger 98.94 / SkillVersioning 95.59 / SkillTools 92.00；模块8 LLM 关键文件：Adapters 92.14 / OpenAICompatChat 92.40 / LLMResponseNormalizer 96.40 / LLMProvider 89.66 / Message 76.92（DTO 纯数据文件 100） |
-| 提交总数 | 163（@`a9f270e`，P2 日期注入轮：`82f3f30` feature + 5 docs 提交 + 本入册；前轮 145 @watchdog 修复轮 `c6dd787`） |
+| 提交总数 | 166（@`4a28a5d`，P2 日期注入轮：`82f3f30` App 接入 + `4a28a5d` CLI 扩展 + 7 docs/fix 提交；前轮 145 @watchdog 修复轮 `c6dd787`） |
 
 ### 八大后端模块代码级需求审计（2026-08-20 跨会话核验轮）
 
@@ -254,6 +254,9 @@
 ## 六、提交链（近期）
 
 ```
+4a28a5d  feat(prompt): P2 日期注入扩展至 DSHCLI 无头路径 — CurrentDateContext 下沉 Prompt 包（public 共享）+ DSHMain run/subagent 双路接入 + 测试随迁 PromptTests + pbxproj 回退自动补录条目；pr 658/658 /tmp/ci_pr_cli_date.log；CLI 日期探针 3/3「星期一」
+231255a  docs(quality): 2026-08-24 无人值守复核入册 — 四门禁复跑全绿 @a9f270e（pr 658/658 / main 覆盖 94.04% / leaks 0 / xcode）+ 被动核验 + §5 代码统计刷新 + 清单 §7 基线同步
+a05985e  fix(xcodeproj): CurrentDateContext.swift 注册进 Xcode 工程（xcodebuild 文件同步自动补录；4a28a5d 迁移后已回退）
 a9f270e  docs(quality): P2 日期注入闭环入册 — §1 单元测试 653→658（138 suites）+ §4 P2 日期行改已闭环 + §6 提交链补 6 条（82f3f30..446c2d7）+ 验收清单 §7 基线刷新 658/658
 82f3f30  feat(prompt): P2 闭环 — 系统提示词动态注入当前日期+星期（本地小模型日期幻觉治理）：CurrentDateContext 纯函数 + 3 处接入（主聊天双路 + 子 Agent 2 处）+ 5 回归测试（锚定 2026-08-24=周一）；pr 门禁 658/658（138 suites）/tmp/ci_pr_datectx.log；下次 App 重启生效；附 11:39 实机证据（MCP 工具 mcp_local_current_time 对话内调用+绿色成功标记=全链路回显核销）
 62affea  docs(quality): 登记 P2 改进项 — 本地 4B 模型日期/星期幻觉（验收观察 08-24「星期二」实为周一），方案=系统提示词注入当前日期+星期（动态渲染小扩展）+ 回归测试，验收后实施
