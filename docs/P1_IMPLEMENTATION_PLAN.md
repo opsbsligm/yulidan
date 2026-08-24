@@ -7,6 +7,13 @@
 1. **模糊/曲率/高光参数口径**：原生 `Glass` 只有预设 + tint + interactive，无这三项数值参数（禁手写模拟）。预案：`ThemeSpec.blurIntensity/highlightIntensity` 保留为语义占位，UI 明示「材质档位」（regular/clear 两档可选 + tint），缺失参数 fallback `.regular`（目标 P1 §4 已要求 fallback）。
 2. **GlassSurface legacy 分支去留**：部署目标 26.0 + 放弃旧系统兼容 → `resolveMode` 的 `.legacy` 分支理论不可达；保留（防御）或删（降复杂度）——倾向**保留**（reduceTransparency 的 solid 分支仍需，legacy 成本一行）。
 
+**决策影响矩阵（2026-08-24 无人值守补充，供用户一键拍板；两个推荐默认可整体确认）**：
+
+| 决策 | 选项 A（推荐默认） | 选项 B | 对 P1 实施的影响 |
+|---|---|---|---|
+| ① 模糊/曲率/高光口径 | 材质档位（regular/clear）+ tint；`ThemeSpec` 三字段保留语义占位，UI 明示「材质档位」 | 等 SDK 开放数值参数（P1 不实现） | A：P1.4 打通「档位 + tint」下发链，manifest 另 2 字段占位化（UI 不承诺功能）；B：P1.4 缩小为 tint 单通道，档位 UI 不做。A 落地面小且 UI 表述诚实，B 在 P1 §4 验收留缺口。**推荐 A** |
+| ② legacy 分支去留 | 保留（~1 行防御） | 删除（简化 resolveMode） | 实现量无差（reduceTransparency 的 solid 分支两者都必须保留），差异仅在不可达 `.legacy` 分支存废；未来部署目标回退时 A 零成本。**推荐保留** |
+
 ## 1. 现状盘点（P0 资产，P1 直接复用）
 - `GlassSurface.swift`：三层降级链已就位；**native 分支已调 `glassEffect(.regular[.tint(t)], in: shape)`**；`glassSurface(_ level:cornerRadius:tint:)` 修饰器已被 6 处消费（SidebarView / ChatInputArea / SettingsView / SettingsSubPages / HarnessTheme）
 - `ThemeSpec.glassTintHex/blurIntensity/highlightIntensity` 字段已预留（Theme.swift:25-29）
@@ -61,4 +68,11 @@
 | 官方文档未细化 hover 行为细节 | 以 SDK 实测为准（interactive(_:) 开关实验），文档点已列；不脑补行为 |
 | 并集融合在异材质变体下不生效（官方明言同变体才合并） | P1.2 约束同变体；若业务需要异变体 → 拆容器（不违反铁律） |
 | beta 窗口服务器幻影影响玻璃渲染观察 | 既有看门狗缓解；morph 观察以应用侧日志 + 用户实机为准 |
-| 每阶段 UI 变更影响既有交互回归 | 每阶段跑全量 AppViewModel 测试套件（645 基线）+ 侧边栏/项目/拖拽既有场景 |
+| 每阶段 UI 变更影响既有交互回归 | 每阶段跑全量测试套件（当前基线 658/658，138 suites，@11725a7 四门禁全绿）+ 侧边栏/项目/拖拽既有场景 |
+
+## 6. 开工 Runbook（P0 验收通过后的首小时流程，2026-08-24 无人值守补充）
+1. **用户回复「P0 验收通过」**（剩余走查项：停止生成 / 项目拖拽三向迁移 + 悬停高亮 / 归档回落 / 搜索（全局+限定项目）/ 插件页全链路 / 技能·工具页 / 主题包导入切换回落（`demos/community-theme-demo/spec.json`）/ 加号菜单 / 快捷提示填充 / 模型下拉，详见 `P0_ACCEPTANCE_CHECKLIST.md`）
+2. **定点重启 App**（使 `82f3f30`/`4a28a5d` 日期注入在 App 内生效；HARNESS_FRAME 定点重启流程 + 重启前截图确认窗口所在屏——4K 外接屏 2026-08-24 14:02 已断开，窗口已回落内建屏，周一重接 4K 后按当时环境定重启时机）→ **日期问答实机一键验证**（「今天星期几」→ 期望答「星期一」类正确星期）
+3. **用户拍板 §0 两决策**（推荐默认：① 材质档位 + tint ② 保留 legacy）；无明确异议即按推荐默认执行
+4. **开工 P1.1**（全局玻璃容器化，按 §2 顺序；每阶段独立提交 + 四门禁 + 阶段报告四项）；P1.2（Morph 核心件）待 P1.1 门禁绿后启动
+5. **铁律 2 解锁留痕**：开工提交在 QUALITY_REPORT §六 提交链注明「P0 验收通过 + 两决策=<用户拍板结果>，P1 解锁 @<commit>」
