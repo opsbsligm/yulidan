@@ -21,7 +21,7 @@
 | SwiftFormat | ✅ 0 改动 | `swiftformat --lint . --config .swiftformat`（197 文件，P0.3 新增 2） |
 | SwiftLint | ✅ 0 违规 | `swiftlint lint --strict --config .swiftlint.yml`（197 文件，P0.3 新增 2） |
 | 编译 | ✅ 0 警告 | 全量冷编译（450 targets 含测试目标，覆盖率构建实测） |
-| 单元测试 | ✅ 653/653 | Swift Testing 653（137 suites）+ XCTest 0 失败（本轮契约 v2 +4：SharedMemoryEngine 重路由 2 / App 记忆路由+迁移 2 / 契约断言 5→6 更新；前轮：watchdog 修复 +4 /tmp/ci_pr_watchdogfix.log、P2 ① 联动取消 3、P0.1.5 消费端 5 + App 工作区路由 15 + RAG indexURL 2 + 稳定序 1 + 样例防漂移 1；日志 /tmp/ci_pr_memv2.log） |
+| 单元测试 | ✅ 658/658 | Swift Testing 658（138 suites）+ XCTest 0 失败（本轮 P2 日期注入 +5：CurrentDateContext 幂等注入/星期文案/固定日历锚定 2026-08-24=周一/已有上下文不干扰/子 Agent 路径；前轮契约 v2 +4：SharedMemoryEngine 重路由 2 / App 记忆路由+迁移 2 / 契约断言 5→6 更新；日志 /tmp/ci_pr_datectx.log） |
 | 本地 CI 模拟 | ✅ 四门禁全绿（pr+main+leaks+xcode，契约 v2 轮全覆盖，2026-08-23） | `tools/ci-local.sh`：pr /tmp/ci_pr_memv2.log（653/653，137 suites）+ main /tmp/ci_main_memv2.log（Release + 全量 653/653 + 覆盖率：MemoryEngine 95.17%）+ leaks /tmp/ci_leaks_memv2.log（MemProbe 500 → **0 leaks**）+ xcode /tmp/ci_xcode_memv2.log（**TEST SUCCEEDED**）；前轮基线：649/649 四门禁（/tmp/ci_{pr_watchdogfix,main_goal,leaks_goal,xcode_goal}.log）；GitHub 远端激活前四门禁以 ci-local 为准 |
 | 本地镜像备份 | ✅ 每次提交后 | `git push --mirror /Users/liguangming/code/swift-harness-backup.git` |
 | GitHub 推送 | ⏸ 暂缓（流水线已就绪） | 按用户要求先本地版本控制，未推送远端。`.github/workflows/swift-ci.yml` 四 job（pr-check：SwiftLint+SwiftFormat+build+单测 / xcode-check / leaks / main-check：release+全量测试+覆盖率+CodeQL+制品）+ `weekly-regression.yml`（schedule cron 周日 02:23 UTC 全量回归 + workflow_dispatch 手动触发；独立文件避免 schedule 触发重复跑 4 job 的 macOS runner 成本）；激活前置：建 GitHub 仓库并 push（私有仓库需 Settings→Actions 启用 scheduled workflows；CODECOV_TOKEN 仅私有仓库需要）；本地模拟 `tools/ci-local.sh [pr|leaks|xcode|main]` 可跑，leaks 门禁 0 leaks 实测 |
@@ -116,7 +116,7 @@
 | 问题 | 说明 | 状态 |
 |------|------|------|
 | `dsh web` 与"非 Web 服务"约束边界 | 需用户确认约束口径（WebUI 为本地 127.0.0.1 调试服务，非对外 Web 服务） | 待确认 |
-| 本地小模型（qwen3:4b）当前日期/星期问答幻觉（2026-08-24 11:00 验收观察：问「今天星期几」答「今天是星期二」，实为周一；App 链路流式/落盘/路由均正确，纯模型自身能力问题） | 现象：本地 4B 模型无实时日期上下文时自推日期出错 | 改进待办（P2，用户验收流程结束后实施，避免打断）：系统提示词动态注入「当前日期 + 星期」（Prompt 工程层动态渲染已支持，属小扩展）+ 1 项回归测试；实现后复测本地模型日期类问答 |
+| 本地小模型（qwen3:4b）当前日期/星期问答幻觉（2026-08-24 11:00 验收观察：问「今天星期几」答「今天是星期二」，实为周一；App 链路流式/落盘/路由均正确，纯模型自身能力问题） | 现象：本地 4B 模型无实时日期上下文时自推日期出错 | **已闭环（`82f3f30`，2026-08-24）**：CurrentDateContext 纯函数（幂等注入「当前时间：YYYY-MM-DD（星期X）」，固定日历可测）+ 3 处接入（主聊天 buildSystemPrompt 双路 + 子 Agent 2 处）+ 5 回归测试（锚定 2026-08-24=周一）；pr 门禁 658/658（138 suites）/tmp/ci_pr_datectx.log；下次 App 重启生效（运行实例未打断，用户走查中） |
 | ~~stopGenerating 不中断在途 LLM 调用（设计权衡）~~（已升级） | 原现象：`AgentLoop.cancel` 仅标记 cancelFlag，在途 `llm.request` 后台自行完成，远程模型浪费一次请求配额。**P2 ① 已升级为联动取消**：turn 入可取消 Task，cancel() 联动中断在途请求（全部 URLSession 适配器支持取消，即时中止）；不支持取消的 provider 其延迟响应被 runTurn 丢弃（不进 wire 历史 / 不作最终回答 / 不产错误消息）。**不变量保持**：取消路径无错误消息残留、无会话流污染（新增 3 测试 + `56efd78` 场景测试继续锁定） | 已闭环（本轮，645/645） |
 | 冷 scratch 偶发 emit-module 工具链崩溃 | `no such module 'Agent'`，同 scratch 重试即过（环境坑非代码） | 已知 |
 | SSO + iCloud 真机验收待 Developer Team | 无描述文件时本地 ad-hoc 签名无法携带 applesignin/icloud entitlements（Xcode ad-hoc 拒绝 team 级 entitlements，实测）；已按「无 entitlements 优雅降级」设计交付（UI 显示「需配置 entitlement/描述文件」+ 重新申请入口 + retryICloud），真实 SSO 登录 / KVS 跨设备漫游验收待用户提供 Team | 待用户（不阻塞） |
@@ -252,6 +252,12 @@
 ## 六、提交链（近期）
 
 ```
+82f3f30  feat(prompt): P2 闭环 — 系统提示词动态注入当前日期+星期（本地小模型日期幻觉治理）：CurrentDateContext 纯函数 + 3 处接入（主聊天双路 + 子 Agent 2 处）+ 5 回归测试（锚定 2026-08-24=周一）；pr 门禁 658/658（138 suites）/tmp/ci_pr_datectx.log；下次 App 重启生效；附 11:39 实机证据（MCP 工具 mcp_local_current_time 对话内调用+绿色成功标记=全链路回显核销）
+62affea  docs(quality): 登记 P2 改进项 — 本地 4B 模型日期/星期幻觉（验收观察 08-24「星期二」实为周一），方案=系统提示词注入当前日期+星期（动态渲染小扩展）+ 回归测试，验收后实施
+47b82d5  docs(acceptance): 用户实机走查启动证据入册（10:54：标题自动派生/qwen3:4b 流式落盘/cwd 路由 agents/<id>/ 实机核销/生成指示实时）+ 记录 4B 模型星期幻觉（非链路缺陷）
+a514409  docs(quality): P0.4.3 行补 2026-08-24 铁律 5 主题机制代码级审计结论（零硬编码设计主题，唯一回落系统基准，主题全运行时交付，合规）
+e004f54  docs(acceptance): 清单 §7 质量基线刷新至契约 v2 轮（653/653 137 suites + 周末复跑 + 四门禁日志 + 覆盖 93.77%）+ 标题 HEAD 号同步 446c2d7
+446c2d7  docs(quality): 03:38 第二次夜间外部终止事故入册（无崩溃报告/睡眠窗口/与 21:12 同型，HARNESS_FRAME 10:19 定点重启恢复 + 截图渲染核验）+ 周一验收环境就绪入册（App PID 98463 契约 v2 binary + Ollama qwen3:4b 就绪）
 c18289c  docs(quality): 锁屏长时压力实证入册（OVERRIDE-REMAP 持续自愈 31 次、预算耗尽不卡死，c6dd787 极限场景验证）+ §6 提交链补欠账 + .gitignore 补 *.profraw
 83aeb6c  feat(memory): 契约 v2 — 长期记忆纳入工作区六目录契约随根漫游
 dd902b8  ci(remote): CodeQL/codecov 步骤加仓库变量门控（免费私有仓库适配，启用方法入注释），actionlint 通过
