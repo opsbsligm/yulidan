@@ -1,4 +1,4 @@
-# P0 实机验收清单（2026-08-22，HEAD 2c6c24e）
+# P0 实机验收清单（2026-08-22 首版，当前 HEAD 446c2d7）
 
 > 用法：逐项操作 → 对照「预期」打勾。全部通过后回复「P0 验收通过」，即解锁 P1 Liquid Glass。
 > 验收环境要求：当前开发机即可（无 Apple Team 时 SSO/iCloud 走「无 entitlements 优雅降级」，属预期行为非缺陷）。
@@ -68,5 +68,5 @@
 | 加号菜单 | 输入框 + | 文件附件 + 插件工具入口（按 category 分组，选中插入 @toolName） |
 
 ## 七、质量基线（已实测，供核对）
-- PR 门禁 649/649（135 suites，watchdog 修复轮，日志 /tmp/ci_pr_watchdogfix.log）；前轮基线：main 门禁 645/645 + 覆盖率（RAGEngine 94.02% / AgentLoop 89.98% / AccountService 94.08%）+ leaks 0；build 0 警告
+- **当前基线（2026-08-23 契约 v2 轮）**：pr 门禁 653/653（137 suites，/tmp/ci_pr_memv2.log；2026-08-23 周末无人值守复跑亦全绿 /tmp/ci_pr_weekend.log）+ main 门禁（Release + 全量 653/653 + 覆盖率 MemoryEngine 95.17%，/tmp/ci_main_memv2.log）+ leaks 门禁（MemProbe 500 → **0 leaks**，/tmp/ci_leaks_memv2.log）+ xcode 门禁（**TEST SUCCEEDED**，/tmp/ci_xcode_memv2.log）；编译 0 警告 / SwiftLint 0 违规（219 文件）/ SwiftFormat 0 改动；覆盖：14 核心包 93.77% 全 ≥90%，18 包全量 92.31%（详见 QUALITY_REPORT §三/§四）；前轮基线：649/649（watchdog 修复轮）/ 645/645（P2 ① 联动取消轮）
 - 本地镜像备份：`/Users/liguangming/code/swift-harness-backup.git`（每次提交后 mirror 同步）
