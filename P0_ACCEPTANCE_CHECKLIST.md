@@ -9,6 +9,8 @@
 
 > 🔄 **2026-08-24 11:39 追加实机证据（4K 屏截图 /tmp/4k_check.png）**：会话「test」中模型自主调用 MCP 工具 `mcp_local_current_time {}` → **对话内出现可折叠工具行 + 绿色成功标记**（§五 全链路 + §六 工具回显示机核销）；随后回答「今天是星期二」仍误（工具已返回正确时间，4B 模型自行推导星期出错，P2 日期注入改进项继续有效）。
 
+> 🔄 **2026-08-24 18:30 差距审计轮（被动证据，不代替验收打勾）**：P0 清单 §三~§六 逐项映射测试证据完成（业务逻辑层全覆盖；拖拽悬停高亮/快捷提示填充/模型下拉视觉项属纯 UI 走查项）；审计驱动发现并修复 2 处 P1 缺口（`7447179`）：① MCP 卸载后 Agent 工具注册表残留陈旧 mcp_* 工具（§五「卸载后工具即时移除」Agent 侧缺口，现已闭环 + 真实 stdio 服务器单测）② RAG 入库不落盘 → CLI 跨进程知识库丢失（e2e 实锤，已闭环）；RAG CLI e2e 跨进程实证：入库 → index.json 落盘 → 新进程检索溯源命中 → 正确回答；四门禁全绿 664/664（/tmp/ci_{pr,main,leaks,xcode}_ragfix.log）。
+
 > ✅ **前置条件已解决（2026-08-22）**：对话类验收项（§二会话工作区 / §五全链路 / §六流式·停止生成·工具回显）所需 LLM 已就绪——Ollama 0.32.15（brew formula，launchd 托管 `brew services list | grep ollama`）已装并 `pull qwen3:4b`（2.5GB，Metal/M5，端点 `http://localhost:11434/v1` 实测可用）；App 配置已切 **local provider + qwen3:4b**（原配置 openai/o4-mini 无 key 不可用，已备份 /tmp/harness_llmconfig_old_readable.json，验收后可随时还原）；工具调用 e2e 实测：OpenAI 兼容请求正确返回 `write_file` tool_calls（与 App wire 格式一致，max_tokens 4096 足够含思考输出）；**DSHCLI 全链路 e2e 实跑（2026-08-22，`dsh run` + local/qwen3:4b）**：真实 LLM 流式 → Agent 主循环 2 次工具调用（write_file→read_file）→ 文件落盘 `ws-check` 8 字节核验一致 → 最终回复正确；MCP 测试服务器（/usr/bin/true×3）优雅降级不中断；记忆蒸馏落盘（无记忆价值任务正确判空）、技能进化观测在阈值下正确未误触发；**2026-08-23 周末无人值守复测**：`dsh run` 复跑（local/qwen3:4b）2 次工具调用（write_file→read_file）→ `weekend-check.txt` 10 字节（md5 dfcec55e…）落盘一致、MCP 测试服务器降级行为一致、最终回复正确（日志 /tmp/dsh_e2e_weekend.log）。若服务停止：`brew services restart ollama`。不依赖 LLM 的项（§三 全部 / §四 导航 / 会话重命名）仍可先行验收。
 
 ## 一、基线
@@ -72,5 +74,5 @@
 | 加号菜单 | 输入框 + | 文件附件 + 插件工具入口（按 category 分组，选中插入 @toolName） |
 
 ## 七、质量基线（已实测，供核对）
-- **当前基线（2026-08-24 Skill 版本管理轮，四门禁复跑全绿 @5e65413）**：pr 门禁 660/660（139 suites，/tmp/ci_pr_skillver.log）+ main 门禁（Release + 全量 660/660 + 覆盖率：14 核心包 94.09% 均 ≥90% / 18 包全量 92.58% / Skill 96.97% / MemoryEngine 95.17%，/tmp/ci_main_skillver.log）+ leaks 门禁（MemProbe 500 → **0 leaks**，/tmp/ci_leaks_skillver.log）+ xcode 门禁（**TEST SUCCEEDED**，/tmp/ci_xcode_skillver.log）；编译 0 警告 / SwiftLint 0 违规 / SwiftFormat 0 改动；覆盖详见 QUALITY_REPORT §三/§四；前轮基线：658/658（日期注入轮 /tmp/ci_pr_cli_date.log）/ 653/653（契约 v2 轮 /tmp/ci_pr_memv2.log）/ 649/649（watchdog 修复轮）
+- **当前基线（2026-08-24 差距审计轮，四门禁复跑全绿 @7447179）**：pr 门禁 664/664（139 suites，/tmp/ci_pr_ragfix.log）+ main 门禁（Release + 全量 664/664 + 覆盖率：14 核心包 94.15% 均 ≥90% / 18 包全量 92.63% / RAGEngine 95.77% / MCP.swift 97.74%，/tmp/ci_main_ragfix.log）+ leaks 门禁（MemProbe 500 → **0 leaks**，/tmp/ci_leaks_ragfix.log）+ xcode 门禁（**TEST SUCCEEDED**，/tmp/ci_xcode_ragfix.log）；编译 0 警告 / SwiftLint 0 违规 / SwiftFormat 0 改动；覆盖详见 QUALITY_REPORT §三/§四；前轮基线：660/660（Skill 版本管理轮 /tmp/ci_pr_skillver.log）/ 658/658（日期注入轮 /tmp/ci_pr_cli_date.log）/ 653/653（契约 v2 轮 /tmp/ci_pr_memv2.log）
 - 本地镜像备份：`/Users/liguangming/code/swift-harness-backup.git`（每次提交后 mirror 同步）

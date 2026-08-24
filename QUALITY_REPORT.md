@@ -21,14 +21,16 @@
 | SwiftFormat | ✅ 0 改动 | `swiftformat --lint . --config .swiftformat`（197 文件，P0.3 新增 2） |
 | SwiftLint | ✅ 0 违规 | `swiftlint lint --strict --config .swiftlint.yml`（197 文件，P0.3 新增 2） |
 | 编译 | ✅ 0 警告 | 全量冷编译（450 targets 含测试目标，覆盖率构建实测） |
-| 单元测试 | ✅ 660/660 | Swift Testing 660（139 suites）+ XCTest 0 失败（本轮 Skill 版本管理 +2：importSkill 覆盖历史/版本号/损坏回落/非法不落盘 + App 编辑测试版本断言升级；前轮 P2 日期注入 +5：CurrentDateContext 幂等注入/星期文案/固定日历锚定/子 Agent 路径；日志 /tmp/ci_pr_skillver.log） |
-| 本地 CI 模拟 | ✅ 四门禁全绿（pr+main+leaks+xcode，Skill 版本管理轮全覆盖，2026-08-24 复跑 @5e65413） | `tools/ci-local.sh`：pr /tmp/ci_pr_skillver.log（660/660，139 suites）+ main /tmp/ci_main_skillver.log（Release + 全量 660/660 + 覆盖率：核心 14 包 94.09% 均 ≥90% / 18 包全量 92.58% / Skill 96.97% / MemoryEngine 95.17%）+ leaks /tmp/ci_leaks_skillver.log（MemProbe 500 → **0 leaks**）+ xcode /tmp/ci_xcode_skillver.log（**TEST SUCCEEDED**）；前轮基线：658/658 四门禁 @4a28a5d（/tmp/ci_{pr,main,leaks,xcode}_cli_date.log）；GitHub 远端激活前四门禁以 ci-local 为准 |
+| 单元测试 | ✅ 664/664 | Swift Testing 664（139 suites）+ XCTest 0 失败（本轮差距审计 +4：模型切换即时生效双路 2 / MCP 真实 stdio 工具注册-卸载联动 1 / RAG 自动持久化跨引擎实例回归守卫 1；前轮 Skill 版本管理 +2；日志 /tmp/ci_pr_ragfix.log） |
+| 本地 CI 模拟 | ✅ 四门禁全绿（pr+main+leaks+xcode，差距审计轮全覆盖，2026-08-24 复跑 @7447179） | `tools/ci-local.sh`：pr /tmp/ci_pr_ragfix.log（664/664，139 suites）+ main /tmp/ci_main_ragfix.log（Release + 全量 664/664 + 覆盖率：核心 14 包 94.15% 均 ≥90% / 18 包全量 92.63% / RAGEngine 95.77% / MCP.swift 97.74%）+ leaks /tmp/ci_leaks_ragfix.log（MemProbe 500 → **0 leaks**）+ xcode /tmp/ci_xcode_ragfix.log（**TEST SUCCEEDED**）；前轮基线：660/660 四门禁 @5e65413（/tmp/ci_{pr,main,leaks,xcode}_skillver.log）；GitHub 远端激活前四门禁以 ci-local 为准 |
 | 本地镜像备份 | ✅ 每次提交后 | `git push --mirror /Users/liguangming/code/swift-harness-backup.git` |
 | GitHub 推送 | ⏸ 暂缓（流水线已就绪） | 按用户要求先本地版本控制，未推送远端。`.github/workflows/swift-ci.yml` 四 job（pr-check：SwiftLint+SwiftFormat+build+单测 / xcode-check / leaks / main-check：release+全量测试+覆盖率+CodeQL+制品）+ `weekly-regression.yml`（schedule cron 周日 02:23 UTC 全量回归 + workflow_dispatch 手动触发；独立文件避免 schedule 触发重复跑 4 job 的 macOS runner 成本）；激活前置：建 GitHub 仓库并 push（私有仓库需 Settings→Actions 启用 scheduled workflows；CODECOV_TOKEN 仅私有仓库需要）；本地模拟 `tools/ci-local.sh [pr|leaks|xcode|main]` 可跑，leaks 门禁 0 leaks 实测 |
 
 > **2026-08-23 周末无人值守复核（HEAD `c18289c`，docs-only 提交）**：pr 门禁复跑全绿 — SwiftLint 0 违规 / SwiftFormat 0 改动 / 编译 0 警告 / 单测 653/653（137 suites），日志 /tmp/ci_pr_weekend.log；DSHCLI e2e 无人值守复跑通过（`dsh run` + local/qwen3:4b，2 次工具调用 write_file→read_file → `weekend-check.txt` 10 字节 md5 dfcec55e… 落盘一致，MCP 测试服务器优雅降级一致，日志 /tmp/dsh_e2e_weekend.log）；锁屏长时压力持续（OVERRIDE-REMAP 自愈链，见 §四 P2 幻影行 2026-08-23 实证段）。
 
 > **2026-08-24（用户不在公司）无人值守复核（HEAD `a9f270e`，P2 日期注入轮代码 `82f3f30`）**：四门禁复跑全绿 — pr 658/658（138 suites）/tmp/ci_pr_datectx.log；main Release + 全量 658/658 + 覆盖率刷新：核心 14 包 94.04%（6645/7066，均 ≥90%，最低 Agent 91.33%）、18 包全量 92.55%（9174/9913）、MemoryEngine 95.17% /tmp/ci_main_datectx.log；leaks MemProbe 500 → 0 leaks /tmp/ci_leaks_datectx.log；xcode TEST SUCCEEDED /tmp/ci_xcode_datectx.log。被动核验（未触碰 UI）：sessions.sqlite 实证 10:56 走查会话「今天星期几」被 4B 模型答「星期二」= 幻觉实锤（实为周一 2026-08-24，与 §四 P2 日期行登记一致，修复 `82f3f30` 下次 App 重启生效，运行实例未打断）；watchdog 日志无新事故（仅已知 userManaged mismatch 噪音 + OVERRIDE-REMAP 自愈链，末次自愈 11:45 本地），无崩溃报告；Ollama 0.32.15 + qwen3:4b 端点正常。后续闭环：发现 DSHCLI 无头路径无日期上下文（`82f3f30` 仅接入 App 4 处）→ `4a28a5d` CurrentDateContext 纯函数下沉 Prompt 包（public，App+CLI 共享单一实现）+ DSHMain run/subagent 双路接入；四门禁复跑全绿（pr /tmp/ci_pr_cli_date.log——首轮全量遇 swiftpm-testing-helper SIGABRT 环境调度停滞，门禁内置单次重试通过 / main /tmp/ci_main_cli_date.log / xcode /tmp/ci_xcode_cli_date.log / leaks /tmp/ci_leaks_cli_date.log）；CLI 日期探针 3/3 答「星期一」实锤（修复前无上下文 4B 采样曾答「星期二」= 50/50 幻觉；期间 1 次 Ollama 瞬时超时属环境侧，重试通过）；4K 外接屏断开后窗口自动回落内建屏（watchdog 06:02 起 frame (0,63,1470,860)，无崩溃）。第三轮（Skill 轮 @5e65413）：Skill 全生命周期 e2e（import/show/debug/export/versions/restore/delete）中发现版本管理手动覆盖路径缺口 → `5e65413` 闭环（SkillStore.importSkill 业务函数：覆盖前版本登记 + 递增 + frontmatter 持久化，CLI/App 三处统一）+ 2 单测；CLI e2e 实测覆盖×2 → v1/v2 可寻址 → restore v1 回滚成功生成 v4；子 Agent 并行 e2e 复跑（2 任务 parallel=2 全 succeeded，子 Agent 日期上下文实锤：两子 Agent 均答「星期一（2026-08-24）」）；四门禁复跑全绿（/tmp/ci_{pr,main,leaks,xcode}_skillver.log）；发现 SkillEvolution 自动沉淀在 CLI 重复探针下真实触发（auto-4b555087，验证后清理，机制活性实证）。
+
+> **2026-08-24（用户不在公司）P0 验收差距审计轮（HEAD `7447179`）**：① 差距审计完成 — P0 清单 §三~§六 逐项映射测试证据：§三 项目 CRUD 删除二选一（Workspace planDeletion 3 单测 + App 两分支场景）/ 展开收起持久化（App 字段更新+跨实例重载）/ 拖拽三向（Workspace resolveMove 4 单测 + App moveSession 三向含 DB）/ 重命名空白拦截（会话 no-op + 项目空名 guard）/ 归档取消回落（Workspace resolveRestoreProject 4 单测 + App 原项目存活/已删双分支）/ 搜索（全局+限定项目）——**全部已有测试证据，上轮 4 项「重点怀疑」核实无缺口**；② 审计驱动新测发现 **2 处 P1 真实缺口并闭环（`7447179`）**：a) MCP 卸载后 Agent 工具注册表残留陈旧 mcp_* 工具（disconnect 不清理外部注册表；§五「卸载后工具即时移除」契约在 Agent 侧被违反）→ disconnect 增可选 into registry 参数 + App 三处调用点传入；b) **RAG ingest/removeDocument/clear 仅改内存不落盘 → CLI 每次运行独立进程 = 知识库跨进程丢失**（e2e 实锤：add_knowledge 返回「已入库」但 index.json 从未生成）→ 三写路径自动 save()；③ RAG CLI e2e 跨进程实证（local/qwen3:4b）：add_knowledge 入库 1 切片 → index.json 3451 字节落盘 → **新进程** search_knowledge（得分 0.597 + 「ops-notes · 块 1 · 字符 0-252」溯源引用）→ 正确答「1200 请求/分钟（超限 HTTP 429）」；④ 模型切换即时生效双路测试（ModelSwitcherMenu 真实 UI 路径 save→通知→主线程重载：仅换模型 = 循环复用 + 下轮 wire 即变；端点切换 = 循环重建 + 工厂重注入新配置）；⑤ 四门禁复跑全绿（/tmp/ci_{pr,main,leaks,xcode}_ragfix.log）：664/664（139 suites）+ 覆盖核心 14 包 94.15%（6700/7116）/ 18 包 92.63%（9229/9963）+ 0 leaks + TEST SUCCEEDED；⑥ App 浸泡 7h54m 零崩溃（watchdog 末次自愈 14:20 本地，OVERRIDE-REMAP 后 frame 恢复 (0,63,1470,860)，recreate 预算门控正确拒绝，无新事故）；⑦ 测试残留清理（e2e 自动沉淀技能×4 + RAG 测试索引；hello 技能属用户另一任务保留）。
 
 ## 二、八大后端模块交付状态
 
@@ -73,7 +75,9 @@
 | F8 | 侧边栏折叠（B5）：isSidebarCollapsed UserDefaults 持久化 / 52pt 图标 rail（展开/新对话/5 面板/设置/头像，快捷键两态共用）/ 展开态折叠按钮 + 折叠态主区展开按钮 | `49d3626` | ✅ 闭环（视觉验收待实机） |
 | F9 | 置顶会话（B6）：SessionMetadata.pinned（旧 metadata_json 兼容解码）+ withPinned / togglePinSession DB 持久化 / 置顶段最顶（Codex pinned）+ 行内 pin 标记 + hover 置顶/取消 + 溢出菜单入口 / SidebarView 拆分 SessionListItem.swift | `c32a856` | ✅ 闭环（视觉验收待实机） |
 | F10 | 用户消息 Codex 式无气泡纯文本（B8）：右对齐气泡 → 通栏左对齐 medium 字重 | `b5486ec` | ✅ 闭环（**B1–B8 差距清单全部闭环**，视觉验收待实机） |
-| F11 | 会话分组纯函数化：SessionGroups.group(_:now:)（置顶段最顶/今天/昨天/更早/组内倒序）+ 2 项单测 | `17a0fd8` | ✅ 闭环 |
+| F11 | 会话分组纯函数化：SessionGroups.group(_:now:)（置顶段最顶/今天/昨天/更早/组内倒序）+ 2 项单测 | `17a0fd8` |
+| MCP 卸载/重连失败后 Agent 工具注册表残留陈旧 mcp_* 工具（P1，差距审计新测发现） | `7447179`（disconnect 增可选 into registry 清理 mcp_<name>_*；App 三处调用点传入主注册表；真实 stdio 服务器单测：导入自动注册 + 卸载即时移除） |
+| RAG ingest/removeDocument/clear 不落盘 → CLI 跨进程知识库丢失（P1，差距审计 e2e 实锤） | `7447179`（三写路径自动 save()；跨引擎实例回归守卫单测；CLI e2e 入库→落盘→新进程检索 0.597 分溯源命中） | ✅ 闭环 |
 
 ## 三、测试用例与行覆盖率（2026-08-21 P0.3 全量重测，766 用例 run，llvm-cov DA 口径，main 门禁 /tmp/p03_nav_ci_main.log）
 
@@ -194,14 +198,14 @@
 
 | 项 | 数值 |
 |----|------|
-| 源码（Packages，93 源文件） | 13,811 行（2026-08-24 Skill 轮：+27，SkillStore.importSkill 业务函数） |
+| 源码（Packages，93 源文件） | 13,823 行（2026-08-24 差距审计轮：+12，MCP disconnect 注册表清理 + RAG 自动持久化） |
 | 源码（Apps，44 文件，HarnessApp + 辅助 target） | 10,719 行（Skill 轮：CLI/App 导入路径薄包装 −14） |
 | 源码合计（137 文件） | 24,530 行 |
-| 测试代码（83 文件） | 17,881 行（+SkillImportTests 2 用例 + App 编辑版本断言，+64） |
+| 测试代码（83 文件） | 18,138 行（差距审计轮 +4 用例 + 夹具/探针，+257） |
 | SPM 目标 | 22 库（17 后端包 + 5 辅助库 Workspace/Plan/Goal/HarnessCore/Account 扩展）/ 4 可执行 + 20 测试目标（单一 xctest 进程） |
 | 工具链 | Swift 6.3.3 / Xcode 26.6 / macOS arm64 / platforms .macOS(.v26) |
 | 覆盖率口径 | llvm-cov 仅统计 Packages/*（Apps/HarnessApp 层不在表内，既有口径）；P2 ① main 门禁核心包（/tmp/p2cancel_ci_main.log）：AccountService 94.08% / AgentLoop 89.98%（联动取消路径覆盖）/  MCP.swift 97.31% / StdioMCPClient 92.53% / RAGEngine 94.02%（+0.27，2 新路由测试）/ MemoryEngine 95.02% / XPCPluginHost 96.57%；模块7 Skill 关键文件（同 log）：SkillEvolution 100 / SkillRegistry 100 / SkillStore 95.07 / SkillDebugger 98.94 / SkillVersioning 95.59 / SkillTools 92.00；模块8 LLM 关键文件：Adapters 92.14 / OpenAICompatChat 92.40 / LLMResponseNormalizer 96.40 / LLMProvider 89.66 / Message 76.92（DTO 纯数据文件 100） |
-| 提交总数 | 171（@`78ac5bf`，Skill 版本管理轮：`5e65413` fix + 4 docs 提交；前轮 166 @`4a28a5d`） |
+| 提交总数 | 173（@`e2a4e42` 后差距审计轮：`7447179` fix + 本轮 docs；前轮 172 @`e2a4e42`） |
 
 ### 八大后端模块代码级需求审计（2026-08-20 跨会话核验轮）
 
@@ -255,6 +259,8 @@
 ## 六、提交链（近期）
 
 ```
+7447179  fix(mcp,rag): 差距审计 2 处 P1 缺口闭环（MCP 卸载注册表残留清理 + RAG 三写路径自动落盘）+ 4 新单测；RAG CLI e2e 跨进程实证；pr 664/664
+e2a4e42  docs(quality): Skill 版本管理轮入册（四门禁 @5e65413 + §4 缺口闭环 + 统计 171 提交）
 78ac5bf  docs(p1): P1.1 玻璃容器化组件地图（10 调用点/5 文件盘点 + C1-C5 容器分组 + spacing 策略 + 降级不变量 + P1.4 预埋 + P1.2 接口约定）
 5e65413  fix(skill): Skill 版本管理手动覆盖路径缺口闭环 — SkillStore.importSkill（版本登记 + 递增 + frontmatter 持久化）三处统一 + 2 单测；pr 660/660（139 suites）；CLI e2e 覆盖×2 → v1/v2 可寻址 → restore v1 回滚成功
 b308bab  docs(p1): 实施计划补决策影响矩阵（两决策推荐默认可一键拍板）+ 风险表基线 645→658 刷新 + 新增 §6 开工 Runbook
