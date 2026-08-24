@@ -137,6 +137,8 @@ struct HeadlessCommand: AsyncParsableCommand {
             systemPrompt = try? await promptEngine.renderSystemPrompt(template: PromptEngine.agentTemplate,
                                                                       model: cfg.model, context: promptContext)
         }
+        // P2 日期注入（与 App 路径一致）：用户自定义/渲染模板两路统一注入当前日期+星期
+        systemPrompt = systemPrompt.map { CurrentDateContext.inject(into: $0) }
         let loop = AgentLoop(
             id: AgentID(), sessionID: SessionID(), llm: llm, tools: tools,
             model: cfg.model, systemPrompt: systemPrompt, maxSteps: cfg.maxSteps
@@ -255,6 +257,8 @@ struct AgentsRunCommand: AsyncParsableCommand {
         if systemPrompt == nil {
             systemPrompt = try? await promptEngine.renderSystemPrompt(template: PromptEngine.subagentTemplate, model: cfg.model)
         }
+        // P2 日期注入（与 App 路径一致）：用户自定义/渲染模板两路统一注入当前日期+星期
+        systemPrompt = systemPrompt.map { CurrentDateContext.inject(into: $0) }
         let coordinator = SubagentCoordinator(maxConcurrent: max(1, parallel), onEvent: Self.logEvent)
         for (index, task) in tasks.enumerated() {
             let agent = AgentLoop(

@@ -1,5 +1,5 @@
 import Foundation
-@testable import HarnessApp
+@testable import Prompt
 import Testing
 
 /// P2 日期注入回归：固定日历 + 固定时区，星期判定确定性可测
