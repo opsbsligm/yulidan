@@ -7,6 +7,8 @@
 
 > 🔄 **2026-08-24 10:54 用户实机走查启动（被动观察证据，不代替验收打勾）**：新会话首条消息「test」→ 标题自动派生 ✓；qwen3:4b 流式应答 + 事件落盘（5 事件 = 3 用户 + 2 助手，model=qwen3:4b，sessions.sqlite 只读核验）✓；新会话 cwd 正确路由 `agents/<sessionID>/`（P0.1.5 工作区路由实机核销，DB 证据）✓；生成中指示 + 停止按钮实时 ✓。⚠️ 模型对「今天星期几」答「今天是星期二」（今日实为周一 08-24）——本地 4B 模型自身事实幻觉，非 App 链路缺陷（流式/落盘/路由均正确；追求准确性请换更大模型或远程服务商）。
 
+> 🔄 **2026-08-24 11:39 追加实机证据（4K 屏截图 /tmp/4k_check.png）**：会话「test」中模型自主调用 MCP 工具 `mcp_local_current_time {}` → **对话内出现可折叠工具行 + 绿色成功标记**（§五 全链路 + §六 工具回显示机核销）；随后回答「今天是星期二」仍误（工具已返回正确时间，4B 模型自行推导星期出错，P2 日期注入改进项继续有效）。
+
 > ✅ **前置条件已解决（2026-08-22）**：对话类验收项（§二会话工作区 / §五全链路 / §六流式·停止生成·工具回显）所需 LLM 已就绪——Ollama 0.32.15（brew formula，launchd 托管 `brew services list | grep ollama`）已装并 `pull qwen3:4b`（2.5GB，Metal/M5，端点 `http://localhost:11434/v1` 实测可用）；App 配置已切 **local provider + qwen3:4b**（原配置 openai/o4-mini 无 key 不可用，已备份 /tmp/harness_llmconfig_old_readable.json，验收后可随时还原）；工具调用 e2e 实测：OpenAI 兼容请求正确返回 `write_file` tool_calls（与 App wire 格式一致，max_tokens 4096 足够含思考输出）；**DSHCLI 全链路 e2e 实跑（2026-08-22，`dsh run` + local/qwen3:4b）**：真实 LLM 流式 → Agent 主循环 2 次工具调用（write_file→read_file）→ 文件落盘 `ws-check` 8 字节核验一致 → 最终回复正确；MCP 测试服务器（/usr/bin/true×3）优雅降级不中断；记忆蒸馏落盘（无记忆价值任务正确判空）、技能进化观测在阈值下正确未误触发；**2026-08-23 周末无人值守复测**：`dsh run` 复跑（local/qwen3:4b）2 次工具调用（write_file→read_file）→ `weekend-check.txt` 10 字节（md5 dfcec55e…）落盘一致、MCP 测试服务器降级行为一致、最终回复正确（日志 /tmp/dsh_e2e_weekend.log）。若服务停止：`brew services restart ollama`。不依赖 LLM 的项（§三 全部 / §四 导航 / 会话重命名）仍可先行验收。
 
 ## 一、基线

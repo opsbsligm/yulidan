@@ -600,10 +600,11 @@ final class AppViewModel: ObservableObject {
         }
         // 提示词工程层：子 Agent 角色模板（模型差异化适配；失败回退原文案）
         let promptEngine = await SharedPromptEngine.instance.get()
-        let subagentPrompt = await (try? promptEngine.renderSystemPrompt(
+        let subagentPromptBase = await (try? promptEngine.renderSystemPrompt(
             template: PromptEngine.subagentTemplate, model: llmConfig.modelName
         ))
             ?? "你是子任务执行 Agent：直接完成给定任务，输出简洁，不要反问。"
+        let subagentPrompt = CurrentDateContext.inject(into: subagentPromptBase)
         let tool = SpawnSubagentTool(
             coordinator: subagentCoordinator,
             subTools: subagentToolRegistry,
@@ -1965,8 +1966,9 @@ final class AppViewModel: ObservableObject {
 
     /// 系统提示词：用户显式配置优先；否则渲染内置 agent 模板并注入相关长期记忆
     private func buildSystemPrompt(model: String, userConfigured: String) async -> String? {
+        // P2：系统提示词末尾动态注入「当前日期 + 星期」（本地小模型日期幻觉治理；幂等注入，跨轮替换不叠加）
         if !userConfigured.isEmpty {
-            return userConfigured
+            return CurrentDateContext.inject(into: userConfigured)
         }
         let promptEngine = await SharedPromptEngine.instance.get()
         var promptContext = PromptContext()
@@ -1974,8 +1976,9 @@ final class AppViewModel: ObservableObject {
            let section = await memoryEngine.promptSection(query: lastUserMessage) {
             promptContext.blocks["context"] = section
         }
-        return try? await promptEngine.renderSystemPrompt(template: PromptEngine.agentTemplate, model: model,
-                                                          context: promptContext)
+        guard let rendered = try? await promptEngine.renderSystemPrompt(template: PromptEngine.agentTemplate, model: model,
+                                                                        context: promptContext) else { return nil }
+        return CurrentDateContext.inject(into: rendered)
     }
 
     /// 记忆反馈闭环：对本轮交换做启发式蒸馏，命中规则则写入长期记忆并落盘
@@ -2522,10 +2525,11 @@ final class AppViewModel: ObservableObject {
         Task {
             // 提示词工程层：子 Agent 角色模板（模型差异化适配；失败回退原文案）
             let promptEngine = await SharedPromptEngine.instance.get()
-            let subagentPrompt = await (try? promptEngine.renderSystemPrompt(
+            let subagentPromptBase = await (try? promptEngine.renderSystemPrompt(
                 template: PromptEngine.subagentTemplate, model: model
             ))
                 ?? "你是子任务执行 Agent：直接完成给定任务，输出简洁结果，不要反问。"
+            let subagentPrompt = CurrentDateContext.inject(into: subagentPromptBase)
             let agent = AgentLoop(
                 sessionID: SessionID(),
                 llm: provider,
