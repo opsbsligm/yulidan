@@ -22,11 +22,13 @@
 | SwiftLint | ✅ 0 违规 | `swiftlint lint --strict --config .swiftlint.yml`（197 文件，P0.3 新增 2） |
 | 编译 | ✅ 0 警告 | 全量冷编译（450 targets 含测试目标，覆盖率构建实测） |
 | 单元测试 | ✅ 658/658 | Swift Testing 658（138 suites）+ XCTest 0 失败（本轮 P2 日期注入 +5：CurrentDateContext 幂等注入/星期文案/固定日历锚定 2026-08-24=周一/已有上下文不干扰/子 Agent 路径；前轮契约 v2 +4：SharedMemoryEngine 重路由 2 / App 记忆路由+迁移 2 / 契约断言 5→6 更新；日志 /tmp/ci_pr_datectx.log） |
-| 本地 CI 模拟 | ✅ 四门禁全绿（pr+main+leaks+xcode，契约 v2 轮全覆盖，2026-08-23） | `tools/ci-local.sh`：pr /tmp/ci_pr_memv2.log（653/653，137 suites）+ main /tmp/ci_main_memv2.log（Release + 全量 653/653 + 覆盖率：MemoryEngine 95.17%）+ leaks /tmp/ci_leaks_memv2.log（MemProbe 500 → **0 leaks**）+ xcode /tmp/ci_xcode_memv2.log（**TEST SUCCEEDED**）；前轮基线：649/649 四门禁（/tmp/ci_{pr_watchdogfix,main_goal,leaks_goal,xcode_goal}.log）；GitHub 远端激活前四门禁以 ci-local 为准 |
+| 本地 CI 模拟 | ✅ 四门禁全绿（pr+main+leaks+xcode，P2 日期注入轮全覆盖，2026-08-24 复跑 @a9f270e） | `tools/ci-local.sh`：pr /tmp/ci_pr_datectx.log（658/658，138 suites）+ main /tmp/ci_main_datectx.log（Release + 全量 658/658 + 覆盖率：核心 14 包 94.04% 均 ≥90% / 18 包全量 92.55% / MemoryEngine 95.17%）+ leaks /tmp/ci_leaks_datectx.log（MemProbe 500 → **0 leaks**）+ xcode /tmp/ci_xcode_datectx.log（**TEST SUCCEEDED**）；前轮基线：653/653 四门禁契约 v2（/tmp/ci_{pr,main,leaks,xcode}_memv2.log）/ 649/649 四门禁；GitHub 远端激活前四门禁以 ci-local 为准 |
 | 本地镜像备份 | ✅ 每次提交后 | `git push --mirror /Users/liguangming/code/swift-harness-backup.git` |
 | GitHub 推送 | ⏸ 暂缓（流水线已就绪） | 按用户要求先本地版本控制，未推送远端。`.github/workflows/swift-ci.yml` 四 job（pr-check：SwiftLint+SwiftFormat+build+单测 / xcode-check / leaks / main-check：release+全量测试+覆盖率+CodeQL+制品）+ `weekly-regression.yml`（schedule cron 周日 02:23 UTC 全量回归 + workflow_dispatch 手动触发；独立文件避免 schedule 触发重复跑 4 job 的 macOS runner 成本）；激活前置：建 GitHub 仓库并 push（私有仓库需 Settings→Actions 启用 scheduled workflows；CODECOV_TOKEN 仅私有仓库需要）；本地模拟 `tools/ci-local.sh [pr|leaks|xcode|main]` 可跑，leaks 门禁 0 leaks 实测 |
 
 > **2026-08-23 周末无人值守复核（HEAD `c18289c`，docs-only 提交）**：pr 门禁复跑全绿 — SwiftLint 0 违规 / SwiftFormat 0 改动 / 编译 0 警告 / 单测 653/653（137 suites），日志 /tmp/ci_pr_weekend.log；DSHCLI e2e 无人值守复跑通过（`dsh run` + local/qwen3:4b，2 次工具调用 write_file→read_file → `weekend-check.txt` 10 字节 md5 dfcec55e… 落盘一致，MCP 测试服务器优雅降级一致，日志 /tmp/dsh_e2e_weekend.log）；锁屏长时压力持续（OVERRIDE-REMAP 自愈链，见 §四 P2 幻影行 2026-08-23 实证段）。
+
+> **2026-08-24（用户不在公司）无人值守复核（HEAD `a9f270e`，P2 日期注入轮代码 `82f3f30`）**：四门禁复跑全绿 — pr 658/658（138 suites）/tmp/ci_pr_datectx.log；main Release + 全量 658/658 + 覆盖率刷新：核心 14 包 94.04%（6645/7066，均 ≥90%，最低 Agent 91.33%）、18 包全量 92.55%（9174/9913）、MemoryEngine 95.17% /tmp/ci_main_datectx.log；leaks MemProbe 500 → 0 leaks /tmp/ci_leaks_datectx.log；xcode TEST SUCCEEDED /tmp/ci_xcode_datectx.log。被动核验（未触碰 UI）：sessions.sqlite 实证 10:56 走查会话「今天星期几」被 4B 模型答「星期二」= 幻觉实锤（实为周一 2026-08-24，与 §四 P2 日期行登记一致，修复 `82f3f30` 下次 App 重启生效，运行实例未打断）；watchdog 日志无新事故（仅已知 userManaged mismatch 噪音 + OVERRIDE-REMAP 自愈链，末次自愈 11:45 本地），无崩溃报告；Ollama 0.32.15 + qwen3:4b 端点正常。
 
 ## 二、八大后端模块交付状态
 
@@ -98,7 +100,7 @@
 | HarnessApp（UI 层） | 未计入表（SwiftUI 视图层，不计入 90% 核心基线；ViewModel 逻辑已由 AppViewModelProjectTests 等覆盖，项目模块 11 场景 + AppWorkspaceStore 2 场景全绿） | 说明 |
 
 **总计: 766 个测试用例（XCTest 186 + Swift Testing 580，117 suites），全部通过。**（并行门禁口径：XCTest 以 `[N/186] Testing` 计数、ST 以 "Test run with 580" 计数，两路全绿；P0.3 新增 3 ST = 116→117 suites 口径连续）
-**14 个核心包（除 LLM/Notifications/WebUI/Account）93.77%（6500/6932）均 ≥90%；18 包全量 92.31%（9008/9758）。**（P0.3 变动仅 Skill +14 行 96.9% / Session +1 行 93.2%，其余模块与 P0.2 逐项一致；全量 92.30→92.31 持平微升）
+**14 个核心包（除 LLM/Notifications/WebUI/Account）94.04%（6645/7066）均 ≥90%；18 包全量 92.55%（9174/9913）。**（2026-08-24 P2 日期注入轮 main 门禁重测 /tmp/ci_main_datectx.log，同 llvm-cov DA 口径：P0.3 后新增代码致分母 +134 行（记忆评分/watchdog/契约 v2 等），核心 93.77→94.04、全量 92.31→92.55 微升，14 包仍全部 ≥90%（最低 Agent 91.33%）；上表为 P0.3 轮逐模块快照，相对排序不变）
 
 > 口径说明：行覆盖统计各模块 `Sources/` 源文件（不含测试），`llvm-cov report` DA 行级口径（ci-local main 门禁产物 /tmp/ci_cov.profdata 聚合 182 个 profraw）；分母与上一版（llvm-cov export lcov 口径）不同，**绝对值不可直接纵向比较，模块相对排序与 ≥90% 达标状态一致**。`swift test` 末尾 "Test run with N" 只统计 Swift Testing，XCTest 计数看 "Executed N tests"（并行模式看 `[N/M] Testing`）。
 
@@ -191,14 +193,14 @@
 
 | 项 | 数值 |
 |----|------|
-| 源码（Packages，92 源文件） | 13,728 行（P2 ①：AgentLoop turn Task 化 + 联动取消 + 取消中性收敛 helper，+38） |
-| 源码（Apps，44 文件，HarnessApp + 辅助 target） | 10,688 行（watchdog 修复轮：shouldOverrideRemap 纯决策函数 + 服务器侧不可见连击计数，+39） |
-| 源码合计（136 文件） | 24,458 行 |
-| 测试代码（80 文件） | 17,572 行（watchdog 修复轮 WatchdogOverrideRemapTests 4 场景，+42） |
+| 源码（Packages，92 源文件） | 13,744 行（2026-08-24 重测：较 watchdog 修复轮 +16） |
+| 源码（Apps，45 文件，HarnessApp + 辅助 target） | 10,768 行（+CurrentDateContext.swift 39 行 + watchdog/主题插件等变更，+80） |
+| 源码合计（137 文件） | 24,512 行 |
+| 测试代码（83 文件） | 17,817 行（+CurrentDateContextTests 5 用例等，+245） |
 | SPM 目标 | 22 库（17 后端包 + 5 辅助库 Workspace/Plan/Goal/HarnessCore/Account 扩展）/ 4 可执行 + 20 测试目标（单一 xctest 进程） |
 | 工具链 | Swift 6.3.3 / Xcode 26.6 / macOS arm64 / platforms .macOS(.v26) |
 | 覆盖率口径 | llvm-cov 仅统计 Packages/*（Apps/HarnessApp 层不在表内，既有口径）；P2 ① main 门禁核心包（/tmp/p2cancel_ci_main.log）：AccountService 94.08% / AgentLoop 89.98%（联动取消路径覆盖）/  MCP.swift 97.31% / StdioMCPClient 92.53% / RAGEngine 94.02%（+0.27，2 新路由测试）/ MemoryEngine 95.02% / XPCPluginHost 96.57%；模块7 Skill 关键文件（同 log）：SkillEvolution 100 / SkillRegistry 100 / SkillStore 95.07 / SkillDebugger 98.94 / SkillVersioning 95.59 / SkillTools 92.00；模块8 LLM 关键文件：Adapters 92.14 / OpenAICompatChat 92.40 / LLMResponseNormalizer 96.40 / LLMProvider 89.66 / Message 76.92（DTO 纯数据文件 100） |
-| 提交总数 | 145（watchdog 修复轮 `c6dd787` + P1 前置文档 2 + 验收清单 2 + flaky 修复 1 + 质量入册 1；前轮 P2 ① 在途 LLM 联动取消 + 子任务历史 URL 实例缝） |
+| 提交总数 | 163（@`a9f270e`，P2 日期注入轮：`82f3f30` feature + 5 docs 提交 + 本入册；前轮 145 @watchdog 修复轮 `c6dd787`） |
 
 ### 八大后端模块代码级需求审计（2026-08-20 跨会话核验轮）
 
@@ -252,6 +254,7 @@
 ## 六、提交链（近期）
 
 ```
+a9f270e  docs(quality): P2 日期注入闭环入册 — §1 单元测试 653→658（138 suites）+ §4 P2 日期行改已闭环 + §6 提交链补 6 条（82f3f30..446c2d7）+ 验收清单 §7 基线刷新 658/658
 82f3f30  feat(prompt): P2 闭环 — 系统提示词动态注入当前日期+星期（本地小模型日期幻觉治理）：CurrentDateContext 纯函数 + 3 处接入（主聊天双路 + 子 Agent 2 处）+ 5 回归测试（锚定 2026-08-24=周一）；pr 门禁 658/658（138 suites）/tmp/ci_pr_datectx.log；下次 App 重启生效；附 11:39 实机证据（MCP 工具 mcp_local_current_time 对话内调用+绿色成功标记=全链路回显核销）
 62affea  docs(quality): 登记 P2 改进项 — 本地 4B 模型日期/星期幻觉（验收观察 08-24「星期二」实为周一），方案=系统提示词注入当前日期+星期（动态渲染小扩展）+ 回归测试，验收后实施
 47b82d5  docs(acceptance): 用户实机走查启动证据入册（10:54：标题自动派生/qwen3:4b 流式落盘/cwd 路由 agents/<id>/ 实机核销/生成指示实时）+ 记录 4B 模型星期幻觉（非链路缺陷）
