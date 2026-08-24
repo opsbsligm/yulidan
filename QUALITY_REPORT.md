@@ -116,6 +116,7 @@
 | 问题 | 说明 | 状态 |
 |------|------|------|
 | `dsh web` 与"非 Web 服务"约束边界 | 需用户确认约束口径（WebUI 为本地 127.0.0.1 调试服务，非对外 Web 服务） | 待确认 |
+| 本地小模型（qwen3:4b）当前日期/星期问答幻觉（2026-08-24 11:00 验收观察：问「今天星期几」答「今天是星期二」，实为周一；App 链路流式/落盘/路由均正确，纯模型自身能力问题） | 现象：本地 4B 模型无实时日期上下文时自推日期出错 | 改进待办（P2，用户验收流程结束后实施，避免打断）：系统提示词动态注入「当前日期 + 星期」（Prompt 工程层动态渲染已支持，属小扩展）+ 1 项回归测试；实现后复测本地模型日期类问答 |
 | ~~stopGenerating 不中断在途 LLM 调用（设计权衡）~~（已升级） | 原现象：`AgentLoop.cancel` 仅标记 cancelFlag，在途 `llm.request` 后台自行完成，远程模型浪费一次请求配额。**P2 ① 已升级为联动取消**：turn 入可取消 Task，cancel() 联动中断在途请求（全部 URLSession 适配器支持取消，即时中止）；不支持取消的 provider 其延迟响应被 runTurn 丢弃（不进 wire 历史 / 不作最终回答 / 不产错误消息）。**不变量保持**：取消路径无错误消息残留、无会话流污染（新增 3 测试 + `56efd78` 场景测试继续锁定） | 已闭环（本轮，645/645） |
 | 冷 scratch 偶发 emit-module 工具链崩溃 | `no such module 'Agent'`，同 scratch 重试即过（环境坑非代码） | 已知 |
 | SSO + iCloud 真机验收待 Developer Team | 无描述文件时本地 ad-hoc 签名无法携带 applesignin/icloud entitlements（Xcode ad-hoc 拒绝 team 级 entitlements，实测）；已按「无 entitlements 优雅降级」设计交付（UI 显示「需配置 entitlement/描述文件」+ 重新申请入口 + retryICloud），真实 SSO 登录 / KVS 跨设备漫游验收待用户提供 Team | 待用户（不阻塞） |
