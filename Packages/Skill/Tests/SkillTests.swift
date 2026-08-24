@@ -234,3 +234,59 @@ final class SkillToolTests: XCTestCase {
         XCTAssertTrue(text.contains("- demo — 演示技能"))
     }
 }
+
+// MARK: - importSkill（覆盖保护 + 版本登记）
+
+@Suite("SkillStore.importSkill 导入与覆盖")
+struct SkillImportTests {
+    private func freshRoot() -> URL {
+        URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("skill-import-test-\(UUID().uuidString)")
+    }
+
+    @Test("新增无历史；覆盖登记旧版本；损坏文件覆盖不崩")
+    func importOverwriteRecordsHistory() throws {
+        let root = freshRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let v1 = "---\nname: imp-test\ndescription: v1 描述\ntags: t\n---\nv1 正文"
+        let (skill1, url1, isNew1) = try SkillStore.importSkill(text: v1, source: "test", to: root)
+        #expect(isNew1)
+        #expect(skill1.name == "imp-test")
+        let dir = url1.deletingLastPathComponent()
+        #expect(SkillVersioning.loadHistory(directory: dir).isEmpty)
+
+        let v2 = "---\nname: imp-test\ndescription: v2 描述\ntags: t\n---\nv2 正文"
+        let (skill2, _, isNew2) = try SkillStore.importSkill(text: v2, source: "test", to: root)
+        #expect(!isNew2)
+        #expect(skill2.version == 2) // 覆盖 = 版本递增（旧 v1 → 新 v2）
+        let history = SkillVersioning.loadHistory(directory: dir)
+        #expect(history.count == 1)
+        #expect(history[0].instructions == "v1 正文")
+        #expect(history[0].description == "v1 描述")
+        #expect(history[0].version == 1)
+        let onDisk = try String(contentsOf: url1, encoding: .utf8)
+        #expect(onDisk.contains("v2 正文"))
+        #expect(onDisk.contains("version: 2")) // version 持久化 frontmatter（restore 可寻址）
+
+        // 损坏的现存文件 + 覆盖：不抛错、写入成功（旧版本无法解析时跳过登记）
+        try "corrupted-no-frontmatter".write(to: url1, atomically: true, encoding: .utf8)
+        let v3 = "---\nname: imp-test\ndescription: v3 描述\ntags: t\n---\nv3 正文"
+        let (skill3, _, isNew3) = try SkillStore.importSkill(text: v3, source: "test", to: root)
+        #expect(!isNew3)
+        // 旧文件已损坏无法解析 → 无法继承版本号，回落到导入文本自带版本（v1）
+        #expect(skill3.version == 1)
+        #expect(try String(contentsOf: url1, encoding: .utf8).contains("v3 正文"))
+    }
+
+    @Test("非法 frontmatter 抛 invalidFile（不落盘）")
+    func importRejectsInvalid() throws {
+        let root = freshRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        #expect(throws: SkillStore.SkillStoreError.invalidFile("test")) {
+            _ = try SkillStore.importSkill(text: "no frontmatter here", source: "test", to: root)
+        }
+        // 解析失败先于建目录抛错 → root 目录不应被创建
+        var isDir: ObjCBool = false
+        #expect(!FileManager.default.fileExists(atPath: root.path, isDirectory: &isDir))
+    }
+}

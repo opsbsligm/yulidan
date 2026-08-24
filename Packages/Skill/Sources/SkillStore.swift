@@ -126,12 +126,39 @@ public enum SkillStore {
     /// 技能库目录级读取错误（P0.3：传播到技能页异常 UI）
     public enum SkillStoreError: LocalizedError, Equatable {
         case notDirectory(String)
+        case invalidFile(String)
 
         public var errorDescription: String? {
             switch self {
             case let .notDirectory(name): "技能目录 \"\(name)\" 不是一个目录"
+            case let .invalidFile(path): "不是合法的技能文件（需要 frontmatter 且含 name 字段）：\(path)"
             }
         }
+    }
+
+    /// 导入技能（frontmatter 解析 + **覆盖前旧版本登记历史且版本号 +1** + 写 <root>/<name>/SKILL.md）
+    /// 版本管理不变量：任何覆盖式写入前旧版本必须入历史，且新版 = 旧版 + 1（version 持久化 frontmatter），
+    /// 保证 `versions`/`restore` 对手动导入/编辑可用且版本号可寻址（不重复）
+    /// - Returns: (技能, SKILL.md 路径, 是否新增)
+    @discardableResult
+    public static func importSkill(text: String, source: String, to root: URL = userSkillsDirectory) throws -> (skill: Skill, url: URL, isNew: Bool) {
+        guard let skill = parse(text, source: source) else {
+            throw SkillStoreError.invalidFile(source)
+        }
+        let dir = skillDirectory(for: skill.name, root: root)
+        let target = dir.appendingPathComponent("SKILL.md")
+        let isNew = !FileManager.default.fileExists(atPath: target.path)
+        var finalSkill = skill
+        if !isNew {
+            if let oldText = try? String(contentsOf: target, encoding: .utf8),
+               let oldSkill = parse(oldText, source: target.path) {
+                try? SkillVersioning.record(oldSkill, note: "导入覆盖（覆盖前快照）", directory: dir)
+                finalSkill.version = max(oldSkill.version, skill.version) + 1
+            }
+        }
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        try serialize(finalSkill).write(to: target, atomically: true, encoding: .utf8)
+        return (finalSkill, target, isNew)
     }
 
     /// 从目录加载全部技能（每个子目录含一个 SKILL.md；无效条目跳过）

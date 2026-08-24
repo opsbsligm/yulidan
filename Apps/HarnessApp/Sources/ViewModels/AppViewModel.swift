@@ -781,12 +781,14 @@ final class AppViewModel: ObservableObject {
             showToast("技能目录不存在")
             return
         }
-        let text = "---\nname: \(skill.name)\ndescription: \(desc)\ntags: \(tagList(from: tags).joined(separator: ", "))\n---\n\(body)\n"
+        // 版本管理：覆盖前旧版本登记历史；手动编辑计一次版本递增（version 持久化 frontmatter，restore 可寻址）
+        let updated = Skill(name: skill.name, description: desc, instructions: body, tags: tagList(from: tags), source: file.path, version: skill.version + 1)
+        try? SkillVersioning.record(skill, note: "手动编辑（编辑前快照）", directory: dir)
+        let text = SkillStore.serialize(updated)
         guard (try? text.write(to: file, atomically: true, encoding: .utf8)) != nil else {
             showToast("SKILL.md 写入失败")
             return
         }
-        let updated = Skill(name: skill.name, description: desc, instructions: body, tags: tagList(from: tags), source: file.path)
         Task {
             await skillRegistry.register(updated)
             await self.refreshSkills()
@@ -830,25 +832,16 @@ final class AppViewModel: ObservableObject {
             showToast("无法读取 \(fileURL.lastPathComponent)")
             return
         }
-        guard let skill = SkillStore.parse(text, source: fileURL.path) else {
-            showToast("不是合法技能文件（需含 name 的 frontmatter）")
-            return
-        }
-        let target = skillUserDirectory.appendingPathComponent(skill.name, isDirectory: true)
-            .appendingPathComponent("SKILL.md")
         do {
-            try FileManager.default.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try text.write(to: target, atomically: true, encoding: .utf8)
+            // 业务逻辑走 SkillStore.importSkill（覆盖前旧版本登记历史 + 版本递增，与 CLI 路径一致）
+            let (imported, _, _) = try SkillStore.importSkill(text: text, source: fileURL.path, to: skillUserDirectory)
+            Task {
+                await skillRegistry.register(imported)
+                await self.refreshSkills()
+                self.showToast("已导入技能：\(imported.name)")
+            }
         } catch {
-            showToast("SKILL.md 写入失败")
-            return
-        }
-        let imported = Skill(name: skill.name, description: skill.description, instructions: skill.instructions,
-                             tags: skill.tags, source: target.path)
-        Task {
-            await skillRegistry.register(imported)
-            await self.refreshSkills()
-            self.showToast("已导入技能：\(skill.name)")
+            showToast("技能导入失败：\(error.localizedDescription)")
         }
     }
 

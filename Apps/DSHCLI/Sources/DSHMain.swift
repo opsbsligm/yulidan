@@ -569,20 +569,13 @@ struct SkillsImportCommand: AsyncParsableCommand {
             print("无法读取 \(fileURL.lastPathComponent)")
             throw ExitCode(1)
         }
-        guard let skill = SkillStore.parse(text, source: fileURL.path) else {
-            print("❌ 不是合法的技能文件（需要 --- frontmatter --- 且含 name 字段）：\(fileURL.path)")
-            throw ExitCode(1)
-        }
-        let target = SkillStore.userSkillsDirectory.appendingPathComponent(skill.name, isDirectory: true)
-            .appendingPathComponent("SKILL.md")
-        let existed = fm.fileExists(atPath: target.path)
         do {
-            try fm.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try text.write(to: target, atomically: true, encoding: .utf8)
+            // 业务逻辑走 SkillStore.importSkill（覆盖前旧版本登记历史，versions/restore 可用）
+            let (skill, target, isNew) = try SkillStore.importSkill(text: text, source: fileURL.path)
+            print("✅ 已导入 \(skill.name)（\(isNew ? "新增" : "覆盖")）→ \(target.path)")
         } catch {
-            print("写入失败：\(target.path)（\(error.localizedDescription)）")
+            print("❌ \(error.localizedDescription)")
             throw ExitCode(1)
         }
-        print("✅ 已导入 \(skill.name)（\(existed ? "覆盖" : "新增")）→ \(target.path)")
     }
 }

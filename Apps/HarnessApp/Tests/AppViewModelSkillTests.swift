@@ -139,6 +139,14 @@ struct AppViewModelSkillTests {
         let parsed = SkillStore.parse(text, source: "test")
         #expect(parsed?.description == "新描述")
         #expect(parsed?.instructions == "新正文内容")
+        // 版本管理：编辑前旧版本（v1）已登记历史（restore 可回滚），编辑后文件 version=2 持久化
+        let history = SkillVersioning.loadHistory(directory: dir.appendingPathComponent("edit-me"))
+        #expect(history.count == 1)
+        #expect(history[0].instructions == "旧正文")
+        #expect(history[0].version == 1)
+        #expect(history[0].changeNote.contains("手动编辑"))
+        let onDiskAfter = try? String(contentsOf: dir.appendingPathComponent("edit-me/SKILL.md"), encoding: .utf8)
+        #expect(onDiskAfter?.contains("version: 2") == true)
     }
 
     @Test("内置技能不可编辑（toast 且内容不变）")
@@ -186,7 +194,7 @@ struct AppViewModelSkillTests {
         try? "没有 frontmatter 的内容".write(to: source, atomically: true, encoding: .utf8)
         let vm = AppViewModel(skillUserDirectory: dir)
         vm.importSkillFile(at: source)
-        #expect(vm.toastMessage == "不是合法技能文件（需含 name 的 frontmatter）")
+        #expect(vm.toastMessage?.hasPrefix("技能导入失败") == true)
         let entries = (try? FileManager.default.contentsOfDirectory(atPath: dir.path)) ?? []
         #expect(entries.isEmpty)
     }
