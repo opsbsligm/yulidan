@@ -318,10 +318,17 @@ public actor MCPServerManager {
         return try await client.callTool(name: name, arguments: arguments)
     }
 
-    /// 断开并注销（stdio 客户端终止子进程）
-    public func disconnect(name: String) async {
+    /// 断开并注销（stdio 客户端终止子进程）；提供注册表时同步移除该服务器的
+    /// mcp_<name>_* 工具（卸载/重连失败后 Agent 工具注册表即时清理，防陈旧工具残留下发）
+    public func disconnect(name: String, into registry: ToolRegistry? = nil) async {
         if let client = clients[name] as? StdioMCPClient {
             await client.stop()
+        }
+        if let registry {
+            let prefix = "mcp_\(name)_"
+            for oldName in await registry.names() where oldName.hasPrefix(prefix) {
+                await registry.unregister(named: oldName)
+            }
         }
         unregister(name: name)
     }

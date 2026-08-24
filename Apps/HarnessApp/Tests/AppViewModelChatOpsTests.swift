@@ -284,4 +284,163 @@ struct AppViewModelChatOpsTests {
         }
         #expect(vm.plugins.contains(where: { $0.id == "terminal" && $0.isActive }))
     }
+
+    // MARK: 场景 4：模型切换即时生效（ModelSwitcherMenu 真实 UI 路径：save → 通知 → 主线程重载）
+
+    @Test("模型切换即时生效：同提供商换模型复用循环，下轮 wire 立即使用新模型")
+    func modelSwitchReusesLoop() async {
+        let fx = ModelSwitchFixture(model: "model-A")
+        defer { fx.tearDown() }
+        fx.wireProvider()
+        #expect(fx.vm.llmConfig.modelName == "model-A") // init 从磁盘加载
+
+        fx.vm.createNewSession()
+        fx.vm.sendMessage("第一轮")
+        #expect(await waitDelivery(fx.vm))
+        #expect(fx.provider.wireModels == ["model-A"])
+        #expect(fx.vm.cachedLoopCountForTesting == 1)
+
+        // 仅模型切换（同提供商/同端点）→ 通知重载；循环指纹不变 → 复用
+        var cfg = fx.vm.llmConfig
+        cfg.modelName = "model-B"
+        cfg.save()
+        let deadline = Date().addingTimeInterval(5)
+        while Date() < deadline, fx.vm.llmConfig.modelName != "model-B" {
+            try? await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(fx.vm.llmConfig.modelName == "model-B")
+
+        fx.vm.sendMessage("第二轮")
+        #expect(await waitDelivery(fx.vm))
+        #expect(fx.provider.wireModels == ["model-A", "model-B"]) // wire 立即使用新模型
+        #expect(fx.vm.cachedLoopCountForTesting == 1) // 循环复用（历史保留），未重建
+    }
+
+    @Test("模型切换即时生效：端点切换（provider 级）重建循环，工厂重注入新配置")
+    func modelSwitchRebuildsLoopOnEndpointChange() async {
+        let fx = ModelSwitchFixture(model: "model-A")
+        defer { fx.tearDown() }
+        fx.wireProvider()
+
+        fx.vm.createNewSession()
+        fx.vm.sendMessage("第一轮")
+        #expect(await waitDelivery(fx.vm))
+        #expect(fx.factoryProbe.configs.count == 1)
+
+        // 本地端点切换 → 上下文指纹变化 → 循环重建 → 工厂再次注入
+        var cfg = fx.vm.llmConfig
+        cfg.localBaseURL = "http://localhost:11500/v1"
+        cfg.save()
+        let deadline = Date().addingTimeInterval(5)
+        while Date() < deadline, fx.vm.llmConfig.localBaseURL != "http://localhost:11500/v1" {
+            try? await Task.sleep(for: .milliseconds(20))
+        }
+
+        fx.vm.sendMessage("第二轮")
+        #expect(await waitDelivery(fx.vm))
+        let configs = fx.factoryProbe.configs
+        #expect(configs.count == 2) // 工厂二次注入 = 旧循环释放、新循环创建
+        #expect(configs.last?.model == "model-A")
+        #expect(configs.last?.baseURL == "http://localhost:11500/v1")
+        #expect(fx.vm.cachedLoopCountForTesting == 1) // 新旧循环同 key 替换，缓存数稳定
+    }
+}
+
+/// 等待生成收敛（末条助手消息 delivered）
+@MainActor
+private func waitDelivery(_ vm: AppViewModel) async -> Bool {
+    let deadline = Date().addingTimeInterval(15)
+    while Date() < deadline {
+        if !vm.isGenerating, let last = vm.messages.last,
+           last.role == .assistant, last.status == .delivered {
+            return true
+        }
+        try? await Task.sleep(for: .milliseconds(50))
+    }
+    return false
+}
+
+/// 模型切换测试夹具：独立 DB/技能目录 + llmConfig 磁盘快照（UserDefaults.standard 进程内共享，
+/// 快照/还原防跨 suite 污染，同 ThemePlugin activeKey 纪律）
+@MainActor
+private final class ModelSwitchFixture {
+    let vm: AppViewModel
+    let provider: ModelSwitchProbeProvider
+    let factoryProbe: FactoryConfigProbe
+    private let dbURL: URL
+    private let skillDir: URL
+    private let originalConfigData: Data?
+
+    init(model: String) {
+        provider = ModelSwitchProbeProvider()
+        factoryProbe = FactoryConfigProbe()
+        dbURL = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("harness-modelswitch-\(UUID().uuidString).sqlite")
+        skillDir = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("harness-modelswitch-skills-\(UUID().uuidString)")
+        originalConfigData = UserDefaults.standard.data(forKey: "llmConfig")
+        var cfg = LLMConfig.makeDefault()
+        cfg.provider = .local
+        cfg.modelName = model
+        cfg.save()
+        vm = AppViewModel(skillUserDirectory: skillDir, sessionDBURL: dbURL)
+    }
+
+    /// 工厂注入探针（记录每次注入的配置快照 + 统一返回脚本化 provider）
+    func wireProvider() {
+        vm.providerFactoryOverride = { [factoryProbe, provider] (cfg: LLMConfig, _) -> any LLMProvider in
+            factoryProbe.record(cfg)
+            return provider
+        }
+    }
+
+    func tearDown() {
+        vm.providerFactoryOverride = nil
+        if let originalConfigData {
+            UserDefaults.standard.set(originalConfigData, forKey: "llmConfig")
+        } else {
+            UserDefaults.standard.removeObject(forKey: "llmConfig")
+        }
+        UserDefaults.standard.synchronize()
+        try? FileManager.default.removeItem(at: dbURL)
+        try? FileManager.default.removeItem(at: skillDir)
+    }
+}
+
+/// 记录每次 wire 请求的模型名（模型切换即时生效验证）
+private final class ModelSwitchProbeProvider: LLMProvider, @unchecked Sendable {
+    let id = "model-switch-probe"
+    let supportedModels = ["probe"]
+    private let lock = NSLock()
+    private var recordedModels: [String] = []
+
+    var wireModels: [String] {
+        lock.withLock { recordedModels }
+    }
+
+    func request(_ request: LLMRequest) async throws -> LLMResponse {
+        lock.withLock { recordedModels.append(request.model) }
+        return LLMResponse(model: request.model, content: [.text("OK")], finishReason: .stop)
+    }
+
+    func stream(_ request: LLMRequest) async throws -> AsyncThrowingStream<LLM.StreamChunk, Error> {
+        AsyncThrowingStream { continuation in
+            lock.withLock { recordedModels.append(request.model) }
+            continuation.finish()
+        }
+    }
+}
+
+/// 记录工厂注入时的配置快照（重建路径验证：端点变化 → 工厂再次被调用）
+private final class FactoryConfigProbe: @unchecked Sendable {
+    private let lock = NSLock()
+    private var recorded: [(model: String, baseURL: String)] = []
+
+    var configs: [(model: String, baseURL: String)] {
+        lock.withLock { recorded }
+    }
+
+    func record(_ cfg: LLMConfig) {
+        lock.withLock { recorded.append((model: cfg.modelName, baseURL: cfg.localBaseURL)) }
+    }
 }

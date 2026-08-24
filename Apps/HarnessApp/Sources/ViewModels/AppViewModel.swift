@@ -2345,7 +2345,7 @@ final class AppViewModel: ObservableObject {
             return
         }
         // 旧连接先断开（同名重启防子进程泄漏）再即时连接
-        await mcpManager.disconnect(name: config.name)
+        await mcpManager.disconnect(name: config.name, into: toolRegistry)
         let descriptor = await mcpManager.connectStdio(config, into: toolRegistry)
         if descriptor.isAvailable {
             showToast("MCP 服务器已连接：\(config.name)（\(descriptor.toolCount ?? 0) 个工具）")
@@ -2365,7 +2365,7 @@ final class AppViewModel: ObservableObject {
             showToast("服务器配置不存在，无法重启")
             return
         }
-        await mcpManager.disconnect(name: cfg.name)
+        await mcpManager.disconnect(name: cfg.name, into: toolRegistry)
         let descriptor = await mcpManager.connectStdio(cfg, into: toolRegistry)
         if descriptor.isAvailable {
             showToast("MCP 服务器已重启：\(cfg.name)（\(descriptor.toolCount ?? 0) 个工具）")
@@ -2387,7 +2387,7 @@ final class AppViewModel: ObservableObject {
             showToast("MCP 配置保存失败：\(error.localizedDescription)")
             return
         }
-        await mcpManager.disconnect(name: item.name)
+        await mcpManager.disconnect(name: item.name, into: toolRegistry)
         showToast("已卸载 MCP 服务器：\(item.name)")
         await refreshTools()
         await refreshThemes()

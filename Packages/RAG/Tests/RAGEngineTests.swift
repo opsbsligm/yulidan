@@ -178,4 +178,31 @@ struct RAGEngineTests {
         #expect(docs == 1)
         #expect(await !(reloaded.retrieve(query: "持久化 验证")).isEmpty)
     }
+
+    @Test("ingest 自动持久化：新引擎实例免显式 save 仍可检索（CLI 跨进程知识库丢失回归守卫）")
+    func ingestAutoPersistsAcrossEngineInstances() async {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("rag-autosave-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let engine = RAGEngine(store: VectorStore(fileURL: url))
+        await engine.ingestText("API 网关限流阈值为 1200 请求/分钟，超限返回 HTTP 429",
+                                source: "ops.md", title: "运维手册")
+        // 不显式 save：新引擎实例从磁盘重载（等价于新 CLI 进程）
+        let reloaded = RAGEngine(store: VectorStore(fileURL: url))
+        let hits = await reloaded.retrieve(query: "API 网关 限流 阈值")
+        #expect(!hits.isEmpty)
+        #expect(hits.first?.source == "ops.md")
+
+        // removeDocument 同样即时落盘
+        let docIDs = await reloaded.documentIDs()
+        #expect(docIDs.count == 1)
+        await reloaded.removeDocument(docIDs[0])
+        let afterRemove = RAGEngine(store: VectorStore(fileURL: url))
+        #expect(await afterRemove.documentIDs().isEmpty)
+
+        // clear 同样即时落盘
+        await engine.ingestText("第二轮入库内容，用于清空验证", source: "ops2.md")
+        await engine.clear()
+        let afterClear = RAGEngine(store: VectorStore(fileURL: url))
+        #expect(await afterClear.documentIDs().isEmpty)
+    }
 }

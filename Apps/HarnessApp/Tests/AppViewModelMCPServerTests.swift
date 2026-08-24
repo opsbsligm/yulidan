@@ -151,4 +151,75 @@ struct AppViewModelMCPServerTests {
         #expect(AppViewModel.parseEnvPairs("") == [:])
         #expect(AppViewModel.parseEnvPairs("A=B=C") == ["A": "B=C"])
     }
+
+    // MARK: 用例 8：真实 stdio MCP 服务器 — 工具自动注册进工具页 / 卸载即时移除
+
+    @Test("MCP 导入：工具自动注册进工具列表；卸载 → 工具即时移除 + 服务器断开")
+    func importRegistersToolsRemoveDropsThem() async throws {
+        let dir = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("harness-mcp-regtest-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let script = dir.appendingPathComponent("regtest_server.py").path
+        try minimalMCPServerSource.write(toFile: script, atomically: true, encoding: .utf8)
+
+        let (vm, _) = makeVM()
+        await vm.importMCPServer(name: "regtest", command: "/usr/bin/env",
+                                 arguments: "python3 \(script)", environment: "")
+
+        // 等待握手完成 + 工具注册进工具列表（工具页自动注册链路）
+        let deadline = Date().addingTimeInterval(20)
+        while Date() < deadline {
+            if vm.mcpServers.first?.isAvailable == true,
+               vm.tools.contains(where: { $0.name == "mcp_regtest_echo" }) {
+                break
+            }
+            try? await Task.sleep(for: .milliseconds(100))
+        }
+        #expect(vm.mcpServers.first?.isAvailable == true)
+        #expect(vm.tools.contains(where: { $0.name == "mcp_regtest_echo" }))
+
+        // 卸载：工具即时移除 + 服务器断开
+        await vm.removeMCPServer(vm.mcpServers[0])
+        #expect(!vm.tools.contains(where: { $0.name.hasPrefix("mcp_regtest_") }))
+        #expect(await vm.mcpManager.isConnected(name: "regtest") == false)
+    }
 }
+
+/// 最小 MCP 服务器（python3 stdio NDJSON；initialize/tools/list/tools/call，无外部日志写）
+private let minimalMCPServerSource = #"""
+import json, sys
+
+def main():
+    while True:
+        line = sys.stdin.readline()
+        if not line:
+            break
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            msg = json.loads(line)
+        except Exception:
+            continue
+        mid = msg.get("id")
+        method = msg.get("method")
+        params = msg.get("params") or {}
+        if method == "initialize":
+            result = {"protocolVersion": "2024-11-05", "capabilities": {"tools": {}}, "serverInfo": {"name": "regtest", "version": "0.0.1"}}
+            sys.stdout.write(json.dumps({"jsonrpc": "2.0", "id": mid, "result": result}) + "\n")
+            sys.stdout.flush()
+        elif method == "ping":
+            sys.stdout.write(json.dumps({"jsonrpc": "2.0", "id": mid, "result": {}}) + "\n")
+            sys.stdout.flush()
+        elif method == "tools/list":
+            tools = [{"name": "echo", "description": "echo text", "inputSchema": {"type": "object", "properties": {"text": {"type": "string"}}}}]
+            sys.stdout.write(json.dumps({"jsonrpc": "2.0", "id": mid, "result": {"tools": tools}}) + "\n")
+            sys.stdout.flush()
+        elif method == "tools/call":
+            text = str((params.get("arguments") or {}).get("text", ""))
+            sys.stdout.write(json.dumps({"jsonrpc": "2.0", "id": mid, "result": {"content": [{"type": "text", "text": "echo: " + text}]}}) + "\n")
+            sys.stdout.flush()
+
+main()
+"""#

@@ -129,17 +129,22 @@ public actor RAGEngine {
                         vector: vectorizer.embed(chunk.text))
         }
         await store.upsert(stored)
+        // 入库即持久化（agent 工具链路无显式 save 时机；CLI 每次运行是独立进程，
+        // 不落盘 = 跨进程知识库丢失，2026-08-24 RAG e2e 实锤）
+        await save()
         return chunks.count
     }
 
     /// 移除文档
     public func removeDocument(_ documentID: String) async {
         await store.removeDocument(documentID)
+        await save()
     }
 
     /// 清空
     public func clear() async {
         await store.clear()
+        await save()
     }
 
     /// 正文内容 SHA256（去重键）
