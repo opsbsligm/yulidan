@@ -378,6 +378,24 @@ struct AgentLoopRunCoverageTests {
         #expect(second[2].role == .tool)
     }
 
+    /// L365：suffix 队首为孤立 tool 结果时循环体 dropFirst 直测
+    /// （既有集成测试实锤 while 条件 45 次求值但循环体 0 执行—队首从未为 tool，改静态直测）
+    @Test("trimHistory：suffix 队首为 tool 结果 → 丢弃至空（L365 循环体）")
+    func trimHistoryStaticOrphanToolDropped() {
+        let assistant = LLM.Message(role: .assistant,
+                                    content: [.toolCall(LLM.ToolCallBlock(id: "c1", name: "echo", arguments: "{}"))],
+                                    source: .model)
+        let tool = LLM.Message(role: .tool,
+                               content: [.toolResult(LLM.ToolResultBlock(toolCallId: "c1", content: [.text("ok")], isError: false))],
+                               source: .tool)
+        // max=1：[a, t] → suffix(1) = [t] → 队首为 tool → dropFirst → 空
+        let trimmed = AgentLoop.trimHistory([assistant, tool], max: 1)
+        #expect(trimmed.isEmpty)
+        // 对照：队首非 tool → 不丢弃
+        let kept = AgentLoop.trimHistory([assistant, tool], max: 2)
+        #expect(kept.count == 2)
+    }
+
     @Test("工具进度 chunk：onChunk 上报经 ChunkIndexer 转发 turn")
     func toolProgressChunksForwarded() async {
         let tool = ChunkyTool()

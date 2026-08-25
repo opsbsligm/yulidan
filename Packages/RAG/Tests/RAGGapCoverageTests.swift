@@ -95,6 +95,15 @@ struct RAGGapCoverageTests {
         let miss = await store.search(queryVector: [0.1, 0.2, 0.3], topK: 5, filter: ["tag": "gamma"])
         #expect(miss.isEmpty)
     }
+
+    /// RetrievedChunk.id 转发 chunk.id（轮 7 留待顺带项；L8-10 转发属性）
+    @Test("RetrievedChunk.id 转发 chunk.id")
+    func retrievedChunkIDForwardsToChunk() {
+        let chunk = RAGChunk(documentID: "d1", index: 0, text: "t", charStart: 0, charEnd: 1)
+        let retrieved = RetrievedChunk(chunk: chunk, source: "/tmp/doc", title: "doc",
+                                       score: 1, cosineScore: 1, termHits: 0, metadata: [:])
+        #expect(retrieved.id == chunk.id)
+    }
 }
 
 private extension ToolResult {

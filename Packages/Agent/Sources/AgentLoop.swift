@@ -357,7 +357,8 @@ public actor AgentLoop {
 
     /// 裁剪上下文到最近 max 条（保留工具调用/结果的配对完整性：
     /// 不留下“无主”的 tool 结果消息在队首）
-    private static func trimHistory(_ history: [LLM.Message], max: Int) -> [LLM.Message] {
+    /// internal（非 private）：测试缝，直测队首孤立 tool 结果丢弃分支（L365 循环体）
+    static func trimHistory(_ history: [LLM.Message], max: Int) -> [LLM.Message] {
         guard history.count > max else { return history }
         var keep = history.suffix(max)
         // 队首若为 tool 结果（其 assistant 调用已被裁掉），继续丢弃直到安全边界
