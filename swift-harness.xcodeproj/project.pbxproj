@@ -61,6 +61,7 @@
 		409612CA310B789EB44700B3 /* libTerminal.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A46E124774A36A19EC3DE5AA /* libTerminal.a */; };
 		40EC330443C4028D1FB69E2F /* ProviderProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F0322562B30E797960E0DCA /* ProviderProfile.swift */; };
 		42638F669484EE55D6979924 /* SessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C84877ED4AB8818B9F281F57 /* SessionTests.swift */; };
+		433A414179A2CAA69A222E4B /* LLMMappingBranchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37197D2AF43865186EE7E8FB /* LLMMappingBranchTests.swift */; };
 		43823BE606644E8E7398EB99 /* LLMHTTPStubTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1D2F7987468FC552AA3E441 /* LLMHTTPStubTests.swift */; };
 		439029A3C14A23A16468D1BF /* MCP.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E78B521DE41874E27BE6C00 /* MCP.swift */; };
 		43A6FF9F0E7F0A810E437D9A /* HarnessTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEB5DB6F068E05978684C1B7 /* HarnessTheme.swift */; };
@@ -931,6 +932,7 @@
 		348DB86FF43D7ED899E524A2 /* ProviderFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderFactory.swift; sourceTree = "<group>"; };
 		34A1EC99A999D96DD8FF589D /* SkillTools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkillTools.swift; sourceTree = "<group>"; };
 		365924CCF276C1011809D8C5 /* Session.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Session.swift; sourceTree = "<group>"; };
+		37197D2AF43865186EE7E8FB /* LLMMappingBranchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMMappingBranchTests.swift; sourceTree = "<group>"; };
 		37A65C4DB41A7ABC7699E91D /* XPCPluginHost.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XPCPluginHost.swift; sourceTree = "<group>"; };
 		394972AC961A90C269BA46C1 /* SubagentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubagentView.swift; sourceTree = "<group>"; };
 		3DDFAD9EC4C77383BD08834A /* MetadataSyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetadataSyncService.swift; sourceTree = "<group>"; };
@@ -1713,6 +1715,7 @@
 			children = (
 				D1D2F7987468FC552AA3E441 /* LLMHTTPStubTests.swift */,
 				84ED32EA27BBCD4F5CFD5387 /* LLMHTTPTests.swift */,
+				37197D2AF43865186EE7E8FB /* LLMMappingBranchTests.swift */,
 				500F97A68EF8D44D360B487B /* LLMProviderProfileTests.swift */,
 				B6BDB611E3D860FC7902E9F0 /* LLMTests.swift */,
 				24FFE977F66296DC20013F6A /* LLMToolCallWireTests.swift */,
@@ -3126,6 +3129,7 @@
 			files = (
 				43823BE606644E8E7398EB99 /* LLMHTTPStubTests.swift in Sources */,
 				7FF20C8E532FB56B822D81FA /* LLMHTTPTests.swift in Sources */,
+				433A414179A2CAA69A222E4B /* LLMMappingBranchTests.swift in Sources */,
 				6CB57C712A5BCB2B81171381 /* LLMProviderProfileTests.swift in Sources */,
 				845405CC8003D6EF9C5CF9D5 /* LLMTests.swift in Sources */,
 				B9924105E4E811ED740DF747 /* LLMToolCallWireTests.swift in Sources */,
