@@ -77,6 +77,37 @@ final class SessionDBTests: XCTestCase {
         XCTAssertGreaterThan(loaded[0].metadata.createdAt, loaded[1].metadata.createdAt)
     }
 
+    // MARK: - 损坏行防御与错误本地化（覆盖审计轮）
+
+    /// metadata_json 损坏的行应被 mapRow 静默跳过（不崩溃、不产畸形记录）
+    func testCorruptedMetadataRowSkipped() async throws {
+        let meta = SessionMetadata(cwd: URL(fileURLWithPath: "/tmp"))
+        var session = SessionRecord(id: SessionID(), metadata: meta)
+        session.append(.userMessage(UserMessage(content: [.text("探针")])))
+        try await db.save(session)
+
+        // GRDB 直连同库把 metadata_json 写成非法 JSON（模拟损坏行/脏数据）
+        let sid = session.id.rawValue.uuidString
+        let raw = try DatabaseQueue(path: dbURL.path)
+        try await raw.write { d in
+            try d.execute(
+                sql: "UPDATE sessions SET metadata_json = ? WHERE id = ?",
+                arguments: ["{corrupted-not-json", sid]
+            )
+        }
+
+        let loaded = try await db.loadAll()
+        XCTAssertEqual(loaded.count, 0, "损坏元数据的行应被跳过而非崩溃")
+        let single = try await db.load(session.id)
+        XCTAssertNil(single, "load(_:) 对损坏会话应返回 nil")
+    }
+
+    /// openFailed 错误本地化文案
+    func testOpenFailedErrorDescription() {
+        let err = SessionDBError.openFailed("磁盘已满")
+        XCTAssertEqual(err.errorDescription, "会话数据库打开失败：磁盘已满")
+    }
+
     // MARK: - 元数据快速路径（性能）
 
     private func makeSession(_ label: String, createdAt: Date, eventCount: Int) -> SessionRecord {

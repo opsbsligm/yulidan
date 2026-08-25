@@ -120,6 +120,22 @@ struct XPCPluginProxyTests {
         #expect(unhealthy.status == .unhealthy)
         #expect(unhealthy.message == "stopped")
     }
+
+    @Test("Initialize is a no-op passthrough (activation only on start)")
+    func initializeNoOp() async throws {
+        let endpoint = FakeEndpoint()
+        let proxy = XPCPluginProxy(manifest: makeManifest(), endpoint: endpoint)
+        try await proxy.initialize(context: .testContext())
+        #expect(proxy.isActive == false)
+        #expect(endpoint.calls.isEmpty, "initialize 不应触发 worker start 调用")
+    }
+
+    @Test("Error descriptions match wording")
+    func errorDescriptions() {
+        let failed = PluginXPCError.remoteStartFailed("plug-x", "boom")
+        #expect(failed.description == "Remote plugin start failed (plug-x): boom")
+        #expect(PluginXPCError.connectionLost.description == "XPC connection to plugin worker lost")
+    }
 }
 
 // MARK: - Host 注册逻辑测试

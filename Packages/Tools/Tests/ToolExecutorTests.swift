@@ -46,6 +46,31 @@ struct EchoStubTool: Tool {
     }
 }
 
+struct MultiBlockStubTool: Tool {
+    let name = "multi_tool"
+    let description = "混合多块输出工具"
+    let parameterSchema = "{}"
+
+    func execute(_: [String: String], context _: ToolRunContext) async throws -> ToolResult {
+        ToolResult(content: [
+            .text("12345"),
+            .image(ImageBlock(mimeType: "image/png", data: Data([0x89, 0x50, 0x4E, 0x4E]))),
+            .text(String(repeating: "y", count: 30)),
+        ])
+    }
+}
+
+struct JSONWithNoiseStubTool: Tool {
+    let name = "json_noise_tool"
+    let description = "带 reasoning 噪声的 JSON 输出工具"
+    let parameterSchema = "{}"
+    let validatesJSONOutput = true
+
+    func execute(_: [String: String], context _: ToolRunContext) async throws -> ToolResult {
+        ToolResult(content: [.text(#"{"ok":1}"#), .reasoning("noise")])
+    }
+}
+
 struct SlowStubTool: Tool {
     let name = "slow_tool"
     let description = "慢工具"
@@ -247,6 +272,42 @@ final class ToolExecutorTests: XCTestCase {
         XCTAssertTrue(t.contains("输出截断"))
         XCTAssertLessThan(t.count, 1200, "截断后应接近上限（含标记）")
         XCTAssertEqual(result.meta?["truncated"], "true")
+    }
+
+    // MARK: - 截断分支与非文本块路径（覆盖审计轮）
+
+    /// 截断 map：非文本块原样穿过 + 限内文本块整体保留 + 超限文本块截断带标记
+    func testTruncationSkipsNonTextAndKeepsFittingBlocks() async {
+        let executor = ToolExecutor(policy: .init(maxOutputCharacters: 10))
+        let registry = ToolRegistry()
+        await registry.register(MultiBlockStubTool())
+        let result = await executor.execute(ToolCall(name: "multi_tool"), in: registry)
+        XCTAssertNil(result.error)
+        XCTAssertEqual(result.content.count, 3, "块数不变，仅文本内容截断")
+        if case let .text(t1) = result.content[0] {
+            XCTAssertEqual(t1, "12345", "限内文本块应整体保留")
+        } else {
+            XCTFail("首块应为原样文本")
+        }
+        if case .image = result.content[1] {} else {
+            XCTFail("第二块应为 image 原样穿过")
+        }
+        if case let .text(t3) = result.content[2] {
+            XCTAssertTrue(t3.hasPrefix("yyyyy"), "应保留剩余配额内的前缀")
+            XCTAssertTrue(t3.contains("输出截断"), "应带截断标记")
+        } else {
+            XCTFail("第三块应为截断文本")
+        }
+        XCTAssertEqual(result.meta?["truncated"], "true")
+    }
+
+    /// textOf/textCharCount 仅统计 text 块（非文本块走 nil 分支）：reasoning 噪声不干扰 JSON 校验
+    func testJSONValidationIgnoresNonTextBlocks() async {
+        let executor = ToolExecutor()
+        let registry = ToolRegistry()
+        await registry.register(JSONWithNoiseStubTool())
+        let result = await executor.execute(ToolCall(name: "json_noise_tool"), in: registry)
+        XCTAssertNil(result.error, "reasoning 块不应参与 JSON 校验/字符计数")
     }
 
     func testJSONOutputInvalidRejected() async {
