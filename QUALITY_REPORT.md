@@ -21,8 +21,8 @@
 | SwiftFormat | ✅ 0 改动 | `swiftformat --lint . --config .swiftformat`（197 文件，P0.3 新增 2） |
 | SwiftLint | ✅ 0 违规 | `swiftlint lint --strict --config .swiftlint.yml`（197 文件，P0.3 新增 2） |
 | 编译 | ✅ 0 警告 | 全量冷编译（450 targets 含测试目标，覆盖率构建实测） |
-| 单元测试 | ✅ 664/664 | Swift Testing 664（139 suites）+ XCTest 0 失败（本轮差距审计 +4：模型切换即时生效双路 2 / MCP 真实 stdio 工具注册-卸载联动 1 / RAG 自动持久化跨引擎实例回归守卫 1；前轮 Skill 版本管理 +2；日志 /tmp/ci_pr_ragfix.log） |
-| 本地 CI 模拟 | ✅ 四门禁全绿（pr+main+leaks+xcode，差距审计轮全覆盖，2026-08-24 复跑 @7447179） | `tools/ci-local.sh`：pr /tmp/ci_pr_ragfix.log（664/664，139 suites）+ main /tmp/ci_main_ragfix.log（Release + 全量 664/664 + 覆盖率：核心 14 包 94.15% 均 ≥90% / 18 包全量 92.63% / RAGEngine 95.77% / MCP.swift 97.74%）+ leaks /tmp/ci_leaks_ragfix.log（MemProbe 500 → **0 leaks**）+ xcode /tmp/ci_xcode_ragfix.log（**TEST SUCCEEDED**）；前轮基线：660/660 四门禁 @5e65413（/tmp/ci_{pr,main,leaks,xcode}_skillver.log）；GitHub 远端激活前四门禁以 ci-local 为准 |
+| 单元测试 | ✅ 702/702 | Swift Testing 702（152 suites）+ XCTest 0 失败（周末覆盖率加固两轮 +38：轮 1 十薄弱核心文件 +28 / 轮 2 AgentLoop 集成+静态直测 +10；前轮差距审计 +4；日志 /tmp/ci_pr_agent.log） |
+| 本地 CI 模拟 | ✅ 四门禁全绿（周末覆盖率加固轮复跑 @fc748d4） | `tools/ci-local.sh`：pr /tmp/ci_pr_agent.log（702/702，152 suites）+ main /tmp/ci_main_agent.log（Release + 全量 702/702 + 覆盖率：核心 14 包 96.05%（6835/7116）均 ≥90% / 18 包全量 94.05%（9370/9963）/ Agent 99.80%）+ leaks /tmp/ci_leaks_agent.log（MemProbe 500 → **0 leaks**）+ xcode /tmp/ci_xcode_agent.log（**TEST SUCCEEDED**）；前轮基线：664/664 四门禁 @7447179（/tmp/ci_{pr,main,leaks,xcode}_ragfix.log）；GitHub 远端激活前四门禁以 ci-local 为准 |
 | 本地镜像备份 | ✅ 每次提交后 | `git push --mirror /Users/liguangming/code/swift-harness-backup.git` |
 | GitHub 推送 | ⏸ 暂缓（流水线已就绪） | 按用户要求先本地版本控制，未推送远端。`.github/workflows/swift-ci.yml` 四 job（pr-check：SwiftLint+SwiftFormat+build+单测 / xcode-check / leaks / main-check：release+全量测试+覆盖率+CodeQL+制品）+ `weekly-regression.yml`（schedule cron 周日 02:23 UTC 全量回归 + workflow_dispatch 手动触发；独立文件避免 schedule 触发重复跑 4 job 的 macOS runner 成本）；激活前置：建 GitHub 仓库并 push（私有仓库需 Settings→Actions 启用 scheduled workflows；CODECOV_TOKEN 仅私有仓库需要）；本地模拟 `tools/ci-local.sh [pr|leaks|xcode|main]` 可跑，leaks 门禁 0 leaks 实测 |
 
@@ -31,6 +31,8 @@
 > **2026-08-24（用户不在公司）无人值守复核（HEAD `a9f270e`，P2 日期注入轮代码 `82f3f30`）**：四门禁复跑全绿 — pr 658/658（138 suites）/tmp/ci_pr_datectx.log；main Release + 全量 658/658 + 覆盖率刷新：核心 14 包 94.04%（6645/7066，均 ≥90%，最低 Agent 91.33%）、18 包全量 92.55%（9174/9913）、MemoryEngine 95.17% /tmp/ci_main_datectx.log；leaks MemProbe 500 → 0 leaks /tmp/ci_leaks_datectx.log；xcode TEST SUCCEEDED /tmp/ci_xcode_datectx.log。被动核验（未触碰 UI）：sessions.sqlite 实证 10:56 走查会话「今天星期几」被 4B 模型答「星期二」= 幻觉实锤（实为周一 2026-08-24，与 §四 P2 日期行登记一致，修复 `82f3f30` 下次 App 重启生效，运行实例未打断）；watchdog 日志无新事故（仅已知 userManaged mismatch 噪音 + OVERRIDE-REMAP 自愈链，末次自愈 11:45 本地），无崩溃报告；Ollama 0.32.15 + qwen3:4b 端点正常。后续闭环：发现 DSHCLI 无头路径无日期上下文（`82f3f30` 仅接入 App 4 处）→ `4a28a5d` CurrentDateContext 纯函数下沉 Prompt 包（public，App+CLI 共享单一实现）+ DSHMain run/subagent 双路接入；四门禁复跑全绿（pr /tmp/ci_pr_cli_date.log——首轮全量遇 swiftpm-testing-helper SIGABRT 环境调度停滞，门禁内置单次重试通过 / main /tmp/ci_main_cli_date.log / xcode /tmp/ci_xcode_cli_date.log / leaks /tmp/ci_leaks_cli_date.log）；CLI 日期探针 3/3 答「星期一」实锤（修复前无上下文 4B 采样曾答「星期二」= 50/50 幻觉；期间 1 次 Ollama 瞬时超时属环境侧，重试通过）；4K 外接屏断开后窗口自动回落内建屏（watchdog 06:02 起 frame (0,63,1470,860)，无崩溃）。第三轮（Skill 轮 @5e65413）：Skill 全生命周期 e2e（import/show/debug/export/versions/restore/delete）中发现版本管理手动覆盖路径缺口 → `5e65413` 闭环（SkillStore.importSkill 业务函数：覆盖前版本登记 + 递增 + frontmatter 持久化，CLI/App 三处统一）+ 2 单测；CLI e2e 实测覆盖×2 → v1/v2 可寻址 → restore v1 回滚成功生成 v4；子 Agent 并行 e2e 复跑（2 任务 parallel=2 全 succeeded，子 Agent 日期上下文实锤：两子 Agent 均答「星期一（2026-08-24）」）；四门禁复跑全绿（/tmp/ci_{pr,main,leaks,xcode}_skillver.log）；发现 SkillEvolution 自动沉淀在 CLI 重复探针下真实触发（auto-4b555087，验证后清理，机制活性实证）。
 
 > **2026-08-24（用户不在公司）P0 验收差距审计轮（HEAD `7447179`）**：① 差距审计完成 — P0 清单 §三~§六 逐项映射测试证据：§三 项目 CRUD 删除二选一（Workspace planDeletion 3 单测 + App 两分支场景）/ 展开收起持久化（App 字段更新+跨实例重载）/ 拖拽三向（Workspace resolveMove 4 单测 + App moveSession 三向含 DB）/ 重命名空白拦截（会话 no-op + 项目空名 guard）/ 归档取消回落（Workspace resolveRestoreProject 4 单测 + App 原项目存活/已删双分支）/ 搜索（全局+限定项目）——**全部已有测试证据，上轮 4 项「重点怀疑」核实无缺口**；② 审计驱动新测发现 **2 处 P1 真实缺口并闭环（`7447179`）**：a) MCP 卸载后 Agent 工具注册表残留陈旧 mcp_* 工具（disconnect 不清理外部注册表；§五「卸载后工具即时移除」契约在 Agent 侧被违反）→ disconnect 增可选 into registry 参数 + App 三处调用点传入；b) **RAG ingest/removeDocument/clear 仅改内存不落盘 → CLI 每次运行独立进程 = 知识库跨进程丢失**（e2e 实锤：add_knowledge 返回「已入库」但 index.json 从未生成）→ 三写路径自动 save()；③ RAG CLI e2e 跨进程实证（local/qwen3:4b）：add_knowledge 入库 1 切片 → index.json 3451 字节落盘 → **新进程** search_knowledge（得分 0.597 + 「ops-notes · 块 1 · 字符 0-252」溯源引用）→ 正确答「1200 请求/分钟（超限 HTTP 429）」；④ 模型切换即时生效双路测试（ModelSwitcherMenu 真实 UI 路径 save→通知→主线程重载：仅换模型 = 循环复用 + 下轮 wire 即变；端点切换 = 循环重建 + 工厂重注入新配置）；⑤ 四门禁复跑全绿（/tmp/ci_{pr,main,leaks,xcode}_ragfix.log）：664/664（139 suites）+ 覆盖核心 14 包 94.15%（6700/7116）/ 18 包 92.63%（9229/9963）+ 0 leaks + TEST SUCCEEDED；⑥ App 浸泡 7h54m 零崩溃（watchdog 末次自愈 14:20 本地，OVERRIDE-REMAP 后 frame 恢复 (0,63,1470,860)，recreate 预算门控正确拒绝，无新事故）；⑦ 测试残留清理（e2e 自动沉淀技能×4 + RAG 测试索引；hello 技能属用户另一任务保留）。 ⑧ 记忆系统 CLI 真实 e2e（补充实证）：用户声明约定 → Agent 存库（RAG user_convention 文档 + 自动蒸馏长记忆 1 条）→ **新进程**提问「生产凭据命名前缀？」→ Agent 自主 list_knowledge + search_knowledge（得分 0.963 高置信命中）→ 正确答「PROD-」带来源引用；观察：4B 模型自动蒸馏长记忆内容为「用户要求记住：工具记住这个约定」（丢失具体事实，纯模型能力限制，管线本身正常；知识库路径可靠）；SkillEvolution 在 e2e 探针下再次真实触发（auto-* ×4，验证后清理）。⑨ §二（SSO/iCloud）审计结论：逐项映射测试证据 — AccountServiceTests 19 测（降级×4：noEntitlement / noICloudAccount / revokedCredential / withoutCredential + 重新申请恢复 retryICloudRecoversAfterEntitlementGranted + KVS 账号变更降级 / 服务器变更不降级 + 冲突裁决 handler 转发生效×2）/ WorkspaceRoutingTests 16 测（双根路由+骨架物化、iCloud refresh 切根与无变化 no-op、切回落本地根、切根 RAG 重路由+新会话 cwd 入容器且旧会话不受影响、MCP 元数据切根对账（二进制存在恢复/缺失进待重导）、离线优先损坏→空清单、原子保存不残留临时文件）+ WorkspaceRoutingE2ETests 全链路 1 测 / MetadataSyncTests 8 / WorkspaceRootTests 6 / AppViewModelSyncConflictTests 5 → 业务逻辑层全覆盖无缺口；剩余 SSO 弹窗实机 / 真 iCloud 多设备同步为 Developer Team 依赖的实机走查项（P2 待办不变）。
+
+> **2026-08-25（用户不在公司）无人值守覆盖率加固轮（HEAD `fc748d4`，test+docs 双提交）**：① 方法：main 门禁 llvm-cov 分文件表定位覆盖最弱核心文件，逐文件闭环，两轮共 +38 测（测试 85 文件 / 19,059 行）；② 轮 1 +28 测（10 文件）：ServiceContainer 67.65→94.12%（工厂注册/单例缓存/transient/错误不缓存/clear 重调/reset 保工厂；剩余 4 行 = typeMismatch 防御分支不可达，已标注）/ EventBus→94.05%（emit 投递/无 handler no-op/clear 停投）/ PromptEngine 74.07→100% / LLM Message 76.92→100%（ImageBlock Codable roundtrip）/ SessionTransfer 80→100% / SessionEvent 81.67→100% / MemoryTools 86.92→95.33%（remember merged/superseded/rejected + forget-by-topic；每测独立 store + 唯一 topic 防串扰）/ ConsistencyChecker 88.89→100%（阈值调参法强制 sameTopicValueDiffers 分支）/ VectorStore 87.72→96.49%（matchingMetadata 排序 + filter 匹配通过）/ LongTermMemoryStore 84→97.33%（byID/remove 三态 + HARNESS_HOME 环境分支）；③ 轮 2 +10 测（新文件 AgentLoopCoverageTests.swift）：静态直测（五类块双向映射 / parseArguments 全类型（null→"<null>"、非法 JSON→[:]）/ traceOutput 错误头优先）+ runTurn 集成 5 场景（URLError(.cancelled) 中性收敛 / 工具忽略取消 + 步前取消检查命中 / 助手历史按 id 去重 / trimHistory 队首孤立 tool 结果 dropFirst / 工具 onChunk 进度转发）→ **AgentLoop 50→1 未覆盖行（99.80%）**；④ main 门禁覆盖率（llvm-cov report 表口径，仅 Sources，与历史入册口径一致）：**核心 14 包 96.05%（6835/7116，均 ≥90%，最低 Terminal 93.21%、最高 Agent 99.83%）/ 18 包全量 94.05%（9370/9963）**——较差距审计轮（664 测）94.15%/92.63% 双双提升；口径验证：同口径复算 /tmp/ci_main_ragfix.log 精确复现入册数字（94.15%（6700/7116）/ 92.63%（9229/9963））；交接工作数字「692 状态 96.22%」从未入册且同口径复算为 95.32%（误算，不入档）；⑤ 3 处不可单测区标注（P2 实机项）：AppleSignInService 119 行（ASAuthorization entitlements 依赖）/ SystemNotificationCenter 13 行（裸 xctest 进程 UNUserNotificationCenter 不可达）/ AppleCredentialStore 6 行（Keychain 错误分支）；⑥ Terminal.swift 跨轮次未覆盖行 +3（12→15，异步超时行，环境侧抖动，非本变更回归）；⑦ App 浸泡 25h33m 零崩溃（PID 98463 2026-08-24 10:19 启动，watchdog 无新事故，仅已知 userManaged mismatch 噪音）；⑧ 四门禁全绿（pr 702/702 152 suites /tmp/ci_pr_agent.log / main /tmp/ci_main_agent.log / leaks 0 /tmp/ci_leaks_agent.log / xcode TEST SUCCEEDED /tmp/ci_xcode_agent.log）；⑨ xcodeproj 自动补录 AgentLoopCoverageTests.swift 登记（4 行）；顺带发现既有口径问题：xcode 门禁测试范围仅 7 个测试 bundle（见 §四 P2 新增行）。
 
 ## 二、八大后端模块交付状态
 
@@ -121,6 +123,7 @@
 ### P2
 | 问题 | 说明 | 状态 |
 |------|------|------|
+| xcode 门禁测试 target 范围 = 7 个 bundle（ServiceContainer/Session/LLM/Account/Workspace/Tools/Agent），Memory/RAG/Prompt/MCP 等包测试仅 SPM 门禁覆盖（既有设计，非本轮回归） | 实证 @fc748d4：project.yml 仅 7 个 bundle.unit-test target；xcode 门禁（xcodegen+xcodebuild）不含其余测试套件；全量 702 测由 pr/main SPM 门禁覆盖。改进候选：project.yml 补齐其余测试 target 使 xcode 门禁对齐全量套件（无 UI 影响，待排期） | 已登记（观察项） |
 | `dsh web` 与"非 Web 服务"约束边界 | 需用户确认约束口径（WebUI 为本地 127.0.0.1 调试服务，非对外 Web 服务） | 待确认 |
 | 本地小模型（qwen3:4b）当前日期/星期问答幻觉（2026-08-24 11:00 验收观察：问「今天星期几」答「今天是星期二」，实为周一；App 链路流式/落盘/路由均正确，纯模型自身能力问题） | 现象：本地 4B 模型无实时日期上下文时自推日期出错 | **已闭环（`82f3f30` + `4a28a5d`，2026-08-24）**：CurrentDateContext 纯函数（幂等注入「当前时间：YYYY-MM-DD（星期X）」，固定日历可测）+ App 4 处接入（主聊天 buildSystemPrompt 双路 + 子 Agent 2 处）+ 5 回归测试（锚定 2026-08-24=周一）；pr 门禁 658/658（138 suites）/tmp/ci_pr_datectx.log；App 下次重启生效（运行实例未打断，用户走查中）。扩展闭环 `4a28a5d`：DSHCLI 无头路径原无日期上下文 → 纯函数下沉 Prompt 包（public 共享）+ DSHMain run/subagent 双路接入，CLI 日期探针 3/3「星期一」 |
 | ~~Skill 版本管理手动覆盖路径缺口（CLI `import` 覆盖 / App `editUserSkill` 编辑均不登记版本历史、版本不递增 → 多轮覆盖版本记录重复，`restore` 只能寻址最旧版）（2026-08-24 无人值守 Skill 全生命周期 e2e 发现：import 覆盖后 versions 恒空、restore 报「版本不存在」）~~ | 复现：`dsh skills import` 同一技能两次 → `dsh skills versions` 无历史；App 编辑技能后同 | **已闭环（`5e65413`，2026-08-24）**：新增 `SkillStore.importSkill` 业务函数（覆盖前旧版本登记历史 + 版本号 +1 持久化 frontmatter）；CLI import / App importSkillFile / App editUserSkill 三处统一走该函数（editUserSkill 手写 frontmatter 改 serialize）；+2 单测（覆盖历史/版本号/损坏回落/非法不落盘）+ App 编辑测试版本断言；CLI e2e 实测：覆盖×2 → 历史 v1/v2 可寻址（version: 3 落盘）→ restore v1 回滚快照成功生成 v4；pr 660/660（139 suites）/tmp/ci_pr_skillver.log |
@@ -148,6 +151,7 @@
 | SSE 流式不转发 reasoning 增量 | `c5bdc41` |
 | local 画像默认关闭工具调用 | `c5bdc41`（按模型名白名单细分） |
 | 冷编译警告（RAG 测试 docs1 未使用） | `851a100` |
+| 覆盖缺口审计：10 薄弱核心文件闭环（轮 1 +28 测）+ AgentLoop 50→1 未覆盖行（轮 2 +10 测） | `fc748d4` |
 | 测试固定 sleep 时序脆弱点 4 处（P1 根因候选） | `6ce51a0` |
 | Xcode 工程依赖漂移（xcodebuild job 编译/链接失败；5 处 target 依赖缺失 + 5 个 target 缺失 + CSQLite 注入） | `99ba131` |
 | lint 扫描范围被 ci-derived-data 污染（swiftlint LLVM 崩溃 / swiftformat 1545 文件） | `99ba131` |
@@ -201,11 +205,11 @@
 | 源码（Packages，93 源文件） | 13,823 行（2026-08-24 差距审计轮：+12，MCP disconnect 注册表清理 + RAG 自动持久化） |
 | 源码（Apps，44 文件，HarnessApp + 辅助 target） | 10,719 行（Skill 轮：CLI/App 导入路径薄包装 −14） |
 | 源码合计（137 文件） | 24,530 行 |
-| 测试代码（83 文件） | 18,138 行（差距审计轮 +4 用例 + 夹具/探针，+257） |
+| 测试代码（85 文件） | 19,059 行（周末覆盖率加固两轮 +2 文件 +38 用例，+921） |
 | SPM 目标 | 22 库（17 后端包 + 5 辅助库 Workspace/Plan/Goal/HarnessCore/Account 扩展）/ 4 可执行 + 20 测试目标（单一 xctest 进程） |
 | 工具链 | Swift 6.3.3 / Xcode 26.6 / macOS arm64 / platforms .macOS(.v26) |
 | 覆盖率口径 | llvm-cov 仅统计 Packages/*（Apps/HarnessApp 层不在表内，既有口径）；P2 ① main 门禁核心包（/tmp/p2cancel_ci_main.log）：AccountService 94.08% / AgentLoop 89.98%（联动取消路径覆盖）/  MCP.swift 97.31% / StdioMCPClient 92.53% / RAGEngine 94.02%（+0.27，2 新路由测试）/ MemoryEngine 95.02% / XPCPluginHost 96.57%；模块7 Skill 关键文件（同 log）：SkillEvolution 100 / SkillRegistry 100 / SkillStore 95.07 / SkillDebugger 98.94 / SkillVersioning 95.59 / SkillTools 92.00；模块8 LLM 关键文件：Adapters 92.14 / OpenAICompatChat 92.40 / LLMResponseNormalizer 96.40 / LLMProvider 89.66 / Message 76.92（DTO 纯数据文件 100） |
-| 提交总数 | 173（@`e2a4e42` 后差距审计轮：`7447179` fix + 本轮 docs；前轮 172 @`e2a4e42`） |
+| 提交总数 | 178（周末覆盖率加固轮：test `fc748d4` + 本轮 docs；前轮 176 @`8950741`） |
 
 ### 八大后端模块代码级需求审计（2026-08-20 跨会话核验轮）
 
@@ -259,6 +263,10 @@
 ## 六、提交链（近期）
 
 ```
+fc748d4  test(coverage): 周末无人值守覆盖率加固两轮 +38 单测（轮 1：10 薄弱核心文件闭环 +28；轮 2：AgentLoop 50→1 未覆盖行 +10）— ServiceContainer 67.65→94.12% / PromptEngine→100% / AgentLoop 99.80%；pr 702/702（152 suites）；xcodeproj 自动补录 AgentLoopCoverageTests 登记
+8950741  docs(quality): 差距审计全清单收官 — QUALITY_REPORT §二 SSO/iCloud 审计结论（AccountService 19/WorkspaceRouting 16/MetadataSync 8/E2E+Root+SyncConflict 12 → 业务逻辑全覆盖）+ P1 停滞行补瞬态事故记录
+b1e43c0  docs(quality): 记忆系统 CLI 真实 e2e 实证入册（声明约定→存库→新进程检索 0.963 分溯源命中答 PROD-；4B 蒸馏质量=模型能力限制观察项）
+fa5795a  docs(quality): 差距审计轮入册 — 四门禁全绿 @7447179 + 差距审计结论 + §4 已闭环 2 行 + §5 统计刷新 + 清单 §7 基线同步
 7447179  fix(mcp,rag): 差距审计 2 处 P1 缺口闭环（MCP 卸载注册表残留清理 + RAG 三写路径自动落盘）+ 4 新单测；RAG CLI e2e 跨进程实证；pr 664/664
 e2a4e42  docs(quality): Skill 版本管理轮入册（四门禁 @5e65413 + §4 缺口闭环 + 统计 171 提交）
 78ac5bf  docs(p1): P1.1 玻璃容器化组件地图（10 调用点/5 文件盘点 + C1-C5 容器分组 + spacing 策略 + 降级不变量 + P1.4 预埋 + P1.2 接口约定）
