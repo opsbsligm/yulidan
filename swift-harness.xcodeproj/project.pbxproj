@@ -157,6 +157,7 @@
 		A7206906E591BCB585B15686 /* AppleSignInService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BD9DAE8FF36838ADC890D21 /* AppleSignInService.swift */; };
 		A7569D80CB00A53A42D5FE0E /* PluginContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76FC5AB0C270315397B4BB20 /* PluginContext.swift */; };
 		A905D9D3BA0CDE3C91F5A446 /* ArgumentParser in Frameworks */ = {isa = PBXBuildFile; productRef = 87FA68ADAA237BBE01B0BEFC /* ArgumentParser */; };
+		AAC7F8D9BA1707488F23871E /* ToolsGapCoverageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1DC40CC89CCAB316A64B240 /* ToolsGapCoverageTests.swift */; };
 		AB4219C634353FC07780E95A /* DSHMain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8156D78095D32FBB3B0F0D80 /* DSHMain.swift */; };
 		ABE175985A172D9F9E185688 /* libWorkspace.a in Frameworks */ = {isa = PBXBuildFile; fileRef = BCCCD92A88B6DD3BE960F1C3 /* libWorkspace.a */; };
 		AD10AA7202FD94BC0452706F /* libWorkspace.a in Frameworks */ = {isa = PBXBuildFile; fileRef = BCCCD92A88B6DD3BE960F1C3 /* libWorkspace.a */; };
@@ -1009,6 +1010,7 @@
 		A050A3414E866E4873F2F82E /* PluginMarketplaceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginMarketplaceTests.swift; sourceTree = "<group>"; };
 		A0E8BAE9FC022767BD3D6545 /* LLMProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMProvider.swift; sourceTree = "<group>"; };
 		A1901EABB2990D1E73A8EE64 /* Skill.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Skill.swift; sourceTree = "<group>"; };
+		A1DC40CC89CCAB316A64B240 /* ToolsGapCoverageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolsGapCoverageTests.swift; sourceTree = "<group>"; };
 		A1DD7716E4DDD7672ECA157C /* LLMTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LLMTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A453E16DAEA20304FF17CB41 /* Vectorizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Vectorizer.swift; sourceTree = "<group>"; };
 		A46E124774A36A19EC3DE5AA /* libTerminal.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libTerminal.a; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -1872,6 +1874,7 @@
 			children = (
 				839999BCF1E31D8ED9662436 /* BuiltinToolsTests.swift */,
 				81B34943C8716FF9ED7382C9 /* ToolExecutorTests.swift */,
+				A1DC40CC89CCAB316A64B240 /* ToolsGapCoverageTests.swift */,
 				FBE138B25D8BC41635F2EB50 /* ToolsTests.swift */,
 			);
 			path = Tests;
@@ -3229,6 +3232,7 @@
 			files = (
 				47F0C4ACB87C8B3D7E331AF5 /* BuiltinToolsTests.swift in Sources */,
 				A703E492996673BC6961C89E /* ToolExecutorTests.swift in Sources */,
+				AAC7F8D9BA1707488F23871E /* ToolsGapCoverageTests.swift in Sources */,
 				DBDFA2B38BB06E8861A10672 /* ToolsTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

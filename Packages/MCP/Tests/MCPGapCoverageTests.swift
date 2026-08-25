@@ -184,7 +184,7 @@ final class MCPGapCoverageTests: XCTestCase {
         let negotiated = await client.capabilities()
         // 子进程 cwd 为真实路径（/var → /private/var）；realpath 归一化
         // （NSString/URL.resolvingSymlinksInPath 本机不解析 /var 符号链接，已实证）
-        var resolved = workDir.path
+        let resolved = workDir.path
         let resolvedPtr = realpath(resolved, nil)
         let expectedCwd = resolvedPtr.map { String(cString: $0) } ?? resolved
         XCTAssertEqual(negotiated?.serverName, expectedCwd)
