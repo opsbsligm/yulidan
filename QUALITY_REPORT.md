@@ -21,8 +21,8 @@
 | SwiftFormat | ✅ 0 改动 | `swiftformat --lint . --config .swiftformat`（197 文件，P0.3 新增 2） |
 | SwiftLint | ✅ 0 违规 | `swiftlint lint --strict --config .swiftlint.yml`（197 文件，P0.3 新增 2） |
 | 编译 | ✅ 0 警告 | 全量冷编译（450 targets 含测试目标，覆盖率构建实测） |
-| 单元测试 | ✅ 905/905 | Swift Testing 705（152 suites）+ XCTest 200/200，0 失败（周末覆盖审计轮 3 +6：WebFetch 错误路径 5 / XPCPluginHost launchctl 抛错降级 1；前轮 +44；日志 /tmp/ci_pr_agent4.log） |
-| 本地 CI 模拟 | ✅ 四门禁全绿（周末覆盖审计轮 3 复跑 @4f7e808） | `tools/ci-local.sh`：pr /tmp/ci_pr_agent4.log（705/705，152 suites + XCTest 200/200，合计 905）+ main /tmp/ci_main_agent4.log（Release + 全量 + 覆盖率：核心 14 包 96.53%（6869/7116）均 ≥90% / 18 包全量 94.39%（9404/9963）/ XPCPluginProxy 100%）+ leaks /tmp/ci_leaks_agent4.log（MemProbe 500 → **0 leaks**）+ xcode /tmp/ci_xcode_agent4.log（**TEST SUCCEEDED**）；前轮基线：905/905 四门禁 @de5870e 轮（/tmp/ci_{pr,main,leaks,xcode}_agent2.log）；GitHub 远端激活前四门禁以 ci-local 为准 |
+| 单元测试 | ✅ 920/920 | Swift Testing 705（152 suites）+ XCTest 215/215，0 失败（周末覆盖审计轮 4 +15：LLM 包 wire 映射/Normalizer 分支新文件 LLMMappingBranchTests；前轮 +6；日志 /tmp/ci_pr_agent5.log） |
+| 本地 CI 模拟 | ✅ 四门禁全绿（周末覆盖审计轮 4 复跑 @c871b1b） | `tools/ci-local.sh`：pr /tmp/ci_pr_agent5.log（705/705，152 suites + XCTest 215/215，合计 920）+ main /tmp/ci_main_agent5.log（Release + 全量 + 覆盖率：核心 14 包 96.54%（6870/7116）均 ≥90% / 18 包全量 94.70%（9435/9963）/ LLM 95.52%（60 未覆盖行））+ leaks /tmp/ci_leaks_agent5.log（MemProbe 500 → **0 leaks**）+ xcode /tmp/ci_xcode_agent5.log（**TEST SUCCEEDED**）；前轮基线：905/905 四门禁 @4f7e808 轮（/tmp/ci_{pr,main,leaks,xcode}_agent4.log）；GitHub 远端激活前四门禁以 ci-local 为准 |
 | 本地镜像备份 | ✅ 每次提交后 | `git push --mirror /Users/liguangming/code/swift-harness-backup.git` |
 | GitHub 推送 | ⏸ 暂缓（流水线已就绪） | 按用户要求先本地版本控制，未推送远端。`.github/workflows/swift-ci.yml` 四 job（pr-check：SwiftLint+SwiftFormat+build+单测 / xcode-check / leaks / main-check：release+全量测试+覆盖率+CodeQL+制品）+ `weekly-regression.yml`（schedule cron 周日 02:23 UTC 全量回归 + workflow_dispatch 手动触发；独立文件避免 schedule 触发重复跑 4 job 的 macOS runner 成本）；激活前置：建 GitHub 仓库并 push（私有仓库需 Settings→Actions 启用 scheduled workflows；CODECOV_TOKEN 仅私有仓库需要）；本地模拟 `tools/ci-local.sh [pr|leaks|xcode|main]` 可跑，leaks 门禁 0 leaks 实测 |
 
@@ -37,6 +37,8 @@
 > **2026-08-25（用户不在公司）无人值守覆盖审计轮 2（HEAD `de5870e`）**：① 方法延续分文件审计（行转储 `| 0 |` 定位 + report 表交叉核对），Tools/Session/PluginXPC 三包 3 个薄弱文件闭环，+6 测；② ToolExecutor 7→2 未覆盖行（96.90→99.12%）：截断 map 非文本块原样穿过 + 限内文本块整体保留（多块工具桩：text5+image+text30，limit=10）+ textOf/textCharCount 非文本 nil 分支（JSON 校验不受 reasoning 噪声干扰）；剩余 2 行 = 不变量下不可达防御分支（total>limit 时 didTruncate 必真 / 双任务组 next() 必非 nil），已标注；③ SessionDB 23→17 未覆盖行（95.09→96.37%）：mapRow 对损坏 metadata_json 行静默跳过（GRDB 直连同库写脏数据模拟，loadAll 跳过 + load(_) 返 nil）+ openFailed errorDescription 文案；④ XPCPluginProxy 9→0 未覆盖行（88.89→**100%**）：initialize no-op（FakeEndpoint 断言不触发 worker start）+ PluginXPCError 双 case 文案；⑤ main 门禁覆盖率（表口径仅 Sources）：**核心 14 包 96.29%（6852/7116，均 ≥90%，最低 Terminal 93.21%）/ 18 包全量 94.22%（9387/9963）**——较上轮 96.05%/94.05% 再升；跨轮次异步行抖动：Agent 1→2 / Subagent 20→19 / MCP 44→43 / XPCPluginHost 8→12（环境侧调度抖动，非本变更回归，本轮新增测试全绿佐证）；⑥ 测试总账口径澄清并首次双口径入册：并行汇总行「Test run with N tests in M suites」为 Swift Testing 计数（704/704，152 suites），XCTest 另计 195/195 → **合计 899/899 全绿**（历史各轮「N/N」均引该汇总行口径，本轮起双口径并列）；⑦ 四门禁全绿（pr /tmp/ci_pr_agent2.log / main /tmp/ci_main_agent2.log / leaks 0 /tmp/ci_leaks_agent2.log / xcode TEST SUCCEEDED /tmp/ci_xcode_agent2.log）。
 
 > **2026-08-25（用户不在公司）无人值守覆盖审计轮 3（HEAD `4f7e808`）**：① BuiltinTools 20→9 未覆盖行（93.40→97.03%）：WebFetch 错误路径桩扩展三失败模式（非 HTTP 响应/连接前失败/流中失败）+ 4 错误路径测试（badResponse 分支 / 通用 catch 超时提示+非超时无提示 / fetch_failed 文案）+ resolveToolPath 无工作目录分支；剩余 3 内容行（L299-300/L351）.failed 分支实测桩不可达（URLSession.bytes 对协议桩流中失败在 await 层抛错，仅真实网络断流才从迭代内抛出）→ 标注 e2e 观察项；② XPCPluginHost 12→5 未覆盖行（94.85→97.85%）：ThrowingRunner 覆盖 ensureWorkerRegistered launchctl 抛错降级（print 抛→-1 记未注册→bootstrap 抛→catch 返 false）；剩余未覆盖 = writePlist FS 失败防御分支×3 + 断链 handler 体（XPC 系统回调、无可观测试 seam）已标注；③ main 门禁覆盖率：**核心 14 包 96.53%（6869/7116，均 ≥90%）/ 18 包全量 94.39%（9404/9963）**——连续三轮 96.05%→96.29%→96.53% 单调提升；④ 本轮 1 次 P1 瞬态：main 门禁全量两轮 swiftpm-testing-helper SIGABRT（CoordinatorLifecycleTests 前置停滞）→ 单 suite 隔离 8/8 绿（肇事测试 0.012s）+ 全量重试全绿（/tmp/ci_main_agent4.log），确认环境瞬态非回归（P1 观察期第 2 次记录）；⑤ 测试总账：Swift Testing 705/705（152 suites）+ XCTest 200/200 = **905/905 全绿**；⑥ 四门禁全绿（pr /tmp/ci_pr_agent4.log / main /tmp/ci_main_agent4.log / leaks 0 /tmp/ci_leaks_agent4.log / xcode TEST SUCCEEDED /tmp/ci_xcode_agent4.log）。
+
+> **2026-08-25（用户不在公司）无人值守覆盖审计轮 4（HEAD `c871b1b`）**：① LLM 包（排除包）映射/归一化分支审计闭环，+15 测（新文件 LLMMappingBranchTests.swift 267 行；LLMHTTPStubTests.swift 已 457 行、继续追加将触发 file_length 600 警告破 strict 基线，故独立成文件）：Anthropic assistant 纯文本 → content 纯字符串 / 纯 reasoning → 整条消息省略 / 文本+toolCall → [text, tool_use] 块数组（input 解析为 JSON 对象）/ toolResult+文本 → user 消息 [tool_result, text] 块数组 + OpenAI assistant 纯 reasoning 省略 / systemPrompt 首条 system 消息 + 纯 reasoning .system 省略 / 纯 image toolResult → content 空串（非文本块不参与拼接）+ repairToolArguments 字符串内转义引号×尾随逗号（仅去逗号、保留 } 前空白，输出仍合法 JSON——3 处断言按实际行为修正后坐实）/ 截断+转义引号 → stringMask 串边界识别 + 补括号 / 截断在字符串内（引号不平衡）→ 不可修复原样返回 + normalize（工具参数修复 + 无调用透传保 id）/ contentBlocks reasoning 画像门控（deepSeek 开 / openAI 关 / 空内容 → 空数组）/ response 构造（参数修复 + usage/finishReason 透传 + 空调用 → nil）+ JSONValue 全 case 解码（转义引号串/数值/布尔/null/数组）+ 非法输入 → emptyObject 兜底 + LLMProvider 默认 checkConnection → networkError("该提供商不支持连接测试")（不覆写的桩 provider 验证）；② 设计修正：交接设计假设 AnthropicAdapter 未覆写 checkConnection，实测已覆写（Adapters.swift L385，max_tokens=1 真实请求）→ 改协议默认实现桩验证；③ main 门禁覆盖率（表口径仅 Sources）：**核心 14 包 96.54%（6870/7116，均 ≥90%）/ 18 包全量 94.70%（9435/9963）**；LLM 包 90→60 未覆盖行（95.52%，单轮降 30 行）；④ 测试总账：Swift Testing 705/705（152 suites）+ XCTest 215/215 = **920/920 全绿**；⑤ xcode 门禁 xcodegen 自动收录新文件（pbxproj 4 处登记随提交），LLMTests.xctest 64 测含新增 15；⑥ 四门禁全绿（pr /tmp/ci_pr_agent5.log / main /tmp/ci_main_agent5.log / leaks 0 /tmp/ci_leaks_agent5.log / xcode TEST SUCCEEDED /tmp/ci_xcode_agent5.log）。
 
 ## 二、八大后端模块交付状态
 
@@ -158,6 +160,7 @@
 | 覆盖缺口审计：10 薄弱核心文件闭环（轮 1 +28 测）+ AgentLoop 50→1 未覆盖行（轮 2 +10 测） | `fc748d4` |
 | 覆盖审计轮 2：Tools/Session/PluginXPC 3 薄弱文件闭环（+6 测，XPCPluginProxy→100%） | `de5870e` |
 | 覆盖审计轮 3：BuiltinTools WebFetch 错误路径 + XPCPluginHost launchctl 抛错降级（+6 测，BuiltinTools 97.03% / XPCPluginHost 97.85%） | `4f7e808` |
+| 覆盖审计轮 4：LLM 包（排除包）wire 映射/Normalizer 参数修复/协议默认能力分支闭环（+15 测新文件 LLMMappingBranchTests，LLM 90→60 未覆盖行 95.52%） | `c871b1b` |
 | 测试固定 sleep 时序脆弱点 4 处（P1 根因候选） | `6ce51a0` |
 | Xcode 工程依赖漂移（xcodebuild job 编译/链接失败；5 处 target 依赖缺失 + 5 个 target 缺失 + CSQLite 注入） | `99ba131` |
 | lint 扫描范围被 ci-derived-data 污染（swiftlint LLVM 崩溃 / swiftformat 1545 文件） | `99ba131` |
@@ -211,11 +214,11 @@
 | 源码（Packages，93 源文件） | 13,823 行（2026-08-24 差距审计轮：+12，MCP disconnect 注册表清理 + RAG 自动持久化） |
 | 源码（Apps，44 文件，HarnessApp + 辅助 target） | 10,719 行（Skill 轮：CLI/App 导入路径薄包装 −14） |
 | 源码合计（137 文件） | 24,530 行 |
-| 测试代码（85 文件） | 19,259 行（周末覆盖率加固 +38 用例 / 覆盖审计轮 2 +6 / 轮 3 +6，共 +114 用例 +1121） |
+| 测试代码（86 文件） | 19,526 行（周末覆盖率加固 +38 用例 / 覆盖审计轮 2 +6 / 轮 3 +6 / 轮 4 +15，共 +129 用例 +1,388） |
 | SPM 目标 | 22 库（17 后端包 + 5 辅助库 Workspace/Plan/Goal/HarnessCore/Account 扩展）/ 4 可执行 + 20 测试目标（单一 xctest 进程） |
 | 工具链 | Swift 6.3.3 / Xcode 26.6 / macOS arm64 / platforms .macOS(.v26) |
 | 覆盖率口径 | llvm-cov 仅统计 Packages/*（Apps/HarnessApp 层不在表内，既有口径）；P2 ① main 门禁核心包（/tmp/p2cancel_ci_main.log）：AccountService 94.08% / AgentLoop 89.98%（联动取消路径覆盖）/  MCP.swift 97.31% / StdioMCPClient 92.53% / RAGEngine 94.02%（+0.27，2 新路由测试）/ MemoryEngine 95.02% / XPCPluginHost 96.57%；模块7 Skill 关键文件（同 log）：SkillEvolution 100 / SkillRegistry 100 / SkillStore 95.07 / SkillDebugger 98.94 / SkillVersioning 95.59 / SkillTools 92.00；模块8 LLM 关键文件：Adapters 92.14 / OpenAICompatChat 92.40 / LLMResponseNormalizer 96.40 / LLMProvider 89.66 / Message 76.92（DTO 纯数据文件 100） |
-| 提交总数 | 182（周末覆盖审计轮 3：test `4f7e808` + 本轮 docs；前轮 180 @`49e2e8b`） |
+| 提交总数 | 184（周末覆盖审计轮 4：test `c871b1b` + 本轮 docs；前轮 182 @`4df3725`） |
 
 ### 八大后端模块代码级需求审计（2026-08-20 跨会话核验轮）
 
@@ -269,6 +272,7 @@
 ## 六、提交链（近期）
 
 ```
+c871b1b  test(coverage): 覆盖审计轮 4 +15 单测（新文件 LLMMappingBranchTests.swift：LLM 包 wire 映射 / Normalizer 参数修复 / 协议默认能力）；LLM 包 90→60 未覆盖行（95.52%）；pr 705/705 + XCTest 215/215（合计 920）；xcodeproj 自动补录
 4f7e808  test(coverage): 覆盖审计轮 3 +6 单测（BuiltinTools WebFetch 错误路径桩三失败模式 5 / XPCPluginHost launchctl 抛错降级 1）；pr 705/705 + XCTest 200/200（合计 905）
 49e2e8b  docs(quality): 覆盖审计轮 2 入册 — 四门禁全绿 @de5870e（核心 14 包 96.29% / 18 包 94.22%）+ 测试总账双口径首次入册（ST 704 + XCTest 195）
 de5870e  test(coverage): 覆盖审计轮 2 +6 单测（ToolExecutor 7→2 未覆盖行 / SessionDB 23→17 / XPCPluginProxy→100%）；pr 704/704 + XCTest 195/195（合计 899）
