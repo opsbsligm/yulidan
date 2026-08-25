@@ -21,8 +21,8 @@
 | SwiftFormat | ✅ 0 改动 | `swiftformat --lint . --config .swiftformat`（197 文件，P0.3 新增 2） |
 | SwiftLint | ✅ 0 违规 | `swiftlint lint --strict --config .swiftlint.yml`（197 文件，P0.3 新增 2） |
 | 编译 | ✅ 0 警告 | 全量冷编译（450 targets 含测试目标，覆盖率构建实测） |
-| 单元测试 | ✅ 934/934 | Swift Testing 712（153 suites）+ XCTest 222/222，0 失败（周末覆盖审计轮 6 +7：ServiceContainer 插件子系统薄弱分支新文件 PluginSystemGapTests；前轮 +7；日志 /tmp/ci_pr_agent6.log） |
-| 本地 CI 模拟 | ✅ 四门禁全绿（周末覆盖审计轮 6 复跑 @96aa683） | `tools/ci-local.sh`：pr /tmp/ci_pr_agent6.log（712/712，153 suites + XCTest 222/222，合计 934）+ main /tmp/ci_main_agent6.log（Release + 全量 + 覆盖率：核心 14 包 97.04%（6907/7118）均 ≥90% / 18 包全量 95.05%（9472/9965）/ ServiceContainer 98.36%（13 未覆盖行））+ leaks /tmp/ci_leaks_agent6.log（MemProbe 500 → **0 leaks**）+ xcode /tmp/ci_xcode_agent6.log（**TEST SUCCEEDED**）；前轮基线：927/927 四门禁 @e951e0e 轮（/tmp/ci_{pr,main,leaks,xcode}_agent5mcp.log）；GitHub 远端激活前四门禁以 ci-local 为准 |
+| 单元测试 | ✅ 940/940 | Swift Testing 718（154 suites）+ XCTest 222/222，0 失败（周末覆盖审计轮 7 +6：RAG 包薄弱分支新文件 RAGGapCoverageTests；前轮 +7；日志 /tmp/ci_pr_agent7.log） |
+| 本地 CI 模拟 | ✅ 四门禁全绿（周末覆盖审计轮 7 复跑 @9b1a7b1） | `tools/ci-local.sh`：pr /tmp/ci_pr_agent7.log（718/718，154 suites + XCTest 222/222，合计 940）+ main /tmp/ci_main_agent7.log（Release + 全量 + 覆盖率：核心 14 包 97.18%（6917/7118）均 ≥90% / 18 包全量 95.15%（9482/9965）/ RAG 97.75%（16 未覆盖行））+ leaks /tmp/ci_leaks_agent7.log（MemProbe 500 → **0 leaks**）+ xcode /tmp/ci_xcode_agent7.log（**TEST SUCCEEDED**）；前轮基线：934/934 四门禁 @96aa683 轮（/tmp/ci_{pr,main,leaks,xcode}_agent6.log）；GitHub 远端激活前四门禁以 ci-local 为准 |
 | 本地镜像备份 | ✅ 每次提交后 | `git push --mirror /Users/liguangming/code/swift-harness-backup.git` |
 | GitHub 推送 | ⏸ 暂缓（流水线已就绪） | 按用户要求先本地版本控制，未推送远端。`.github/workflows/swift-ci.yml` 四 job（pr-check：SwiftLint+SwiftFormat+build+单测 / xcode-check / leaks / main-check：release+全量测试+覆盖率+CodeQL+制品）+ `weekly-regression.yml`（schedule cron 周日 02:23 UTC 全量回归 + workflow_dispatch 手动触发；独立文件避免 schedule 触发重复跑 4 job 的 macOS runner 成本）；激活前置：建 GitHub 仓库并 push（私有仓库需 Settings→Actions 启用 scheduled workflows；CODECOV_TOKEN 仅私有仓库需要）；本地模拟 `tools/ci-local.sh [pr|leaks|xcode|main]` 可跑，leaks 门禁 0 leaks 实测 |
 
@@ -43,6 +43,7 @@
 > **2026-08-25（用户不在公司）无人值守覆盖审计轮 5（HEAD `e951e0e`）**：① MCP 包（核心 14 内最大剩余缺口 43 行）薄弱分支审计闭环，+7 测（新文件 MCPGapCoverageTests.swift 297 行，MCPTests 不在 xcode 7-bundle 范围、pbxproj 无变更）：MCPServerManager isConnected/ping 非 stdio 分支（mock 可用/不可用 descriptor/未注册名三态，L343/L352）/ refreshTools 与 refreshTools(into:) listTools 失败路径（descriptor available=false + toolCount nil + 注册表保持空并返回 0，L373/L398-399）+ StdioMCPClient workingDirectory 配置生效（子进程 cwd 经 serverInfo 回报断言，realpath 归一化——NSString/URL.resolvingSymlinksInPath 本机不解析 /var 符号链接已实证，L94）/ onServerRequest 处理器抛错 → 自动回 -32603 应答（L368-369）/ stderr 缓冲截断（灌 1024 字节、上限 64 → recentStderr 恰留末尾 64，有界轮询等待 stderr 泵无固定 sleep，L389）+ MCPDiscovery 配置缺失/损坏 → 空数组不抛错（L25/L27）；② 源修复 1 处 P2：handleServerRequest -32603 message 原用 error.localizedDescription（MCPError 未实现 LocalizedError → 丢失自定义描述，实测回 "未能完成操作。（MCP.MCPError错误3。）"）→ 改优先 CustomStringConvertible.description，测试断言自定义描述随应答回传坐实；③ 标注不可单测：deinit 兜底 failAllPending（L74/77，actor deinit 与方法挂起帧不可在测试上下文并存）/ 请求与通知序列化失败（L236/255，合法 payload 下 JSONSerialization 不失败的防御分支）/ sendNotification 写失败 throw（L262）与 sendLine 写失败 failAllPending（L271，进程死亡竞态）/ handleServerRequest 序列化 guard return（L379）/ 管道泵 EINTR 重试（L417-420/445-448，信号竞态）/ parseCapabilities internal 不可达（L157）；④ main 门禁覆盖率（表口径仅 Sources）：**核心 14 包 96.70%（6883/7118，均 ≥90%）/ 18 包全量 94.81%（9448/9965）**；MCP 包 43→32 未覆盖行（92.53→96.00%），MCPDiscovery 1→0（**100%**）/ MCP.swift 6→2（99.25%）/ StdioMCPClient 36→30（93.80%，余=③所列防御区）；⑤ 测试总账：Swift Testing 705/705（152 suites）+ XCTest 222/222 = **927/927 全绿**；⑥ 四门禁全绿（pr /tmp/ci_pr_agent5mcp.log / main /tmp/ci_main_agent5mcp.log / leaks 0 /tmp/ci_leaks_agent5mcp.log / xcode TEST SUCCEEDED /tmp/ci_xcode_agent5mcp.log）。
 
 > **2026-08-25（用户不在公司）无人值守覆盖审计轮 6（HEAD `96aa683`）**：① ServiceContainer 包（核心 14 内最大剩余缺口 38 行）插件子系统薄弱分支审计闭环，+7 测（新文件 PluginSystemGapTests.swift 159 行，Swift Testing 风格与包内既有测试一致）：MarketplaceError 四 case 文案 / PluginError.versionMismatch 文案 / PluginVersion 预发布比较三分支（(nil,.some)→false 正式版不小于预发布、(.some,nil)→true、(.some,.some)→字典序 + 数字三元组优先）/ Plugin 协议默认 isActive=false + healthCheck=unknown（不覆写的最小插件）/ addSource 同名源忽略（计数源实证重名实例 fetchListings 零调用）/ upgrade 已是最新版 → 原样返回条目不重装（L248 requireEntry 路径）/ AnyCodable 顶层 null → NSNull（L17-18 decodeNil 分支）；② main 门禁覆盖率（表口径仅 Sources）：**核心 14 包 97.04%（6907/7118，均 ≥90%）/ 18 包全量 95.05%（9472/9965）**——双双突破 97%/95% 关口；ServiceContainer 包 38→13 未覆盖行（95.21→98.36%），其中 PluginMarketplace 18→0（**100%**）/ Plugin.swift 6→0（**100%**）/ PluginManager 2→1（99.47%）；③ 标注不可测（13 余行全部定性）：EventBus 5 行（report 表函数跨度口径，行转储 0 内容行）/ ServiceContainer.swift L41-44 typeMismatch 防御（前轮已标注）/ AnyCodable L49 末位 NSNull 兜底（合法 JSON 必命中前置分支，不可达）/ PluginManager L166 effect.dispose（effects 无注册入口，插件生命周期预留，private plugins 不可注入）；④ 测试总账：Swift Testing 712/712（153 suites）+ XCTest 222/222 = **934/934 全绿**；⑤ 四门禁全绿（pr /tmp/ci_pr_agent6.log / main /tmp/ci_main_agent6.log / leaks 0 /tmp/ci_leaks_agent6.log / xcode TEST SUCCEEDED /tmp/ci_xcode_agent6.log，xcodeproj 自动补录 PluginSystemGapTests 4 处）。
+> **2026-08-25（用户不在公司）无人值守覆盖审计轮 7（HEAD `9b1a7b1`）**：① RAG 包（剩余缺口 25 行）薄弱分支审计闭环，+6 测（新文件 RAGGapCoverageTests.swift 110 行，Swift Testing 风格）：DocumentLoader extractJSONTexts 非法 JSON 回退原始文本 / 非 UTF-8 回退空串 / walk 跳过 null（default 分支）与纯空白字符串 / KnowledgeAddTool 空文档 →「文档为空或无有效文本」/ SharedRAGEngine HARNESS_HOME 环境变量覆盖默认索引路径 + replace 自定义引擎注入 get 返同实例 / VectorStore 元数据过滤命中（matches true 分支）与不命中对照；② main 门禁覆盖率（表口径仅 Sources）：**核心 14 包 97.18%（6917/7118，均 ≥90%）/ 18 包全量 95.15%（9482/9965）**；RAG 包 25→16 未覆盖行（97.75%）：DocumentLoader 94.07% / KnowledgeTools 99.12% / RAGEngine 98.41% / VectorStore 96.49% / Vectorizer 100% / Chunker 98.85%；③ 不可测/未归属标注（16 余行全部定性）：Chunker L58 continue 不可达（splitParagraphs 已 filter 空段）/ DocumentLoader 7 行 = 7 个编译器生成 reabstraction thunk（load(path:) String 重载变体 ×5 + walk 闭包转换 ×2，单测直调原签名不命中）/ KnowledgeTools 1 行 = execute String 闭包转换 thunk / RAGEngine L8-10 = `RetrievedChunk.id` 转发属性（单测无直接调用，可测低价值留待顺带）/ VectorStore L133 = matches return true（探针测试实锤运行时路径命中、llvm-cov 未归属该返回行，工具链行归属异常 P2 观察项）+ 3 行 upsert/save 区域跨度与 count/snapshot thunk；④ 测试总账：Swift Testing 718/718（154 suites）+ XCTest 222/222 = **940/940 全绿**；⑤ 四门禁全绿（pr /tmp/ci_pr_agent7.log / main /tmp/ci_main_agent7.log / leaks 0 /tmp/ci_leaks_agent7.log / xcode TEST SUCCEEDED /tmp/ci_xcode_agent7.log；RAG 不在 xcode 7-bundle 范围，pbxproj 无变更）。
 
 ## 二、八大后端模块交付状态
 
@@ -168,6 +169,7 @@
 | 覆盖审计轮 5：MCP 包 manager 非 stdio/stdio 诊断/服务发现兜底分支闭环（+7 测新文件 MCPGapCoverageTests，MCP 43→32 未覆盖行 96.00%，MCPDiscovery 100%） | `e951e0e` |
 | handleServerRequest -32603 应答丢失自定义错误描述（MCPError 未实现 LocalizedError，localizedDescription 回默认文案） | `e951e0e`（message 优先 CustomStringConvertible.description） |
 | 覆盖审计轮 6：ServiceContainer 插件子系统错误文案/semver 预发布比较/协议默认/源去重/升级幂等/AnyCodable null 分支闭环（+7 测新文件 PluginSystemGapTests，ServiceContainer 38→13 未覆盖行 98.36%，PluginMarketplace/Plugin.swift 100%） | `96aa683` |
+| 覆盖审计轮 7：RAG 包薄弱分支闭环（DocumentLoader 回退/walk null/空文档错误/HARNESS_HOME 覆盖/replace 注入/元数据过滤命中对照，+6 测新文件 RAGGapCoverageTests，RAG 25→16 未覆盖行 97.75%，16 余行全部定性） | `9b1a7b1` |
 | 测试固定 sleep 时序脆弱点 4 处（P1 根因候选） | `6ce51a0` |
 | Xcode 工程依赖漂移（xcodebuild job 编译/链接失败；5 处 target 依赖缺失 + 5 个 target 缺失 + CSQLite 注入） | `99ba131` |
 | lint 扫描范围被 ci-derived-data 污染（swiftlint LLVM 崩溃 / swiftformat 1545 文件） | `99ba131` |
@@ -221,11 +223,11 @@
 | 源码（Packages，93 源文件） | 13,823 行（2026-08-24 差距审计轮：+12，MCP disconnect 注册表清理 + RAG 自动持久化） |
 | 源码（Apps，44 文件，HarnessApp + 辅助 target） | 10,719 行（Skill 轮：CLI/App 导入路径薄包装 −14） |
 | 源码合计（137 文件） | 24,530 行 |
-| 测试代码（88 文件） | 19,982 行（周末覆盖率加固 +38 用例 / 覆盖审计轮 2 +6 / 轮 3 +6 / 轮 4 +15 / 轮 5 +7 / 轮 6 +7，共 +143 用例 +1,844） |
+| 测试代码（89 文件） | 20,092 行（周末覆盖率加固 +38 用例 / 覆盖审计轮 2 +6 / 轮 3 +6 / 轮 4 +15 / 轮 5 +7 / 轮 6 +7 / 轮 7 +6，共 +149 用例 +1,954） |
 | SPM 目标 | 22 库（17 后端包 + 5 辅助库 Workspace/Plan/Goal/HarnessCore/Account 扩展）/ 4 可执行 + 20 测试目标（单一 xctest 进程） |
 | 工具链 | Swift 6.3.3 / Xcode 26.6 / macOS arm64 / platforms .macOS(.v26) |
 | 覆盖率口径 | llvm-cov 仅统计 Packages/*（Apps/HarnessApp 层不在表内，既有口径）；P2 ① main 门禁核心包（/tmp/p2cancel_ci_main.log）：AccountService 94.08% / AgentLoop 89.98%（联动取消路径覆盖）/  MCP.swift 97.31% / StdioMCPClient 92.53% / RAGEngine 94.02%（+0.27，2 新路由测试）/ MemoryEngine 95.02% / XPCPluginHost 96.57%；模块7 Skill 关键文件（同 log）：SkillEvolution 100 / SkillRegistry 100 / SkillStore 95.07 / SkillDebugger 98.94 / SkillVersioning 95.59 / SkillTools 92.00；模块8 LLM 关键文件：Adapters 92.14 / OpenAICompatChat 92.40 / LLMResponseNormalizer 96.40 / LLMProvider 89.66 / Message 76.92（DTO 纯数据文件 100） |
-| 提交总数 | 188（周末覆盖审计轮 6：test `96aa683` + 本轮 docs；前轮 186 @`e937dbc`） |
+| 提交总数 | 190（周末覆盖审计轮 7：test `9b1a7b1` + 本轮 docs；前轮 188 @`7799169`） |
 
 ### 八大后端模块代码级需求审计（2026-08-20 跨会话核验轮）
 
@@ -280,6 +282,7 @@
 
 ```
 96aa683  test(coverage): 覆盖审计轮 6 +7 单测（新文件 PluginSystemGapTests.swift：ServiceContainer 插件子系统薄弱分支）；ServiceContainer 38→13 未覆盖行（98.36%）/ PluginMarketplace 100%；pr 712/712 + XCTest 222/222（合计 934）；xcodeproj 自动补录
+9b1a7b1  test(coverage): 覆盖审计轮 7 +6 单测（新文件 RAGGapCoverageTests.swift：RAG 包薄弱分支）；RAG 25→16 未覆盖行（97.75%）/ DocumentLoader 94.07% / KnowledgeTools 99.12% / RAGEngine 98.41%；pr 718/718 + XCTest 222/222（合计 940）
 e951e0e  test(coverage): 覆盖审计轮 5 +7 单测（新文件 MCPGapCoverageTests.swift）+ handleServerRequest -32603 message 源修复（P2）；MCP 包 43→32 未覆盖行（96.00%）/ MCPDiscovery 100%；pr 705/705 + XCTest 222/222（合计 927）
 c871b1b  test(coverage): 覆盖审计轮 4 +15 单测（新文件 LLMMappingBranchTests.swift：LLM 包 wire 映射 / Normalizer 参数修复 / 协议默认能力）；LLM 包 90→60 未覆盖行（95.52%）；pr 705/705 + XCTest 215/215（合计 920）；xcodeproj 自动补录
 4f7e808  test(coverage): 覆盖审计轮 3 +6 单测（BuiltinTools WebFetch 错误路径桩三失败模式 5 / XPCPluginHost launchctl 抛错降级 1）；pr 705/705 + XCTest 200/200（合计 905）

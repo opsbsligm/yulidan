@@ -74,5 +74,5 @@
 | 加号菜单 | 输入框 + | 文件附件 + 插件工具入口（按 category 分组，选中插入 @toolName） |
 
 ## 七、质量基线（已实测，供核对）
-- **当前基线（2026-08-25 周末覆盖审计轮 6，四门禁复跑全绿 @96aa683）**：pr 门禁 934/934（Swift Testing 712/712 153 suites + XCTest 222/222，/tmp/ci_pr_agent6.log）+ main 门禁（Release + 全量 + 覆盖率：14 核心包 97.04% 均 ≥90% / 18 包全量 95.05% / ServiceContainer 98.36%（13 未覆盖行）/ PluginMarketplace 100%，/tmp/ci_main_agent6.log）+ leaks 门禁（MemProbe 500 → **0 leaks**，/tmp/ci_leaks_agent6.log）+ xcode 门禁（**TEST SUCCEEDED**，/tmp/ci_xcode_agent6.log）；前轮基线：927/927（覆盖审计轮 5 /tmp/ci_pr_agent5mcp.log）/ 920/920（覆盖审计轮 4 /tmp/ci_pr_agent5.log）/ 905/905（覆盖审计轮 3 /tmp/ci_pr_agent4.log）
+- **当前基线（2026-08-25 周末覆盖审计轮 7，四门禁复跑全绿 @9b1a7b1）**：pr 门禁 940/940（Swift Testing 718/718 154 suites + XCTest 222/222，/tmp/ci_pr_agent7.log）+ main 门禁（Release + 全量 + 覆盖率：核心 14 包 97.18%（6917/7118）均 ≥90% / 18 包全量 95.15%（9482/9965）/ RAG 97.75%（16 未覆盖行），/tmp/ci_main_agent7.log）+ leaks 门禁（MemProbe 500 → **0 leaks**，/tmp/ci_leaks_agent7.log）+ xcode 门禁（**TEST SUCCEEDED**，/tmp/ci_xcode_agent7.log）；前轮基线：934/934（覆盖审计轮 6 /tmp/ci_pr_agent6.log）/ 927/927（覆盖审计轮 5 /tmp/ci_pr_agent5mcp.log）/ 920/920（覆盖审计轮 4 /tmp/ci_pr_agent5.log）
 - 本地镜像备份：`/Users/liguangming/code/swift-harness-backup.git`（每次提交后 mirror 同步）
