@@ -74,5 +74,5 @@
 | 加号菜单 | 输入框 + | 文件附件 + 插件工具入口（按 category 分组，选中插入 @toolName） |
 
 ## 七、质量基线（已实测，供核对）
-- **当前基线（2026-08-25 周末覆盖率加固轮，四门禁复跑全绿 @fc748d4）**：pr 门禁 702/702（152 suites，/tmp/ci_pr_agent.log）+ main 门禁（Release + 全量 702/702 + 覆盖率：14 核心包 96.05% 均 ≥90% / 18 包全量 94.05% / Agent 99.80%，/tmp/ci_main_agent.log）+ leaks 门禁（MemProbe 500 → **0 leaks**，/tmp/ci_leaks_agent.log）+ xcode 门禁（**TEST SUCCEEDED**，/tmp/ci_xcode_agent.log）；编译 0 警告 / SwiftLint 0 违规 / SwiftFormat 0 改动；覆盖详见 QUALITY_REPORT §一/§三；前轮基线：664/664（差距审计轮 /tmp/ci_pr_ragfix.log）/ 660/660（Skill 版本管理轮 /tmp/ci_pr_skillver.log）/ 658/658（日期注入轮 /tmp/ci_pr_cli_date.log）
+- **当前基线（2026-08-25 周末覆盖审计轮 2，四门禁复跑全绿 @de5870e）**：pr 门禁 899/899（Swift Testing 704/704 152 suites + XCTest 195/195，/tmp/ci_pr_agent2.log）+ main 门禁（Release + 全量 + 覆盖率：14 核心包 96.29% 均 ≥90% / 18 包全量 94.22% / XPCPluginProxy 100%，/tmp/ci_main_agent2.log）+ leaks 门禁（MemProbe 500 → **0 leaks**，/tmp/ci_leaks_agent2.log）+ xcode 门禁（**TEST SUCCEEDED**，/tmp/ci_xcode_agent2.log）；编译 0 警告 / SwiftLint 0 违规 / SwiftFormat 0 改动；覆盖详见 QUALITY_REPORT §一/§三；前轮基线：702/702（覆盖率加固轮 /tmp/ci_pr_agent.log）/ 664/664（差距审计轮 /tmp/ci_pr_ragfix.log）/ 660/660（Skill 版本管理轮 /tmp/ci_pr_skillver.log）
 - 本地镜像备份：`/Users/liguangming/code/swift-harness-backup.git`（每次提交后 mirror 同步）

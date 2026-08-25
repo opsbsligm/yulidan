@@ -21,8 +21,8 @@
 | SwiftFormat | ✅ 0 改动 | `swiftformat --lint . --config .swiftformat`（197 文件，P0.3 新增 2） |
 | SwiftLint | ✅ 0 违规 | `swiftlint lint --strict --config .swiftlint.yml`（197 文件，P0.3 新增 2） |
 | 编译 | ✅ 0 警告 | 全量冷编译（450 targets 含测试目标，覆盖率构建实测） |
-| 单元测试 | ✅ 702/702 | Swift Testing 702（152 suites）+ XCTest 0 失败（周末覆盖率加固两轮 +38：轮 1 十薄弱核心文件 +28 / 轮 2 AgentLoop 集成+静态直测 +10；前轮差距审计 +4；日志 /tmp/ci_pr_agent.log） |
-| 本地 CI 模拟 | ✅ 四门禁全绿（周末覆盖率加固轮复跑 @fc748d4） | `tools/ci-local.sh`：pr /tmp/ci_pr_agent.log（702/702，152 suites）+ main /tmp/ci_main_agent.log（Release + 全量 702/702 + 覆盖率：核心 14 包 96.05%（6835/7116）均 ≥90% / 18 包全量 94.05%（9370/9963）/ Agent 99.80%）+ leaks /tmp/ci_leaks_agent.log（MemProbe 500 → **0 leaks**）+ xcode /tmp/ci_xcode_agent.log（**TEST SUCCEEDED**）；前轮基线：664/664 四门禁 @7447179（/tmp/ci_{pr,main,leaks,xcode}_ragfix.log）；GitHub 远端激活前四门禁以 ci-local 为准 |
+| 单元测试 | ✅ 899/899 | Swift Testing 704（152 suites）+ XCTest 195/195，0 失败（周末覆盖审计轮 2 +6：ToolExecutor 截断分支 2 / SessionDB 损坏行+错误本地化 2 / XPCPluginProxy no-op+文案 2；前轮加固 +38；日志 /tmp/ci_pr_agent2.log） |
+| 本地 CI 模拟 | ✅ 四门禁全绿（周末覆盖审计轮 2 复跑 @de5870e） | `tools/ci-local.sh`：pr /tmp/ci_pr_agent2.log（704/704，152 suites + XCTest 195/195，合计 899）+ main /tmp/ci_main_agent2.log（Release + 全量 + 覆盖率：核心 14 包 96.29%（6852/7116）均 ≥90% / 18 包全量 94.22%（9387/9963）/ XPCPluginProxy 100%）+ leaks /tmp/ci_leaks_agent2.log（MemProbe 500 → **0 leaks**）+ xcode /tmp/ci_xcode_agent2.log（**TEST SUCCEEDED**）；前轮基线：702/702 四门禁 @fc748d4（/tmp/ci_{pr,main,leaks,xcode}_agent.log）；GitHub 远端激活前四门禁以 ci-local 为准 |
 | 本地镜像备份 | ✅ 每次提交后 | `git push --mirror /Users/liguangming/code/swift-harness-backup.git` |
 | GitHub 推送 | ⏸ 暂缓（流水线已就绪） | 按用户要求先本地版本控制，未推送远端。`.github/workflows/swift-ci.yml` 四 job（pr-check：SwiftLint+SwiftFormat+build+单测 / xcode-check / leaks / main-check：release+全量测试+覆盖率+CodeQL+制品）+ `weekly-regression.yml`（schedule cron 周日 02:23 UTC 全量回归 + workflow_dispatch 手动触发；独立文件避免 schedule 触发重复跑 4 job 的 macOS runner 成本）；激活前置：建 GitHub 仓库并 push（私有仓库需 Settings→Actions 启用 scheduled workflows；CODECOV_TOKEN 仅私有仓库需要）；本地模拟 `tools/ci-local.sh [pr|leaks|xcode|main]` 可跑，leaks 门禁 0 leaks 实测 |
 
@@ -33,6 +33,8 @@
 > **2026-08-24（用户不在公司）P0 验收差距审计轮（HEAD `7447179`）**：① 差距审计完成 — P0 清单 §三~§六 逐项映射测试证据：§三 项目 CRUD 删除二选一（Workspace planDeletion 3 单测 + App 两分支场景）/ 展开收起持久化（App 字段更新+跨实例重载）/ 拖拽三向（Workspace resolveMove 4 单测 + App moveSession 三向含 DB）/ 重命名空白拦截（会话 no-op + 项目空名 guard）/ 归档取消回落（Workspace resolveRestoreProject 4 单测 + App 原项目存活/已删双分支）/ 搜索（全局+限定项目）——**全部已有测试证据，上轮 4 项「重点怀疑」核实无缺口**；② 审计驱动新测发现 **2 处 P1 真实缺口并闭环（`7447179`）**：a) MCP 卸载后 Agent 工具注册表残留陈旧 mcp_* 工具（disconnect 不清理外部注册表；§五「卸载后工具即时移除」契约在 Agent 侧被违反）→ disconnect 增可选 into registry 参数 + App 三处调用点传入；b) **RAG ingest/removeDocument/clear 仅改内存不落盘 → CLI 每次运行独立进程 = 知识库跨进程丢失**（e2e 实锤：add_knowledge 返回「已入库」但 index.json 从未生成）→ 三写路径自动 save()；③ RAG CLI e2e 跨进程实证（local/qwen3:4b）：add_knowledge 入库 1 切片 → index.json 3451 字节落盘 → **新进程** search_knowledge（得分 0.597 + 「ops-notes · 块 1 · 字符 0-252」溯源引用）→ 正确答「1200 请求/分钟（超限 HTTP 429）」；④ 模型切换即时生效双路测试（ModelSwitcherMenu 真实 UI 路径 save→通知→主线程重载：仅换模型 = 循环复用 + 下轮 wire 即变；端点切换 = 循环重建 + 工厂重注入新配置）；⑤ 四门禁复跑全绿（/tmp/ci_{pr,main,leaks,xcode}_ragfix.log）：664/664（139 suites）+ 覆盖核心 14 包 94.15%（6700/7116）/ 18 包 92.63%（9229/9963）+ 0 leaks + TEST SUCCEEDED；⑥ App 浸泡 7h54m 零崩溃（watchdog 末次自愈 14:20 本地，OVERRIDE-REMAP 后 frame 恢复 (0,63,1470,860)，recreate 预算门控正确拒绝，无新事故）；⑦ 测试残留清理（e2e 自动沉淀技能×4 + RAG 测试索引；hello 技能属用户另一任务保留）。 ⑧ 记忆系统 CLI 真实 e2e（补充实证）：用户声明约定 → Agent 存库（RAG user_convention 文档 + 自动蒸馏长记忆 1 条）→ **新进程**提问「生产凭据命名前缀？」→ Agent 自主 list_knowledge + search_knowledge（得分 0.963 高置信命中）→ 正确答「PROD-」带来源引用；观察：4B 模型自动蒸馏长记忆内容为「用户要求记住：工具记住这个约定」（丢失具体事实，纯模型能力限制，管线本身正常；知识库路径可靠）；SkillEvolution 在 e2e 探针下再次真实触发（auto-* ×4，验证后清理）。⑨ §二（SSO/iCloud）审计结论：逐项映射测试证据 — AccountServiceTests 19 测（降级×4：noEntitlement / noICloudAccount / revokedCredential / withoutCredential + 重新申请恢复 retryICloudRecoversAfterEntitlementGranted + KVS 账号变更降级 / 服务器变更不降级 + 冲突裁决 handler 转发生效×2）/ WorkspaceRoutingTests 16 测（双根路由+骨架物化、iCloud refresh 切根与无变化 no-op、切回落本地根、切根 RAG 重路由+新会话 cwd 入容器且旧会话不受影响、MCP 元数据切根对账（二进制存在恢复/缺失进待重导）、离线优先损坏→空清单、原子保存不残留临时文件）+ WorkspaceRoutingE2ETests 全链路 1 测 / MetadataSyncTests 8 / WorkspaceRootTests 6 / AppViewModelSyncConflictTests 5 → 业务逻辑层全覆盖无缺口；剩余 SSO 弹窗实机 / 真 iCloud 多设备同步为 Developer Team 依赖的实机走查项（P2 待办不变）。
 
 > **2026-08-25（用户不在公司）无人值守覆盖率加固轮（HEAD `fc748d4`，test+docs 双提交）**：① 方法：main 门禁 llvm-cov 分文件表定位覆盖最弱核心文件，逐文件闭环，两轮共 +38 测（测试 85 文件 / 19,059 行）；② 轮 1 +28 测（10 文件）：ServiceContainer 67.65→94.12%（工厂注册/单例缓存/transient/错误不缓存/clear 重调/reset 保工厂；剩余 4 行 = typeMismatch 防御分支不可达，已标注）/ EventBus→94.05%（emit 投递/无 handler no-op/clear 停投）/ PromptEngine 74.07→100% / LLM Message 76.92→100%（ImageBlock Codable roundtrip）/ SessionTransfer 80→100% / SessionEvent 81.67→100% / MemoryTools 86.92→95.33%（remember merged/superseded/rejected + forget-by-topic；每测独立 store + 唯一 topic 防串扰）/ ConsistencyChecker 88.89→100%（阈值调参法强制 sameTopicValueDiffers 分支）/ VectorStore 87.72→96.49%（matchingMetadata 排序 + filter 匹配通过）/ LongTermMemoryStore 84→97.33%（byID/remove 三态 + HARNESS_HOME 环境分支）；③ 轮 2 +10 测（新文件 AgentLoopCoverageTests.swift）：静态直测（五类块双向映射 / parseArguments 全类型（null→"<null>"、非法 JSON→[:]）/ traceOutput 错误头优先）+ runTurn 集成 5 场景（URLError(.cancelled) 中性收敛 / 工具忽略取消 + 步前取消检查命中 / 助手历史按 id 去重 / trimHistory 队首孤立 tool 结果 dropFirst / 工具 onChunk 进度转发）→ **AgentLoop 50→1 未覆盖行（99.80%）**；④ main 门禁覆盖率（llvm-cov report 表口径，仅 Sources，与历史入册口径一致）：**核心 14 包 96.05%（6835/7116，均 ≥90%，最低 Terminal 93.21%、最高 Agent 99.83%）/ 18 包全量 94.05%（9370/9963）**——较差距审计轮（664 测）94.15%/92.63% 双双提升；口径验证：同口径复算 /tmp/ci_main_ragfix.log 精确复现入册数字（94.15%（6700/7116）/ 92.63%（9229/9963））；交接工作数字「692 状态 96.22%」从未入册且同口径复算为 95.32%（误算，不入档）；⑤ 3 处不可单测区标注（P2 实机项）：AppleSignInService 119 行（ASAuthorization entitlements 依赖）/ SystemNotificationCenter 13 行（裸 xctest 进程 UNUserNotificationCenter 不可达）/ AppleCredentialStore 6 行（Keychain 错误分支）；⑥ Terminal.swift 跨轮次未覆盖行 +3（12→15，异步超时行，环境侧抖动，非本变更回归）；⑦ App 浸泡 25h33m 零崩溃（PID 98463 2026-08-24 10:19 启动，watchdog 无新事故，仅已知 userManaged mismatch 噪音）；⑧ 四门禁全绿（pr 702/702 152 suites /tmp/ci_pr_agent.log / main /tmp/ci_main_agent.log / leaks 0 /tmp/ci_leaks_agent.log / xcode TEST SUCCEEDED /tmp/ci_xcode_agent.log）；⑨ xcodeproj 自动补录 AgentLoopCoverageTests.swift 登记（4 行）；顺带发现既有口径问题：xcode 门禁测试范围仅 7 个测试 bundle（见 §四 P2 新增行）。
+
+> **2026-08-25（用户不在公司）无人值守覆盖审计轮 2（HEAD `de5870e`）**：① 方法延续分文件审计（行转储 `| 0 |` 定位 + report 表交叉核对），Tools/Session/PluginXPC 三包 3 个薄弱文件闭环，+6 测；② ToolExecutor 7→2 未覆盖行（96.90→99.12%）：截断 map 非文本块原样穿过 + 限内文本块整体保留（多块工具桩：text5+image+text30，limit=10）+ textOf/textCharCount 非文本 nil 分支（JSON 校验不受 reasoning 噪声干扰）；剩余 2 行 = 不变量下不可达防御分支（total>limit 时 didTruncate 必真 / 双任务组 next() 必非 nil），已标注；③ SessionDB 23→17 未覆盖行（95.09→96.37%）：mapRow 对损坏 metadata_json 行静默跳过（GRDB 直连同库写脏数据模拟，loadAll 跳过 + load(_) 返 nil）+ openFailed errorDescription 文案；④ XPCPluginProxy 9→0 未覆盖行（88.89→**100%**）：initialize no-op（FakeEndpoint 断言不触发 worker start）+ PluginXPCError 双 case 文案；⑤ main 门禁覆盖率（表口径仅 Sources）：**核心 14 包 96.29%（6852/7116，均 ≥90%，最低 Terminal 93.21%）/ 18 包全量 94.22%（9387/9963）**——较上轮 96.05%/94.05% 再升；跨轮次异步行抖动：Agent 1→2 / Subagent 20→19 / MCP 44→43 / XPCPluginHost 8→12（环境侧调度抖动，非本变更回归，本轮新增测试全绿佐证）；⑥ 测试总账口径澄清并首次双口径入册：并行汇总行「Test run with N tests in M suites」为 Swift Testing 计数（704/704，152 suites），XCTest 另计 195/195 → **合计 899/899 全绿**（历史各轮「N/N」均引该汇总行口径，本轮起双口径并列）；⑦ 四门禁全绿（pr /tmp/ci_pr_agent2.log / main /tmp/ci_main_agent2.log / leaks 0 /tmp/ci_leaks_agent2.log / xcode TEST SUCCEEDED /tmp/ci_xcode_agent2.log）。
 
 ## 二、八大后端模块交付状态
 
@@ -152,6 +154,7 @@
 | local 画像默认关闭工具调用 | `c5bdc41`（按模型名白名单细分） |
 | 冷编译警告（RAG 测试 docs1 未使用） | `851a100` |
 | 覆盖缺口审计：10 薄弱核心文件闭环（轮 1 +28 测）+ AgentLoop 50→1 未覆盖行（轮 2 +10 测） | `fc748d4` |
+| 覆盖审计轮 2：Tools/Session/PluginXPC 3 薄弱文件闭环（+6 测，XPCPluginProxy→100%） | `de5870e` |
 | 测试固定 sleep 时序脆弱点 4 处（P1 根因候选） | `6ce51a0` |
 | Xcode 工程依赖漂移（xcodebuild job 编译/链接失败；5 处 target 依赖缺失 + 5 个 target 缺失 + CSQLite 注入） | `99ba131` |
 | lint 扫描范围被 ci-derived-data 污染（swiftlint LLVM 崩溃 / swiftformat 1545 文件） | `99ba131` |
@@ -205,11 +208,11 @@
 | 源码（Packages，93 源文件） | 13,823 行（2026-08-24 差距审计轮：+12，MCP disconnect 注册表清理 + RAG 自动持久化） |
 | 源码（Apps，44 文件，HarnessApp + 辅助 target） | 10,719 行（Skill 轮：CLI/App 导入路径薄包装 −14） |
 | 源码合计（137 文件） | 24,530 行 |
-| 测试代码（85 文件） | 19,059 行（周末覆盖率加固两轮 +2 文件 +38 用例，+921） |
+| 测试代码（85 文件） | 19,167 行（周末覆盖率加固 +38 用例 +921 / 覆盖审计轮 2 +6 用例 +108） |
 | SPM 目标 | 22 库（17 后端包 + 5 辅助库 Workspace/Plan/Goal/HarnessCore/Account 扩展）/ 4 可执行 + 20 测试目标（单一 xctest 进程） |
 | 工具链 | Swift 6.3.3 / Xcode 26.6 / macOS arm64 / platforms .macOS(.v26) |
 | 覆盖率口径 | llvm-cov 仅统计 Packages/*（Apps/HarnessApp 层不在表内，既有口径）；P2 ① main 门禁核心包（/tmp/p2cancel_ci_main.log）：AccountService 94.08% / AgentLoop 89.98%（联动取消路径覆盖）/  MCP.swift 97.31% / StdioMCPClient 92.53% / RAGEngine 94.02%（+0.27，2 新路由测试）/ MemoryEngine 95.02% / XPCPluginHost 96.57%；模块7 Skill 关键文件（同 log）：SkillEvolution 100 / SkillRegistry 100 / SkillStore 95.07 / SkillDebugger 98.94 / SkillVersioning 95.59 / SkillTools 92.00；模块8 LLM 关键文件：Adapters 92.14 / OpenAICompatChat 92.40 / LLMResponseNormalizer 96.40 / LLMProvider 89.66 / Message 76.92（DTO 纯数据文件 100） |
-| 提交总数 | 178（周末覆盖率加固轮：test `fc748d4` + 本轮 docs；前轮 176 @`8950741`） |
+| 提交总数 | 180（周末覆盖审计轮 2：test `de5870e` + 本轮 docs；前轮 178 @`0f6c9f0`） |
 
 ### 八大后端模块代码级需求审计（2026-08-20 跨会话核验轮）
 
@@ -263,6 +266,8 @@
 ## 六、提交链（近期）
 
 ```
+de5870e  test(coverage): 覆盖审计轮 2 +6 单测（ToolExecutor 7→2 未覆盖行 / SessionDB 23→17 / XPCPluginProxy→100%）；pr 704/704 + XCTest 195/195（合计 899）
+0f6c9f0  docs(quality): 周末无人值守覆盖率加固轮入册 — 四门禁全绿 @fc748d4（核心 14 包 96.05% / 18 包 94.05%）+ 口径验证复现 664 状态入册数字 + P2 新增 xcode 7-bundle 口径观察行
 fc748d4  test(coverage): 周末无人值守覆盖率加固两轮 +38 单测（轮 1：10 薄弱核心文件闭环 +28；轮 2：AgentLoop 50→1 未覆盖行 +10）— ServiceContainer 67.65→94.12% / PromptEngine→100% / AgentLoop 99.80%；pr 702/702（152 suites）；xcodeproj 自动补录 AgentLoopCoverageTests 登记
 8950741  docs(quality): 差距审计全清单收官 — QUALITY_REPORT §二 SSO/iCloud 审计结论（AccountService 19/WorkspaceRouting 16/MetadataSync 8/E2E+Root+SyncConflict 12 → 业务逻辑全覆盖）+ P1 停滞行补瞬态事故记录
 b1e43c0  docs(quality): 记忆系统 CLI 真实 e2e 实证入册（声明约定→存库→新进程检索 0.963 分溯源命中答 PROD-；4B 蒸馏质量=模型能力限制观察项）
