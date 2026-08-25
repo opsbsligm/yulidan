@@ -366,7 +366,8 @@ public actor StdioMCPClient: MCPClient {
                 resultJSON = try await handler(method, paramsJSON)
             } catch {
                 code = -32603
-                message = error.localizedDescription
+                // MCPError 等自定义错误未实现 LocalizedError，localizedDescription 会丢失自定义描述
+                message = (error as? CustomStringConvertible)?.description ?? error.localizedDescription
             }
         }
         let payload: [String: Any] = if let resultJSON, let data = resultJSON.data(using: .utf8),
