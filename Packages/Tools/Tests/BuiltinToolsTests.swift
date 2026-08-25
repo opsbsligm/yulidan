@@ -178,6 +178,13 @@ final class BuiltinToolsTests: XCTestCase {
         let res = try await ExecCommandTool(runner: runner).execute(["cmd": "echo hi"], context: context())
         XCTAssertEqual(res.error?.code, "exec_failed")
     }
+
+    // MARK: - resolveToolPath 边界（覆盖审计轮 2）
+
+    /// 相对路径 + 无工作目录 → 原样返回（进程 cwd 旧行为）
+    func testResolveToolPathNoWorkingDirectory() {
+        XCTAssertEqual(resolveToolPath("rel/file.txt", workingDirectory: nil), "rel/file.txt")
+    }
 }
 
 /// 沙箱集成：文件工具注入 PathSandbox 后越界路径被拒绝
@@ -250,6 +257,15 @@ private final class StubWebURLProtocol: URLProtocol {
     nonisolated(unsafe) static var handler: ((URLRequest) -> (status: Int, body: String))?
     nonisolated(unsafe) static var lastRequest: URLRequest?
 
+    /// 失败模式注入（错误路径测试专用）
+    enum FailMode {
+        case nonHTTPResponse
+        case failBeforeResponse(URLError)
+        case failMidStream(URLError)
+    }
+
+    nonisolated(unsafe) static var failMode: FailMode?
+
     override static func canInit(with _: URLRequest) -> Bool {
         true
     }
@@ -260,6 +276,27 @@ private final class StubWebURLProtocol: URLProtocol {
 
     override func startLoading() {
         Self.lastRequest = request
+        if let fail = Self.failMode {
+            switch fail {
+            case .nonHTTPResponse:
+                let resp = URLResponse(url: request.url!, mimeType: nil,
+                                       expectedContentLength: -1, textEncodingName: nil)
+                client?.urlProtocol(self, didReceive: resp, cacheStoragePolicy: .notAllowed)
+                client?.urlProtocol(self, didLoad: Data("x".utf8))
+                client?.urlProtocolDidFinishLoading(self)
+            case let .failBeforeResponse(error):
+                client?.urlProtocol(self, didFailWithError: error)
+            case let .failMidStream(error):
+                if let http = HTTPURLResponse(url: request.url!, statusCode: 200,
+                                              httpVersion: "HTTP/1.1",
+                                              headerFields: ["Content-Type": "text/plain"]) {
+                    client?.urlProtocol(self, didReceive: http, cacheStoragePolicy: .notAllowed)
+                    client?.urlProtocol(self, didLoad: Data("partial".utf8))
+                }
+                client?.urlProtocol(self, didFailWithError: error)
+            }
+            return
+        }
         let canned = Self.handler?(request) ?? (status: 599, body: "stub 未配置")
         guard let response = HTTPURLResponse(url: request.url!, statusCode: canned.status,
                                              httpVersion: "HTTP/1.1",
@@ -301,6 +338,7 @@ final class WebFetchToolTests: XCTestCase {
 
     override func tearDown() {
         StubWebURLProtocol.handler = nil
+        StubWebURLProtocol.failMode = nil
         super.tearDown()
     }
 
@@ -349,6 +387,41 @@ final class WebFetchToolTests: XCTestCase {
         XCTAssertNil(res.error)
         XCTAssertEqual(res.meta?["truncated"], "true")
         XCTAssertTrue(text(res).hasSuffix(String(repeating: "字", count: 10)))
+    }
+
+    // MARK: - 错误路径（覆盖审计轮 2）
+
+    /// 非 HTTP 响应 → badResponse 分支
+    func testNonHTTPResponseRejected() async throws {
+        StubWebURLProtocol.failMode = .nonHTTPResponse
+        let res = try await tool().execute(["url": "https://example.com/x"], context: context())
+        XCTAssertEqual(res.error?.code, "fetch_failed")
+        XCTAssertTrue(text(res).contains("无法解析") || text(res).contains("抓取失败"),
+                      "应走 badResponse 或连接错误路径：\(text(res))")
+    }
+
+    /// 流式中途失败 → FetchError.failed 分支
+    func testStreamFailureReportsFetchFailed() async throws {
+        StubWebURLProtocol.failMode = .failMidStream(URLError(.networkConnectionLost))
+        let res = try await tool().execute(["url": "https://example.com/x"], context: context())
+        XCTAssertEqual(res.error?.code, "fetch_failed")
+        XCTAssertTrue(text(res).contains("抓取失败"), "应带抓取失败文案：\(text(res))")
+    }
+
+    /// 连接阶段超时 → 通用 catch + （超时）提示
+    func testConnectionTimeoutHinted() async throws {
+        StubWebURLProtocol.failMode = .failBeforeResponse(URLError(.timedOut))
+        let res = try await tool().execute(["url": "https://example.com/x"], context: context())
+        XCTAssertEqual(res.error?.code, "fetch_failed")
+        XCTAssertTrue(text(res).contains("（超时）"), "应带超时提示：\(text(res))")
+    }
+
+    /// 连接阶段非超时错误 → 通用 catch 无提示分支
+    func testConnectionFailureNoTimeoutHint() async throws {
+        StubWebURLProtocol.failMode = .failBeforeResponse(URLError(.notConnectedToInternet))
+        let res = try await tool().execute(["url": "https://example.com/x"], context: context())
+        XCTAssertEqual(res.error?.code, "fetch_failed")
+        XCTAssertFalse(text(res).contains("（超时）"), "非超时错误不应带超时提示")
     }
 }
 

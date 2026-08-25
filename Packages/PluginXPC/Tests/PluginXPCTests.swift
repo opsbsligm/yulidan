@@ -40,6 +40,16 @@ private final class FakeEndpoint: NSObject, RemotePluginEndpoint, @unchecked Sen
     }
 }
 
+/// launchctl 调用抛错的运行器（ensureWorkerRegistered 防御分支测试）
+private final class ThrowingRunner: CommandRunner, @unchecked Sendable {
+    var calls: [[String]] = []
+
+    func run(_ args: [String]) throws -> (exitCode: Int32, output: String) {
+        calls.append(args)
+        throw NSError(domain: "test", code: 1, userInfo: [NSLocalizedDescriptionKey: "launchctl 不可用"])
+    }
+}
+
 private final class FakeRunner: CommandRunner, @unchecked Sendable {
     let results: [(args: [String], exitCode: Int32, output: String)]
     var calls: [[String]] = []
@@ -177,6 +187,15 @@ struct XPCPluginHostTests {
         let host = XPCPluginHost(runner: runner)
         #expect(await host.ensureWorkerRegistered(workerPath: "/tmp/worker") == false)
         _ = uid
+    }
+
+    @Test("launchctl throw degrades to unregistered (defensive branches)")
+    func launchctlThrowDegrades() async {
+        let runner = ThrowingRunner()
+        let host = XPCPluginHost(runner: runner)
+        // print 抛错 → 记为未注册（-1）→ bootstrap 再抛错 → catch 回落 false
+        #expect(await host.ensureWorkerRegistered(workerPath: "/tmp/worker-throw") == false)
+        #expect(runner.calls.count == 2)
     }
 }
 
