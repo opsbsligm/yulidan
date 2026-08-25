@@ -80,3 +80,24 @@ struct LLMTests {
         #expect(u.promptTokens == 100)
     }
 }
+
+@Suite("LLM content blocks")
+struct LLMContentBlockTests {
+    @Test("ImageBlock codable roundtrip inside Message")
+    func imageBlockRoundtrip() throws {
+        let image = ImageBlock(mimeType: "image/png", data: Data([0x89, 0x50, 0x4E, 0x47]),
+                               width: 10, height: 20)
+        let message = Message(id: "m-img", role: .user, content: [.text("看图"), .image(image)])
+        let data = try JSONEncoder().encode(message)
+        let decoded = try JSONDecoder().decode(Message.self, from: data)
+        #expect(decoded.content.count == 2)
+        guard case let .image(block) = decoded.content[1] else {
+            Issue.record("second block should decode as image")
+            return
+        }
+        #expect(block.mimeType == "image/png")
+        #expect(block.data == Data([0x89, 0x50, 0x4E, 0x47]))
+        #expect(block.width == 10)
+        #expect(block.height == 20)
+    }
+}

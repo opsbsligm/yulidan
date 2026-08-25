@@ -1,3 +1,4 @@
+import CoreTransferable
 import Foundation
 import Session
 import Testing
@@ -410,5 +411,15 @@ struct WorkspaceSyncTests {
         )
         #expect(changes.sessionChanges[s2] == nil)
         #expect(changes.sessionChanges[s1] == nil)
+    }
+}
+
+@Suite("SessionDragPayload Transferable")
+struct SessionDragPayloadTransferableTests {
+    @Test("transferRepresentation exposes JSON codable representation")
+    func transferRepresentationAccessible() {
+        // 访问静态属性即执行表示构造（拖拽载荷 .draggable/.dropDestination 契约）
+        let representation = SessionDragPayload.transferRepresentation
+        _ = representation
     }
 }

@@ -106,3 +106,28 @@ struct MemoryConsistencyTests {
         #expect(!checker.hasContradiction("部署走 Nginx", "部署走 Nginx 反代"))
     }
 }
+
+/// 值冲突分支：同主题、无否定词、相似度低于合并阈值 → sameTopicValueDiffers 判定冲突
+@Suite("ConsistencyChecker value conflict")
+struct ConsistencyValueConflictTests {
+    @Test("same topic with differing values conflicts via similarity window")
+    func sameTopicValueDiffers() {
+        let v = HashingVectorizer()
+        let a = "缓存服务使用 Redis 集群模式部署"
+        let b = "缓存服务使用 Memcached 单节点部署"
+        let sim = VectorMath.cosine(v.embed(a), v.embed(b))
+        #expect(sim > 0.1, "premise: texts must share tokens")
+        #expect(sim < 0.9, "premise: texts must differ for value-conflict branch")
+        let checker = ConsistencyChecker(mergeThreshold: sim + 0.01,
+                                         conflictThreshold: sim - 0.01, vectorizer: v)
+        let item = MemoryItem(id: "m-cov-1", kind: .fact, topic: "cache", content: a,
+                              significance: 0.8, sourceSession: "s1", origin: .manual,
+                              vector: v.embed(a))
+        let verdict = checker.check(content: b, topic: "cache", against: [item])
+        guard case let .conflicts(matched) = verdict else {
+            Issue.record("expected .conflicts, got \(verdict)")
+            return
+        }
+        #expect(matched.id == item.id)
+    }
+}

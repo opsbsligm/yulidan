@@ -100,3 +100,67 @@ struct RAGVectorStoreTests {
         #expect(await store.revision == 0)
     }
 }
+
+/// 元数据查询与过滤不匹配分支
+@Suite("VectorStore metadata queries")
+struct VectorStoreMetadataTests {
+    private let vectorizer = HashingVectorizer()
+
+    private func makeChunk(_ id: String, doc: String, index: Int, text: String,
+                           metadata: [String: String] = [:]) -> StoredChunk {
+        StoredChunk(id: id, documentID: doc, index: index, text: text,
+                    charStart: 0, charEnd: text.count, source: "src:\(doc)",
+                    title: doc, metadata: metadata, vector: vectorizer.embed(text))
+    }
+
+    @Test("documentIDs matchingMetadata returns sorted matches")
+    func matchingMetadata() async {
+        let store = VectorStore()
+        await store.upsert([makeChunk("c1", doc: "d1", index: 0, text: "alpha",
+                                      metadata: ["content_hash": "h1"])])
+        await store.upsert([makeChunk("c2", doc: "d2", index: 0, text: "beta",
+                                      metadata: ["content_hash": "h2"])])
+        await store.upsert([makeChunk("c3", doc: "d3", index: 0, text: "gamma",
+                                      metadata: ["content_hash": "h1"])])
+        #expect(await store.documentIDs(matchingMetadata: "content_hash", value: "h1") == ["d1", "d3"])
+        #expect(await store.documentIDs(matchingMetadata: "content_hash", value: "zzz") == [])
+        #expect(await store.documentIDs(matchingMetadata: "no_such_key", value: "x") == [])
+    }
+
+    @Test("search with non-matching filter returns empty")
+    func searchFilterMismatch() async {
+        let store = VectorStore()
+        await store.upsert([makeChunk("c1", doc: "d1", index: 0, text: "alpha beta",
+                                      metadata: ["source": "s1"])])
+        let hits = await store.search(queryVector: vectorizer.embed("alpha"), topK: 5,
+                                      filter: ["source": "s2"])
+        #expect(hits.isEmpty)
+        let open = await store.search(queryVector: vectorizer.embed("alpha"), topK: 5)
+        #expect(open.count == 1)
+    }
+}
+
+@Suite("VectorStore filter positive path")
+struct VectorStoreFilterPositiveTests {
+    private let vectorizer = HashingVectorizer()
+
+    private func makeChunk(_ id: String, doc: String, index: Int, text: String,
+                           metadata: [String: String] = [:]) -> StoredChunk {
+        StoredChunk(id: id, documentID: doc, index: index, text: text,
+                    charStart: 0, charEnd: text.count, source: "src:\(doc)",
+                    title: doc, metadata: metadata, vector: vectorizer.embed(text))
+    }
+
+    @Test("search with matching filter passes entries through")
+    func searchFilterMatch() async {
+        let store = VectorStore()
+        await store.upsert([makeChunk("c1", doc: "d1", index: 0, text: "alpha beta",
+                                      metadata: ["source": "s1"])])
+        await store.upsert([makeChunk("c2", doc: "d2", index: 0, text: "alpha gamma",
+                                      metadata: ["source": "s2"])])
+        let hits = await store.search(queryVector: vectorizer.embed("alpha"), topK: 5,
+                                      filter: ["source": "s1"])
+        #expect(hits.count == 1)
+        #expect(hits.first?.documentID == "d1")
+    }
+}

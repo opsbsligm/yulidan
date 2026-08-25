@@ -219,3 +219,82 @@ struct SessionMetadataPinnedTests {
         #expect(!decodedFalse.pinned)
     }
 }
+
+@Suite("SessionRecord log behavior")
+struct SessionRecordLogTests {
+    private func makeRecord(id: SessionID = SessionID()) -> SessionRecord {
+        SessionRecord(id: id, metadata: SessionMetadata(cwd: URL(fileURLWithPath: "/tmp/cov")))
+    }
+
+    @Test("step lifecycle events construct with eventType mapping")
+    func stepEvents() {
+        let start = SessionEvent.stepStart(turn: 1, step: 2)
+        let end = SessionEvent.stepEnd(turn: 1, step: 2)
+        #expect(start.eventType == "step/start")
+        #expect(end.eventType == "step/end")
+    }
+
+    @Test("equality and hashing keyed by session id")
+    func equalityAndHash() {
+        let id = SessionID()
+        let a = makeRecord(id: id)
+        let b = SessionRecord(id: id, metadata: SessionMetadata(cwd: URL(fileURLWithPath: "/elsewhere")))
+        let c = makeRecord()
+        #expect(a == b)
+        #expect(a.hashValue == b.hashValue)
+        #expect(a != c)
+        var set = Set<SessionRecord>()
+        set.insert(a)
+        set.insert(b)
+        #expect(set.count == 1)
+    }
+
+    @Test("deriveMessages skips non-message events")
+    func deriveMessagesSkipsNonMessage() {
+        var record = makeRecord()
+        record.append(.turnStart(turn: 1))
+        record.append(.stepStart(turn: 1, step: 1))
+        record.append(.userMessage(UserMessage(content: [.text("hello")])))
+        record.append(.assistantMessage(AssistantMessage(turn: 1, step: 1, content: [.text("hi")],
+                                                         provider: "p", model: "m")))
+        record.append(.turnEnd(turn: 1, reason: .completed))
+        let messages = record.deriveMessages()
+        #expect(messages.count == 2)
+    }
+
+    @Test("session ImageBlock and ToolCallBlock init + codable roundtrip")
+    func contentBlockRoundtrips() throws {
+        let image = ImageBlock(mimeType: "image/png", data: Data([1, 2, 3]), width: 4, height: 5)
+        let imageData = try JSONEncoder().encode(image)
+        let decodedImage = try JSONDecoder().decode(ImageBlock.self, from: imageData)
+        #expect(decodedImage.mimeType == "image/png")
+        #expect(decodedImage.data == Data([1, 2, 3]))
+        #expect(decodedImage.width == 4)
+        #expect(decodedImage.height == 5)
+
+        let call = ToolCallBlock(id: "tc-1", name: "echo", arguments: "{\"x\":1}")
+        let callData = try JSONEncoder().encode(call)
+        let decodedCall = try JSONDecoder().decode(ToolCallBlock.self, from: callData)
+        #expect(decodedCall.id == "tc-1")
+        #expect(decodedCall.name == "echo")
+        #expect(decodedCall.arguments == "{\"x\":1}")
+    }
+}
+
+@Suite("Session content blocks")
+struct SessionContentBlockTests {
+    @Test("ToolResultBlock init + codable roundtrip")
+    func toolResultBlockRoundtrip() throws {
+        let block = ToolResultBlock(toolCallId: "tc-1", content: [.text("done")], isError: false)
+        let data = try JSONEncoder().encode(block)
+        let decoded = try JSONDecoder().decode(ToolResultBlock.self, from: data)
+        #expect(decoded.toolCallId == "tc-1")
+        #expect(decoded.isError == false)
+        #expect(decoded.content.count == 1)
+        guard case let .text(t) = decoded.content[0] else {
+            Issue.record("expected text block")
+            return
+        }
+        #expect(t == "done")
+    }
+}

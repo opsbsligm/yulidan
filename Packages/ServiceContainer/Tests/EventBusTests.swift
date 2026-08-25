@@ -62,3 +62,66 @@ private actor IntArray {
         elements.append(element)
     }
 }
+
+@Suite("EventBus emit delivery")
+struct EventBusEmitTests {
+    private actor PayloadBox {
+        var deliveries = 0
+        var last: String?
+
+        func record(_ payload: AnyCodable) {
+            deliveries += 1
+            last = payload.value as? String
+        }
+
+        var snapshot: (Int, String?) {
+            (deliveries, last)
+        }
+    }
+
+    private func waitUntil(_ condition: @Sendable () async -> Bool) async -> Bool {
+        let deadline = Date().addingTimeInterval(2)
+        while Date() < deadline {
+            if await condition() {
+                return true
+            }
+            try? await Task.sleep(for: .milliseconds(20))
+        }
+        return await condition()
+    }
+
+    @Test("emit delivers payload to onEmit handlers")
+    func emitDelivers() async {
+        let bus = EventBus()
+        let box = PayloadBox()
+        await bus.onEmit(eventType: "emit.delivery") { payload in
+            await box.record(payload)
+        }
+        await bus.emit(payload: AnyCodable("payload-value"), eventType: "emit.delivery")
+        let delivered = await waitUntil { await box.deliveries == 1 }
+        let (count, last) = await box.snapshot
+        #expect(delivered)
+        #expect(count == 1)
+        #expect(last == "payload-value")
+    }
+
+    @Test("emit with no registered handlers is a no-op")
+    func emitNoHandlersNoOp() async {
+        let bus = EventBus()
+        await bus.emit(payload: AnyCodable("x"), eventType: "nobody.listening")
+        // 无 handler 时同步返回、不崩溃即契约
+    }
+
+    @Test("clear stops emit delivery")
+    func clearStopsEmit() async {
+        let bus = EventBus()
+        let box = PayloadBox()
+        await bus.onEmit(eventType: "emit.stopped") { payload in
+            await box.record(payload)
+        }
+        await bus.clear(eventType: "emit.stopped")
+        await bus.emit(payload: AnyCodable("late"), eventType: "emit.stopped")
+        try? await Task.sleep(for: .milliseconds(100))
+        #expect(await box.deliveries == 0)
+    }
+}

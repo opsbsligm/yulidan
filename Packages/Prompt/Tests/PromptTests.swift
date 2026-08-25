@@ -305,3 +305,26 @@ struct PromptRendererTests {
         #expect(await store.template(named: "subagent")?.isBuiltIn == true)
     }
 }
+
+@Suite("PromptEngine defaults")
+struct PromptEngineDefaultTests {
+    @Test("makeDefault installs built-in templates")
+    func makeDefaultInstallsBuiltInTemplates() async {
+        let engine = PromptEngine.makeDefault()
+        let deadline = Date().addingTimeInterval(2)
+        var agent: PromptTemplate?
+        var subagent: PromptTemplate?
+        while Date() < deadline {
+            agent = await engine.store.template(named: PromptEngine.agentTemplate)
+            subagent = await engine.store.template(named: PromptEngine.subagentTemplate)
+            if agent != nil, subagent != nil {
+                break
+            }
+            try? await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(agent != nil)
+        #expect(subagent != nil)
+        #expect(agent?.name == PromptEngine.agentTemplate)
+        #expect(subagent?.name == PromptEngine.subagentTemplate)
+    }
+}

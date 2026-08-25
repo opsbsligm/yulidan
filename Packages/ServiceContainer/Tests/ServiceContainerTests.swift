@@ -705,6 +705,103 @@ struct PluginErrorTests {
         )
         #expect(error.description.contains("Incompatible version"))
     }
+
+    // MARK: Factory 注册路径（工厂盒注册/实例化/缓存语义）
+
+    private struct FactoryValue: Sendable, Equatable {
+        let tag: UUID
+    }
+
+    private struct FactoryFault: Error, Sendable {}
+
+    private actor FactoryState {
+        var calls = 0
+        var failNext = false
+
+        func tick() {
+            calls += 1
+        }
+
+        func failOnce() throws {
+            calls += 1
+            if failNext {
+                failNext = false
+                throw FactoryFault()
+            }
+        }
+
+        func arm() {
+            failNext = true
+        }
+    }
+
+    @Test("Factory single scope: instance cached across resolves")
+    func factorySingleCachesInstance() async throws {
+        let container = ServiceContainer()
+        await container.register(scope: .single) { FactoryValue(tag: UUID()) }
+        let a = try await container.resolve(FactoryValue.self)
+        let b = try await container.resolve(FactoryValue.self)
+        #expect(a.tag == b.tag)
+        #expect(await container.isRegistered(FactoryValue.self))
+    }
+
+    @Test("Factory transient scope: new instance per resolve")
+    func factoryTransientCreatesNewInstance() async throws {
+        let container = ServiceContainer()
+        await container.register(scope: .transient) { FactoryValue(tag: UUID()) }
+        let a = try await container.resolve(FactoryValue.self)
+        let b = try await container.resolve(FactoryValue.self)
+        #expect(a.tag != b.tag)
+    }
+
+    @Test("Factory error propagates and failure is not cached")
+    func factoryErrorNotCached() async throws {
+        let state = FactoryState()
+        await state.arm()
+        let container = ServiceContainer()
+        await container.register(scope: .single) { () -> FactoryValue in
+            try await state.failOnce()
+            return FactoryValue(tag: UUID())
+        }
+        var thrown: (any Error)?
+        do {
+            _ = try await container.resolve(FactoryValue.self)
+        } catch {
+            thrown = error
+        }
+        #expect(thrown is FactoryFault)
+        _ = try await container.resolve(FactoryValue.self)
+        #expect(await state.calls == 2)
+    }
+
+    @Test("clear removes cached factory instance; next resolve re-invokes factory")
+    func clearReinvokesFactory() async throws {
+        let state = FactoryState()
+        let container = ServiceContainer()
+        await container.register(scope: .single) { () -> FactoryValue in
+            await state.tick()
+            return FactoryValue(tag: UUID())
+        }
+        _ = try await container.resolve(FactoryValue.self)
+        await container.clear(FactoryValue.self)
+        _ = try await container.resolve(FactoryValue.self)
+        #expect(await state.calls == 2)
+    }
+
+    @Test("reset clears cached instances; factory remains resolvable")
+    func resetKeepsFactory() async throws {
+        let state = FactoryState()
+        let container = ServiceContainer()
+        await container.register(scope: .single) { () -> FactoryValue in
+            await state.tick()
+            return FactoryValue(tag: UUID())
+        }
+        let first = try await container.resolve(FactoryValue.self)
+        await container.reset()
+        let after = try await container.resolve(FactoryValue.self)
+        #expect(first.tag != after.tag)
+        #expect(await state.calls == 2)
+    }
 }
 
 // swiftlint:enable file_length
