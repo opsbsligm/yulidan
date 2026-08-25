@@ -249,6 +249,19 @@ final class MCPGapCoverageTests: XCTestCase {
         XCTAssertFalse(nopePing)
     }
 
+    /// callTool(client:)：未注册名 → 抛 MCPError.unknownClient（L316 guard 分支）
+    func testCallToolUnknownClientThrowsUnknownClient() async {
+        let manager = MCPServerManager()
+        do {
+            _ = try await manager.callTool(client: "ghost", name: "t", arguments: [:])
+            XCTFail("应抛 unknownClient")
+        } catch let error as MCPError {
+            XCTAssertTrue(error.description.contains("ghost"), "应含客户端名：\(error)")
+        } catch {
+            XCTFail("应抛 MCPError：\(error)")
+        }
+    }
+
     /// refreshTools（无注册表）listTools 失败 → descriptor 标记不可用（L373 分支）
     func testRefreshToolsFailureMarksUnavailable() async {
         let manager = MCPServerManager()

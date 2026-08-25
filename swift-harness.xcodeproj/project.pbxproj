@@ -187,6 +187,7 @@
 		C51AE5EE9BADDE5167B72E91 /* ToolRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 761D2E4A9557487DB0B03362 /* ToolRegistry.swift */; };
 		C5625A2FB43CEB502A9E6F04 /* MCPCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2E1A684FB6E8B8ADA4C5419 /* MCPCommands.swift */; };
 		C640DB8E95CF617D1AE9BFD4 /* AccountService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 955E1E5F533CFF48137C7E5D /* AccountService.swift */; };
+		C6DF4684EB3FF3F2E616CF99 /* WorkspaceGapCoverageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10798253FE8BED59EDCB1969 /* WorkspaceGapCoverageTests.swift */; };
 		C6ECAA480BB9EF6E24FF790E /* Plan.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE2A74307587A16F9C200BA6 /* Plan.swift */; };
 		C8E4F049A8D2B645A450BA40 /* MetadataSyncTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEF7A4330010E3B91AFF9853 /* MetadataSyncTests.swift */; };
 		CC220FFF96FCCAADC3D0EF48 /* libPluginXPC.a in Frameworks */ = {isa = PBXBuildFile; fileRef = F0C798E4446F1429451BFC7B /* libPluginXPC.a */; };
@@ -909,6 +910,7 @@
 		0F637230B35B8550604481F5 /* WorkspaceTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = WorkspaceTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		0F9CD75C4F9EFC615B8CD35E /* Tool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tool.swift; sourceTree = "<group>"; };
 		0FDB946CCC9CDBA53A2DB9E9 /* AccountServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountServiceTests.swift; sourceTree = "<group>"; };
+		10798253FE8BED59EDCB1969 /* WorkspaceGapCoverageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceGapCoverageTests.swift; sourceTree = "<group>"; };
 		10962FE97CEEC733E362BB85 /* LLMConfigStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMConfigStore.swift; sourceTree = "<group>"; };
 		1292C8061745CA6499E49CD5 /* libNotifications.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libNotifications.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		131C5DA6C02C9BBE6841CB3C /* libMemory.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libMemory.a; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -1338,6 +1340,7 @@
 		2FD3B05A2F4FFA3DAB561D4E /* Tests */ = {
 			isa = PBXGroup;
 			children = (
+				10798253FE8BED59EDCB1969 /* WorkspaceGapCoverageTests.swift */,
 				2CA141470455A80617F1BCAE /* WorkspaceTests.swift */,
 			);
 			path = Tests;
@@ -3222,6 +3225,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C6DF4684EB3FF3F2E616CF99 /* WorkspaceGapCoverageTests.swift in Sources */,
 				79785EBBAA182B16EC4DE5FB /* WorkspaceTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
