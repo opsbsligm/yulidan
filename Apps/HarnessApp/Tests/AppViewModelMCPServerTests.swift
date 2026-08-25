@@ -180,7 +180,14 @@ struct AppViewModelMCPServerTests {
         #expect(vm.tools.contains(where: { $0.name == "mcp_regtest_echo" }))
 
         // 卸载：工具即时移除 + 服务器断开
+        // 移除断言带短暂宽限循环（与导入侧等待循环对称）：正常路径首检即命中；
+        // 吸收主门禁高负载（Release+覆盖率插桩）下的调度抖动（2026-08-25 agent8 主门禁瞬态失败后加固）
         await vm.removeMCPServer(vm.mcpServers[0])
+        let removeDeadline = Date().addingTimeInterval(5)
+        while Date() < removeDeadline,
+              vm.tools.contains(where: { $0.name.hasPrefix("mcp_regtest_") }) {
+            try? await Task.sleep(for: .milliseconds(100))
+        }
         #expect(!vm.tools.contains(where: { $0.name.hasPrefix("mcp_regtest_") }))
         #expect(await vm.mcpManager.isConnected(name: "regtest") == false)
     }
