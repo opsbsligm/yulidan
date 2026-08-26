@@ -28,6 +28,14 @@
 > - **门禁**：swift build 0 警告 + SPM 全量 **796/796（173 suites）全绿 @4b5b29b**（790 基线 + 6 新 settingsReturnTab 单测：默认对话/对话进入/工具进入/设置内切换/重复选中/连续切换）。
 > - **⚠️ 流程教训（记 P2 观察）**：SPM 增量构建**不更新 .app bundle 内可执行文件**（bundle 停留在 08-24 旧二进制，sha 不一致实锤）——本轮已手动 `cp` 可执行文件 + ad-hoc 重签（entitlements get-task-allow）+ nm 新符号核验（settingsHover×7）后启动。后续每次「启动 App 验证」前必须先核验 bundle 二进制版本（nm/sha 对拍），杜绝「源码已修、旧二进制在跑」的调查绕路。
 
+> 🐛 **2026-08-26 20:12 用户报障闭环（第 4 批）：maxTokens 上限 / 模型配置字段缺失 / 设置排版混乱 / 账号同步假登录（@75997e9）**：
+> - **maxTokens 上限太低（实锤）**：原滑块 256–8192（step 256），无法满足 256K/1M 长上下文模型 → 直输 + 预设按钮（8K/128K/256K/1M），范围 128–1,048,576 保存时校验（非整数/越界 → 红字提示且该项不写入，其余字段照常保存）；**连带实锤「最大 Token 数」此前从未下发 wire**（AgentLoop 构造 LLMRequest 漏传 maxTokens/temperature 同坑未碰）→ LLMRequest 补参 + AgentLoop 跨轮 setTurnContext 下发（不重建循环、wire 历史不丢）。
+> - **提供商/模型配置太简陋（实锤）**：原仅 API Key + 本地服务地址（仅 local 显示）→ 「API 地址」行全提供商可用（留空=官方默认，占位显示默认值；生效规则：local→本地服务地址，其他→覆盖值优先）；「思考等级」off/low/medium/high 新增并真实下发 `reasoning_effort`（官方文档查证：DeepSeek chat API `reasoning_effort` low/high/max·medium 映射 high / Ollama OpenAI 兼容层 high/medium/low/max/none / OpenAI o1/o3/o4/gpt-5 系受理——非推理模型下发会 400，适配器按模型名门控静默剥离 + UI 同款提示 / Anthropic 独立 thinking 机制不接入并 UI 标注）；连接测试与真实调用统一走「覆盖值优先」生效地址（此前测试走官方默认地址，覆盖配置测了个寂寞）。
+> - **设置「偏好」排版文字混乱（实锤，截图 c32b3b0d）**：「主题插件 主题插件 [⌄]」「正文字号 正文字号:15pt —slider— 15pt」= 控件自绘 label（menu Picker/Slider label 闭包）与显式 Text 叠加 → 三控件 `.labelsHidden()`（主题 segmented 一并处理）。
+> - **账号与同步「假的」（实锤，截图 8ceb6c6b）**：点「使用 Apple 登录」→ 红字 AS AuthorizationError **error 1000**（ad-hoc 签名无 `com.apple.developer.applesignin` entitlement——CI entitlements 文件注释自证「不含 team 级能力」；错误码官方未公开，Apple Developer Forums 社区共识指向 entitlement/签名配置缺失，定性标注待 Apple 官方口径）→ **重新评估结论（需求可行，代码侧已解耦）**：iCloud 同步走 NSUbiquitousKeyValueStore + iCloud Documents 容器 = **系统级 Mac Apple ID 登录** + 容器 entitlement，**不需要** SSO 按钮；SSO 是应用层身份（可选叠加，需付费 Developer Team）。修复：`retryICloud`/`restore` 去掉 SSO 凭证硬前置（容器探测路径独立），「启用 iCloud 跨设备同步」按钮恒走探测；SSO 按钮保留但诚实标注「需付费 Team + capability，当前 ad-hoc 不可用」；error 1000 映射友好文案（不再裸抛英文系统错误）。
+> - **门禁**：swift build 0 警告 + swiftlint --strict 0 违规（247 文件）+ swiftformat 0/235 + SPM 全量 **805/805（174 suites）全绿 @75997e9**（Swift Testing 口径 796 基线 + 10 新 − 1 改写 = 净 +9：LLMConfig 解码/钳制/生效地址/往返 5 + 画像门控 3 + Account 解耦 2（无 SSO 探测启用/无容器降级；原「请先登录」断言按新语义改写）；XCTest 另 +6：reasoning_effort wire 门控，含 OpenAI 模型名剥离/Anthropic 恒不下发/流式携带）。
+> - **⚠️ 实机验证待办（bundle 同步后）**：偏好页排版 / 模型参数页新字段 / 账号与同步页新文案 三处截图核验（见 QUALITY_REPORT 08-26 20:12 条目）。
+
 ## 一、基线
 | 项 | 操作 | 预期 |
 |---|---|---|
