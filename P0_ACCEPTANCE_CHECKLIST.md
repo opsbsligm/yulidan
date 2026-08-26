@@ -21,6 +21,13 @@
 
 > ✅ **前置条件已解决（2026-08-22）**：对话类验收项（§二会话工作区 / §五全链路 / §六流式·停止生成·工具回显）所需 LLM 已就绪——Ollama 0.32.15（brew formula，launchd 托管 `brew services list | grep ollama`）已装并 `pull qwen3:4b`（2.5GB，Metal/M5，端点 `http://localhost:11434/v1` 实测可用）；App 配置已切 **local provider + qwen3:4b**（原配置 openai/o4-mini 无 key 不可用，已备份 /tmp/harness_llmconfig_old_readable.json，验收后可随时还原）；工具调用 e2e 实测：OpenAI 兼容请求正确返回 `write_file` tool_calls（与 App wire 格式一致，max_tokens 4096 足够含思考输出）；**DSHCLI 全链路 e2e 实跑（2026-08-22，`dsh run` + local/qwen3:4b）**：真实 LLM 流式 → Agent 主循环 2 次工具调用（write_file→read_file）→ 文件落盘 `ws-check` 8 字节核验一致 → 最终回复正确；MCP 测试服务器（/usr/bin/true×3）优雅降级不中断；记忆蒸馏落盘（无记忆价值任务正确判空）、技能进化观测在阈值下正确未误触发；**2026-08-23 周末无人值守复测**：`dsh run` 复跑（local/qwen3:4b）2 次工具调用（write_file→read_file）→ `weekend-check.txt` 10 字节（md5 dfcec55e…）落盘一致、MCP 测试服务器降级行为一致、最终回复正确（日志 /tmp/dsh_e2e_weekend.log）。若服务停止：`brew services restart ollama`。不依赖 LLM 的项（§三 全部 / §四 导航 / 会话重命名）仍可先行验收。
 
+> 🐛 **2026-08-26 15:30 用户报障闭环：二级页面无返回途径 + 假关闭按钮（实机定位 + 修复 + 实机验证，@4b5b29b）**：
+> - **假「关闭」按钮（实锤）**：归档管理 sheet 的「关闭」是空闭包 `Button("关闭") {}`（macOS sheet 无下滑手势 → 用户点按钮无反应，只能 Esc 或误以为 App 卡死）→ 改 `@Environment(\.dismiss)` 自关闭。实机验证：顶栏归档图标 → sheet 弹出（归档项目1+归档会话1）→ 点「关闭」→ **sheet 真实关闭**（截图 /tmp/harness_v2_archsheet.png → /tmp/harness_v2_archclosed.png）。
+> - **设置页无返回途径（实锤，根因两层）**：① 展开态侧边栏**源码无底栏**（08-24 脏工作区构建的二进制带底栏但「设置」行无选中态、点击不返回；用户运行的即该版本——源码后回退造成版本漂移，截图 /tmp/harness_ui_0826_1510.png 实锤用户卡于设置内）；② 即使有底栏，设置是内容 tab，唯一「回去」动作是点其他导航行（最自然的「新对话」行有创建新会话副作用）→ 用户感知无路可退。修复：a) 展开态底栏恢复（设置行 ⌘, + **选中态高亮** + 头像行，与折叠 rail 对齐）；b) **设置页头部新增「关闭设置」X 按钮**：进入设置记录来源 tab（`AppViewModel.settingsReturnTab`，selectedTab.didSet 跟踪；离开设置更新为当前 tab；重复选中不变），点 X 回原位；c) ⌘6 死码清除，settings 统一 macOS 标准 ⌘,。
+> - **实机验证闭环（最小可逆操作）**：⌘, → 进设置（底栏「设置」行高亮 ✓ + 头部 X ✓，/tmp/harness_v2_settings.png）→ 点 X → **回对话 tab** ✓（/tmp/harness_v2_back2.png）；连接测试失败消息现干净单前缀「连接失败：无法完成到服务器的连接…」——用户截图所见「连接失败：连接失败：连接失败」三重嵌套定性为**旧脏构建残留**（现源码全仓 grep 无该嵌套串，LLM 包仅单处包装 @SettingsSubPages:390），/tmp/harness_v2_conntest.png。
+> - **门禁**：swift build 0 警告 + SPM 全量 **796/796（173 suites）全绿 @4b5b29b**（790 基线 + 6 新 settingsReturnTab 单测：默认对话/对话进入/工具进入/设置内切换/重复选中/连续切换）。
+> - **⚠️ 流程教训（记 P2 观察）**：SPM 增量构建**不更新 .app bundle 内可执行文件**（bundle 停留在 08-24 旧二进制，sha 不一致实锤）——本轮已手动 `cp` 可执行文件 + ad-hoc 重签（entitlements get-task-allow）+ nm 新符号核验（settingsHover×7）后启动。后续每次「启动 App 验证」前必须先核验 bundle 二进制版本（nm/sha 对拍），杜绝「源码已修、旧二进制在跑」的调查绕路。
+
 ## 一、基线
 | 项 | 操作 | 预期 |
 |---|---|---|
