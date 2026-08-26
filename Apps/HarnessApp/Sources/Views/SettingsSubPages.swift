@@ -9,6 +9,17 @@ struct LLMSettingsContainer: View {
     @StateObject private var viewModel = LLMSettingsViewModel()
     @State private var showSaveConfirmation = false
 
+    /// 常用预设按钮标签（8K/128K/256K/1M）
+    static func tokenPresetLabel(_ v: Int) -> String {
+        switch v {
+        case 8192: "8K"
+        case 131_072: "128K"
+        case 262_144: "256K"
+        case 1_048_576: "1M"
+        default: "\(v)"
+        }
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
@@ -89,6 +100,24 @@ struct LLMSettingsContainer: View {
                     }
                 }
 
+                HStack {
+                    Text("API 地址")
+                    Spacer()
+                    TextField(viewModel.apiBasePlaceholder, text: $viewModel.apiBaseURLText)
+                        .font(.system(.body, design: .monospaced))
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 320)
+                        .onSubmit { viewModel.save() }
+                }
+                Text(viewModel.apiBaseHint)
+                    .font(.system(size: 11))
+                    .foregroundStyle(HarnessTheme.textTertiary)
+                if let error = viewModel.paramError {
+                    Text(error)
+                        .font(.system(size: 11))
+                        .foregroundStyle(HarnessTheme.error)
+                }
+
                 HStack(spacing: 6) {
                     Image(systemName: "lock.shield")
                         .font(.system(size: 11))
@@ -113,25 +142,44 @@ struct LLMSettingsContainer: View {
                         .frame(width: 250)
                 }
 
-                if viewModel.selectedProvider == .local {
-                    HStack {
-                        Text("服务地址")
-                        Spacer()
-                        TextField("OpenAI 兼容端点", text: $viewModel.localBaseURL)
-                            .font(.system(.body, design: .monospaced))
-                            .textFieldStyle(.roundedBorder)
-                            .frame(width: 300)
-                    }
-                }
-
-                HStack {
+                HStack(spacing: 8) {
                     Text("最大 Token 数")
                     Spacer()
-                    Text("\(Int(viewModel.maxTokens))")
-                        .foregroundStyle(HarnessTheme.textSecondary)
+                    TextField("如 4096 / 262144 / 1048576", text: $viewModel.maxTokensText)
+                        .font(.system(.body, design: .monospaced))
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 170)
+                        .onSubmit { viewModel.save() }
+                    ForEach([8192, 131_072, 262_144, 1_048_576], id: \.self) { v in
+                        Button(Self.tokenPresetLabel(v)) {
+                            viewModel.maxTokensText = "\(v)"
+                        }
+                        .controlSize(.small)
+                        .buttonStyle(.bordered)
+                    }
                 }
-                Slider(value: $viewModel.maxTokens, in: 256 ... 8192, step: 256) {
-                    Text("最大 Token 数")
+                Text("范围 \(LLMConfig.maxTokensRange.lowerBound) – \(LLMConfig.maxTokensRange.upperBound)（1M）；保存时校验，越界不保存")
+                    .font(.system(size: 11))
+                    .foregroundStyle(HarnessTheme.textTertiary)
+
+                HStack {
+                    Text("思考等级")
+                    Spacer()
+                    Picker("", selection: $viewModel.thinkingLevel) {
+                        ForEach(ThinkingLevel.allCases) { level in
+                            Text(level.displayName).tag(level)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(width: 190)
+                }
+                Text(viewModel.thinkingHint)
+                    .font(.system(size: 11))
+                    .foregroundStyle(HarnessTheme.textTertiary)
+                if let error = viewModel.paramError {
+                    Text(error)
+                        .font(.system(size: 11))
+                        .foregroundStyle(HarnessTheme.error)
                 }
 
                 VStack(alignment: .leading, spacing: 6) {
@@ -304,11 +352,14 @@ final class LLMSettingsViewModel: ObservableObject {
     @Published var selectedProvider: ModelProvider
     @Published var apiKey: String = ""
     @Published var modelName: String
-    @Published var maxTokens: Double
-    @Published var localBaseURL: String
+    @Published var maxTokensText: String
+    @Published var apiBaseURLText: String
+    @Published var thinkingLevel: ThinkingLevel
     @Published var systemPrompt: String
     @Published var isTesting = false
     @Published var testResult: (success: Bool, message: String)?
+    /// 参数校验错误（maxTokens 非整数/越界时非 nil；两个子页都展示）
+    @Published var paramError: String?
 
     private var testTask: Task<Void, Never>?
 
@@ -316,10 +367,39 @@ final class LLMSettingsViewModel: ObservableObject {
         let cfg = LLMConfig.load()
         selectedProvider = cfg.provider
         modelName = cfg.modelName
-        maxTokens = Double(cfg.maxTokens)
-        localBaseURL = cfg.localBaseURL
+        maxTokensText = "\(cfg.maxTokens)"
+        apiBaseURLText = cfg.provider == .local ? cfg.localBaseURL : (cfg.baseURLOverride ?? "")
+        thinkingLevel = cfg.thinkingLevel
         systemPrompt = cfg.systemPrompt
         apiKey = KeychainStorage.getAPIKey(forProvider: cfg.providerRaw) ?? ""
+    }
+
+    /// API 地址输入占位（local = 本地端点示例；其他 = 官方默认地址）
+    var apiBasePlaceholder: String {
+        selectedProvider == .local ? "如 http://localhost:11434/v1" : selectedProvider.baseURL.absoluteString
+    }
+
+    /// API 地址说明
+    var apiBaseHint: String {
+        selectedProvider == .local
+            ? "OpenAI 兼容端点（Ollama / vLLM / LM Studio）"
+            : "留空 = 使用官方默认地址 \(selectedProvider.baseURL.absoluteString)"
+    }
+
+    /// 思考等级说明（按提供商能力诚实标注）
+    var thinkingHint: String {
+        switch selectedProvider {
+        case .anthropic:
+            "Anthropic 使用独立 thinking 机制（budget_tokens），暂未接入；此项不下发"
+        case .openAI where !ThinkingLevel.openAIApplies(toModel: modelName):
+            "仅 o1/o3/o4/gpt-5 系推理模型会下发 reasoning_effort；当前模型（\(modelName)）不会下发"
+        case .openAI:
+            "low/medium/high → 下发 reasoning_effort；关 = 不下发，跟随模型默认"
+        case .deepSeek:
+            "low/medium/high → 下发 reasoning_effort（官方：medium 映射 high，默认 high）；关 = 不下发"
+        case .local:
+            "low/medium/high → 下发 reasoning_effort（官方：仅思考模型生效，如 qwen3 系）；关 = 不下发"
+        }
     }
 
     func hasKey(for provider: ModelProvider) -> Bool {
@@ -335,15 +415,36 @@ final class LLMSettingsViewModel: ObservableObject {
             modelName = provider.defaultModel
         }
         apiKey = KeychainStorage.getAPIKey(forProvider: provider.rawValue) ?? ""
+        let cfg = LLMConfig.load()
+        apiBaseURLText = provider == .local ? cfg.localBaseURL : (cfg.baseURLOverride ?? "")
+    }
+
+    /// 解析 + 校验 maxTokens 输入（nil = 非法）
+    func parsedMaxTokens() -> Int? {
+        let v = Int(maxTokensText.trimmingCharacters(in: .whitespaces))
+        guard let v, LLMConfig.maxTokensRange.contains(v) else { return nil }
+        return v
     }
 
     /// 保存：非敏感配置 → LLMConfig(UserDefaults)；API Key → Keychain
+    /// maxTokens 非法时保留原值、不写入（并展示错误），其余字段照常保存
     func save() {
         var cfg = LLMConfig.load()
         cfg.provider = selectedProvider
         cfg.modelName = modelName
-        cfg.maxTokens = Int(maxTokens)
-        cfg.localBaseURL = localBaseURL
+        if let v = parsedMaxTokens() {
+            cfg.maxTokens = v
+            paramError = nil
+        } else {
+            paramError = "最大 Token 数须为 \(LLMConfig.maxTokensRange.lowerBound) – \(LLMConfig.maxTokensRange.upperBound) 的整数（本次未更新该项，其余已保存）"
+        }
+        let base = apiBaseURLText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if selectedProvider == .local {
+            cfg.localBaseURL = base.isEmpty ? "http://localhost:11434/v1" : base
+        } else {
+            cfg.baseURLOverride = base.isEmpty ? nil : base
+        }
+        cfg.thinkingLevel = thinkingLevel
         cfg.systemPrompt = systemPrompt
         if !apiKey.trimmingCharacters(in: .whitespaces).isEmpty {
             KeychainStorage.saveAPIKey(apiKey.trimmingCharacters(in: .whitespaces),
@@ -365,14 +466,22 @@ final class LLMSettingsViewModel: ObservableObject {
         testTask = Task { [weak self] in
             guard let self else { return }
             let key = apiKey.trimmingCharacters(in: .whitespaces)
-            let provider: any LLMProvider
-            switch selectedProvider {
-            case .openAI: provider = OpenAIAdapter(apiKey: key)
-            case .deepSeek: provider = DeepSeekAdapter(apiKey: key)
-            case .anthropic: provider = AnthropicAdapter(apiKey: key)
+            // 与真实调用同路：覆盖值优先的生效地址
+            var testCfg = LLMConfig.load()
+            testCfg.provider = selectedProvider
+            let base = apiBaseURLText.trimmingCharacters(in: .whitespacesAndNewlines)
+            if selectedProvider == .local {
+                testCfg.localBaseURL = base.isEmpty ? "http://localhost:11434/v1" : base
+            } else {
+                testCfg.baseURLOverride = base.isEmpty ? nil : base
+            }
+            let url = testCfg.provider.effectiveBaseURL(testCfg)
+            let provider: any LLMProvider = switch selectedProvider {
+            case .openAI: OpenAIAdapter(apiKey: key, baseURL: url)
+            case .deepSeek: DeepSeekAdapter(apiKey: key, baseURL: url)
+            case .anthropic: AnthropicAdapter(apiKey: key, baseURL: url)
             case .local:
-                let base = URL(string: localBaseURL) ?? URL(string: "http://localhost:11434/v1")!
-                provider = LocalAdapter(apiKey: key.isEmpty ? "local" : key, baseURL: base)
+                LocalAdapter(apiKey: key.isEmpty ? "local" : key, baseURL: url)
             }
             do {
                 let msg = try await provider.checkConnection()

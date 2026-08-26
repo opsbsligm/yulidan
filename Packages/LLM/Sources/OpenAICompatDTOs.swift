@@ -115,9 +115,11 @@ struct ChatRequestDTO: Encodable {
     var tools: [ChatToolDTO]?
     var maxTokens: Int?
     var temperature: Double?
+    var reasoningEffort: String?
     enum CodingKeys: String, CodingKey {
         case model, messages, tools, temperature
         case maxTokens = "max_tokens"
+        case reasoningEffort = "reasoning_effort"
     }
 }
 

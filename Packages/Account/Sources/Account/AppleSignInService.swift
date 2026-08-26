@@ -180,11 +180,19 @@ public final class RealAppleSignInService: NSObject, ASAuthorizationControllerDe
         )
     }
 
-    /// 错误归类：用户取消归一为 .userCancelled，其余保留系统描述
+    /// 错误归类：用户取消归一为 .userCancelled；AS 1000 映射友好文案；其余保留系统描述
     nonisolated static func classify(_ error: Error) -> Error {
         let nsError = error as NSError
         if nsError.code == CocoaError.userCancelled.rawValue {
             return AppleSignInError.userCancelled
+        }
+        // AS error 1000：Apple 未官方公开该错误码表；Apple Developer Forums 社区共识的典型成因是
+        // Sign in with Apple 能力缺失/签名无效（ad-hoc 无 entitlement、无 Team 描述文件）。
+        // → 诚实文案：SSO 是可选能力；iCloud 同步走系统级 Apple ID，不依赖 SSO
+        if nsError.domain == "com.apple.AuthenticationServices.AuthorizationError", nsError.code == 1000 {
+            return AppleSignInError.authorizationFailed(
+                "当前构建缺少 Sign in with Apple 能力（ad-hoc 签名无 entitlement，需付费开发者 Team 启用；错误码 1000）。SSO 为可选功能，下方 iCloud 同步不依赖 SSO，可直接启用"
+            )
         }
         return AppleSignInError.authorizationFailed(nsError.localizedDescription)
     }

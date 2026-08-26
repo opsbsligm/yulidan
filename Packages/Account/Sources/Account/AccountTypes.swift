@@ -6,7 +6,7 @@ import Foundation
 public enum AccountMode: String, Codable, CaseIterable, Sendable {
     /// 离线本地模式：数据仅存本地磁盘
     case local
-    /// Apple SSO + iCloud 同步模式
+    /// iCloud 同步模式（SSO 为可选叠加层，不影响同步；名称保留历史 wire 值）
     case ssoIcloud
 }
 
@@ -54,7 +54,7 @@ public enum WorkspaceState: Equatable, Sendable {
     case local
     /// SSO 流程进行中
     case ssoPending
-    /// SSO + iCloud 就绪
+    /// iCloud 同步就绪（不要求 SSO 登录；SSO 身份为可选叠加）
     case icloudReady
     /// iCloud 不可用，已自动降级本地（保留原因供展示与重新申请）
     case icloudDegradedLocal(reason: String)

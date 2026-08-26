@@ -110,7 +110,9 @@ struct SubagentR17GapTests {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
             let states = await coordinator.allStates()
-            if states.contains(where: { $0.id == id && $0.phase == .running }) { return true }
+            if states.contains(where: { $0.id == id && $0.phase == .running }) {
+                return true
+            }
             try? await Task.sleep(nanoseconds: 5_000_000)
         }
         return false

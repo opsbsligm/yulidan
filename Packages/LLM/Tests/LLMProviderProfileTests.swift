@@ -37,4 +37,31 @@ struct LocalProfileModelTests {
         #expect(ProviderProfile.local(forModel: "QWEN3-32B").supportsToolCalls)
         #expect(!ProviderProfile.local(forModel: "UNKNOWN").supportsToolCalls)
     }
+
+    @Test("思考等级门控：OpenAI 兼容系受理，Anthropic 不受理")
+    func thinkingLevelGate() {
+        #expect(ProviderProfile.openAI.supportsThinkingLevel)
+        #expect(ProviderProfile.deepSeek.supportsThinkingLevel)
+        #expect(ProviderProfile.local.supportsThinkingLevel)
+        #expect(ProviderProfile.local(forModel: "qwen3:4b").supportsThinkingLevel)
+        #expect(!ProviderProfile.anthropic.supportsThinkingLevel)
+    }
+
+    @Test("OpenAI 推理模型名门控")
+    func openAIReasoningModelGate() {
+        #expect(ThinkingLevel.openAIApplies(toModel: "o3"))
+        #expect(ThinkingLevel.openAIApplies(toModel: "o4-mini"))
+        #expect(ThinkingLevel.openAIApplies(toModel: "o1"))
+        #expect(ThinkingLevel.openAIApplies(toModel: "gpt-5"))
+        #expect(!ThinkingLevel.openAIApplies(toModel: "gpt-4o"))
+        #expect(!ThinkingLevel.openAIApplies(toModel: "gpt-4o-mini"))
+    }
+
+    @Test("wireValue：off 不下发")
+    func wireValueOffIsNil() {
+        #expect(ThinkingLevel.off.wireValue == nil)
+        #expect(ThinkingLevel.low.wireValue == "low")
+        #expect(ThinkingLevel.medium.wireValue == "medium")
+        #expect(ThinkingLevel.high.wireValue == "high")
+    }
 }

@@ -95,6 +95,7 @@ public struct OpenAICompatChat: Sendable {
                              tools: [ToolSchema]? = nil,
                              maxTokens: Int? = nil,
                              temperature: Double? = nil,
+                             thinkingLevel: ThinkingLevel? = nil,
                              extraHeaders: [String: String] = [:],
                              stream: Bool) throws -> URLRequest {
         let url = baseURL.appendingPathComponent("chat/completions")
@@ -114,6 +115,9 @@ public struct OpenAICompatChat: Sendable {
                                  messages: Self.flatMessages(messages, systemPrompt: systemPrompt),
                                  maxTokens: maxTokens,
                                  temperature: temperature)
+        if let effort = thinkingLevel?.wireValue {
+            dto.reasoningEffort = effort
+        }
         if let tools, !tools.isEmpty {
             dto.tools = tools.map(ChatToolDTO.init)
         }
@@ -137,12 +141,14 @@ public struct OpenAICompatChat: Sendable {
                          tools: [ToolSchema]? = nil,
                          maxTokens: Int? = nil,
                          temperature: Double? = nil,
+                         thinkingLevel: ThinkingLevel? = nil,
                          extraHeaders: [String: String] = [:]) async throws -> CompletionResult {
         guard !apiKey.isEmpty else {
             throw LLMError.missingAPIKey
         }
         let req = try makeRequest(model: model, messages: messages, systemPrompt: systemPrompt,
                                   tools: tools, maxTokens: maxTokens, temperature: temperature,
+                                  thinkingLevel: thinkingLevel,
                                   extraHeaders: extraHeaders, stream: false)
         let (data, response) = try await session.data(for: req)
         guard let http = response as? HTTPURLResponse else {
@@ -257,12 +263,14 @@ public struct OpenAICompatChat: Sendable {
                              tools: [ToolSchema]? = nil,
                              maxTokens: Int? = nil,
                              temperature: Double? = nil,
+                             thinkingLevel: ThinkingLevel? = nil,
                              extraHeaders: [String: String] = [:]) -> AsyncThrowingStream<OpenAIStreamEvent, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
                     let req = try makeRequest(model: model, messages: messages, systemPrompt: systemPrompt,
                                               tools: tools, maxTokens: maxTokens, temperature: temperature,
+                                              thinkingLevel: thinkingLevel,
                                               extraHeaders: extraHeaders, stream: true)
                     let (bytes, response) = try await session.bytes(for: req)
                     guard let http = response as? HTTPURLResponse else {

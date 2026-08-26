@@ -150,7 +150,7 @@ struct SettingsReturnTabTests {
         vm.selectedTab = .settings
         vm.selectedTab = .skills
         #expect(vm.settingsReturnTab == .skills)
-        vm.selectedTab = vm.settingsReturnTab  // 关闭设置
+        vm.selectedTab = vm.settingsReturnTab // 关闭设置
         #expect(vm.selectedTab == .skills)
     }
 
@@ -159,18 +159,18 @@ struct SettingsReturnTabTests {
         let vm = makeVM()
         vm.selectedTab = .plugins
         vm.selectedTab = .settings
-        vm.selectedTab = .settings  // 底栏齿轮重复点击（no-op）
+        vm.selectedTab = .settings // 底栏齿轮重复点击（no-op）
         #expect(vm.settingsReturnTab == .plugins)
     }
 
     @Test("连续切换：对话→设置→工具→设置：返回 tab 依次跟踪")
     func consecutiveSwitches() {
         let vm = makeVM()
-        vm.selectedTab = .settings   // returnTab = .chat
+        vm.selectedTab = .settings // returnTab = .chat
         #expect(vm.settingsReturnTab == .chat)
-        vm.selectedTab = .agents     // 离开设置 → returnTab = .agents
+        vm.selectedTab = .agents // 离开设置 → returnTab = .agents
         #expect(vm.settingsReturnTab == .agents)
-        vm.selectedTab = .settings   // 再进设置 → returnTab = .agents
+        vm.selectedTab = .settings // 再进设置 → returnTab = .agents
         #expect(vm.settingsReturnTab == .agents)
     }
 }

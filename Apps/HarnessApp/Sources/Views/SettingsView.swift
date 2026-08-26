@@ -402,6 +402,7 @@ struct GeneralPreferencesView: View {
                                 Text("跟随系统").tag("system")
                             }
                             .pickerStyle(.segmented)
+                            .labelsHidden()
                             .frame(width: 240)
                             .onChange(of: theme) { _, newValue in
                                 ThemeManager.apply(newValue)
@@ -426,6 +427,7 @@ struct GeneralPreferencesView: View {
                                 }
                             }
                             .pickerStyle(.menu)
+                            .labelsHidden()
                             .frame(width: 300)
                         }
                         Text("主题一律来自主题插件（本地插件 / MCP 主题服务器）；卸载正在使用的主题自动回落系统基准。")
@@ -437,8 +439,9 @@ struct GeneralPreferencesView: View {
                                 .foregroundStyle(HarnessTheme.textPrimary)
 
                             Slider(value: $fontSize, in: 12 ... 24) {
-                                Text("正文字号: \(Int(fontSize))pt")
+                                Text("正文字号")
                             }
+                            .labelsHidden()
                             .frame(width: 200)
                             Text("\(Int(fontSize))pt").font(.system(size: 12)).foregroundStyle(HarnessTheme.textSecondary)
                         }

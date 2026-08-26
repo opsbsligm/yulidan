@@ -145,7 +145,7 @@ struct AccountServiceTests {
         #expect(try fx.credentialStore.load() == nil)
     }
 
-    @Test func restoreWithoutCredentialDegrades() async throws {
+    @Test func restoreWithoutCredentialReactivatesViaProbe() async throws {
         let fx = try AccountServiceFixture()
         defer { fx.cleanup() }
         fx.service.restore()
@@ -153,14 +153,14 @@ struct AccountServiceTests {
         try await settle()
         #expect(fx.service.state == .icloudReady)
 
-        // 凭证库被清空后重启（如钥匙串被重置）
+        // 凭证库被清空后重启（如钥匙串被重置）：iCloud 同步不依赖 SSO → 容器探测可用则直接恢复
         let emptyStore = InMemoryCredentialStore()
         let service2 = fx.makeService(credentialStore: emptyStore)
         service2.restore()
         try await settle()
 
-        #expect(service2.state.degradationReason != nil)
-        #expect(service2.state.mode == .local)
+        #expect(service2.state == .icloudReady)
+        #expect(service2.state.mode == .ssoIcloud)
     }
 
     @Test func switchToLocalModeFromReady() async throws {
@@ -194,14 +194,30 @@ struct AccountServiceTests {
         #expect(fx.service.lastError == nil)
     }
 
-    @Test func retryICloudWithoutAccountShowsError() throws {
+    @Test func retryICloudWithoutAccountProbesContainer() throws {
+        // 解耦验收：未 SSO 登录时，启用 iCloud 走容器探测而非要求先登录
+        let fx = try AccountServiceFixture(icloudAvailable: false)
+        defer { fx.cleanup() }
+        fx.service.restore()
+        #expect(fx.service.account == nil)
+
+        // 容器就绪（如描述文件配置完成）→ 直接 ready，无需 Apple ID 登录
+        fx.probe.containerURL = fx.icloudContainer
+        fx.service.retryICloud()
+        #expect(fx.service.state == .icloudReady)
+        #expect(fx.service.lastError == nil)
+        #expect(fx.service.currentWorkspace.kind == .icloud)
+    }
+
+    @Test func retryICloudWithoutAccountNoContainerDegrades() throws {
         let fx = try AccountServiceFixture(icloudAvailable: false)
         defer { fx.cleanup() }
         fx.service.restore()
 
+        // 容器不可用 → 降级并给出原因（不再提示"先登录"）
         fx.service.retryICloud()
-        #expect(fx.service.lastError == "请先使用 Apple ID 登录")
-        #expect(fx.service.state == .local)
+        #expect(fx.service.state.degradationReason != nil)
+        #expect(fx.service.lastError == fx.service.state.degradationReason)
     }
 
     @Test func retryICloudStillUnavailableStaysDegraded() async throws {

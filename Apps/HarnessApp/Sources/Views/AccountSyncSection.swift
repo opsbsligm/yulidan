@@ -94,15 +94,20 @@ struct AccountSyncSection: View {
                     }
                     .controlSize(.small)
                 } else {
-                    Text("未登录 Apple ID。登录后可启用 iCloud 跨设备同步。")
+                    Text("未登录 Apple ID（可选）。SSO 是应用层身份，iCloud 同步不依赖它。")
                         .font(.system(size: 12))
                         .foregroundStyle(HarnessTheme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
                     Button("使用 Apple 登录") {
                         accountService.signInWithApple()
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
                     .disabled(accountService.state == .ssoPending)
+                    Text("需付费 Apple 开发者 Team + Sign in with Apple 能力；当前 ad-hoc 构建不可用。")
+                        .font(.system(size: 11))
+                        .foregroundStyle(HarnessTheme.textTertiary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 if accountService.state == .ssoPending {
                     HStack(spacing: 6) {
@@ -159,12 +164,8 @@ struct AccountSyncSection: View {
                     }
                     .controlSize(.small)
                 case .local, .icloudDegradedLocal:
-                    Button("启用 Apple SSO + iCloud 同步") {
-                        if accountService.account != nil {
-                            accountService.retryICloud()
-                        } else {
-                            accountService.signInWithApple()
-                        }
+                    Button("启用 iCloud 跨设备同步") {
+                        accountService.retryICloud()
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
@@ -201,7 +202,7 @@ struct AccountSyncSection: View {
         case .ssoPending:
             "SSO 流程进行中"
         case .icloudReady:
-            "Apple SSO + iCloud 同步模式"
+            "iCloud 同步模式（跨设备）"
         case .icloudDegradedLocal:
             "iCloud 不可用，已自动降级为本地模式"
         }

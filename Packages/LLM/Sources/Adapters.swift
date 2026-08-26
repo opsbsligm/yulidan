@@ -10,12 +10,14 @@ private enum OpenAICompatAdapters {
                                              systemPrompt: request.systemPrompt,
                                              tools: request.tools,
                                              maxTokens: request.maxTokens,
-                                             temperature: request.temperature)
+                                             temperature: request.temperature,
+                                             thinkingLevel: profile.supportsThinkingLevel ? request.thinkingLevel : nil)
         return LLMResponseNormalizer.response(model: request.model, result: result, profile: profile)
     }
 
     /// 流式：文本增量 → "text" 块；终态 → "message_complete" 块（finish_reason/usage/聚合 tool_calls）
-    static func stream(_ request: LLMRequest, chat: OpenAICompatChat) -> AsyncThrowingStream<StreamChunk, Error> {
+    static func stream(_ request: LLMRequest, chat: OpenAICompatChat,
+                       profile: ProviderProfile) -> AsyncThrowingStream<StreamChunk, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
@@ -28,7 +30,8 @@ private enum OpenAICompatAdapters {
                                                              systemPrompt: request.systemPrompt,
                                                              tools: request.tools,
                                                              maxTokens: request.maxTokens,
-                                                             temperature: request.temperature) {
+                                                             temperature: request.temperature,
+                                                             thinkingLevel: profile.supportsThinkingLevel ? request.thinkingLevel : nil) {
                         switch event {
                         case let .text(t):
                             if let data = t.data(using: .utf8) {
@@ -87,15 +90,25 @@ public struct OpenAIAdapter: LLMProvider {
         self.session = session
     }
 
+    /// OpenAI 特有门控：`reasoning_effort` 仅推理模型（o1/o3/o4/gpt-5 系）受理，
+    /// 非推理模型下发会 400 → 静默剥离（UI 层已有同等提示）
+    private func gateRequest(_ request: LLMRequest) -> LLMRequest {
+        guard let level = request.thinkingLevel, level.wireValue != nil else {
+            return request
+        }
+        return ThinkingLevel.openAIApplies(toModel: request.model) ? request : request.withThinkingLevel(nil)
+    }
+
     public func request(_ request: LLMRequest) async throws -> LLMResponse {
-        try await OpenAICompatAdapters.request(request,
+        try await OpenAICompatAdapters.request(gateRequest(request),
                                                chat: OpenAICompatChat(apiKey: apiKey, baseURL: baseURL, session: session),
                                                profile: profile)
     }
 
     public func stream(_ request: LLMRequest) async throws -> AsyncThrowingStream<StreamChunk, Error> {
-        OpenAICompatAdapters.stream(request,
-                                    chat: OpenAICompatChat(apiKey: apiKey, baseURL: baseURL, session: session))
+        OpenAICompatAdapters.stream(gateRequest(request),
+                                    chat: OpenAICompatChat(apiKey: apiKey, baseURL: baseURL, session: session),
+                                    profile: profile)
     }
 
     public func checkConnection() async throws -> String {
@@ -129,7 +142,8 @@ public struct DeepSeekAdapter: LLMProvider {
 
     public func stream(_ request: LLMRequest) async throws -> AsyncThrowingStream<StreamChunk, Error> {
         OpenAICompatAdapters.stream(request,
-                                    chat: OpenAICompatChat(apiKey: apiKey, baseURL: baseURL, session: session))
+                                    chat: OpenAICompatChat(apiKey: apiKey, baseURL: baseURL, session: session),
+                                    profile: profile)
     }
 
     public func checkConnection() async throws -> String {
@@ -168,7 +182,7 @@ public struct LocalAdapter: LLMProvider {
     }
 
     public func stream(_ request: LLMRequest) async throws -> AsyncThrowingStream<StreamChunk, Error> {
-        OpenAICompatAdapters.stream(request, chat: chat)
+        OpenAICompatAdapters.stream(request, chat: chat, profile: profile)
     }
 
     public func checkConnection() async throws -> String {

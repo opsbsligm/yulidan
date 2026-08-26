@@ -80,15 +80,17 @@ public final class AccountService: ObservableObject {
             state = .local
             return
         }
-        // 持久化为 SSO+iCloud 但凭证缺失（钥匙串被重置等）→ 降级并提示重新登录
-        guard let account else {
-            degrade(reason: "Apple 凭证未找到（钥匙串可能被重置），请重新登录")
-            persist(.local)
-            return
-        }
-        let signer = signer()
-        Task { [weak self] in
-            await self?.finishRestore(account: account, signer: signer)
+        // 持久化为 iCloud 同步模式：SSO 凭证在 → 校验凭证状态后进入；
+        // 凭证缺失（钥匙串重置，或本就未走 SSO 直接启用）→ 直接容器探测，不强制重新登录
+        if let account {
+            let signer = signer()
+            Task { [weak self] in
+                await self?.finishRestore(account: account, signer: signer)
+            }
+        } else {
+            Task { [weak self] in
+                self?.activateICloudCore()
+            }
         }
     }
 
@@ -150,26 +152,11 @@ public final class AccountService: ObservableObject {
         state = .local
     }
 
-    /// 重新申请 iCloud（降级后从设置页重试；无需重新登录）
+    /// 启用/重新申请 iCloud 同步（设置页入口；容器探测路径，独立于 SSO——
+    /// 无需 Apple ID 应用层登录；探测同步完成，状态即时落位）
     public func retryICloud() {
-        guard account != nil else {
-            lastError = "请先使用 Apple ID 登录"
-            return
-        }
         lastError = nil
-        state = .ssoPending
-        let p = probe.probe(containerIdentifier: containerIdentifier)
-        lastProbe = p
-        guard p.isAvailable, let root = rootProvider.resolveICloud() else {
-            let reason = Self.describe(p)
-            state = .icloudDegradedLocal(reason: reason)
-            lastError = reason
-            return
-        }
-        _ = try? rootProvider.materialize(root)
-        persist(.ssoIcloud)
-        state = .icloudReady
-        activateSync()
+        activateICloudCore()
     }
 
     /// 退出 Apple ID（清凭证、回本地）
@@ -202,7 +189,13 @@ public final class AccountService: ObservableObject {
         return s
     }
 
+    /// SSO 登录成功后的 iCloud 启用入口（SSO 身份可选叠加，探测逻辑与 retryICloud 同源）
     private func enterICloudIfPossible(account _: StoredAppleAccount) {
+        activateICloudCore()
+    }
+
+    /// iCloud 启用核心：探测容器 → 物化 → 持久化 → ready → 启动同步（不依赖 SSO 账号）
+    private func activateICloudCore() {
         let p = probe.probe(containerIdentifier: containerIdentifier)
         lastProbe = p
         guard p.isAvailable, let root = rootProvider.resolveICloud() else {

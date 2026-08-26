@@ -68,6 +68,10 @@ public actor AgentLoop {
     private var model: String
     /// 系统提示词（每轮可刷新：记忆注入 / 用户配置变化）
     private var systemPrompt: String?
+    /// 生成上限 token（请求参数，nil = 不下发；跨轮可更新）
+    private var maxTokens: Int?
+    /// 思考等级（请求参数，nil/.off = 不下发 reasoning_effort；跨轮可更新）
+    private var thinkingLevel: LLM.ThinkingLevel?
     private let maxSteps: Int
     /// 上下文保留上限：每轮 turn 结束后裁剪到最近 N 条（防长会话内存无界增长）
     private let maxHistoryMessages: Int
@@ -98,6 +102,8 @@ public actor AgentLoop {
         systemPrompt: String? = nil,
         maxSteps: Int = 8,
         maxHistoryMessages: Int = 200,
+        maxTokens: Int? = nil,
+        thinkingLevel: LLM.ThinkingLevel? = nil,
         executor: ToolExecutor? = nil,
         // 种子历史（如从会话存储恢复的既有上下文）；入参后立即按上限裁剪
         history: [LLM.Message] = [],
@@ -110,6 +116,8 @@ public actor AgentLoop {
         self.tools = tools
         self.model = model
         self.systemPrompt = systemPrompt
+        self.maxTokens = maxTokens
+        self.thinkingLevel = thinkingLevel
         self.maxSteps = maxSteps
         self.maxHistoryMessages = max(4, maxHistoryMessages)
         self.executor = executor ?? ToolExecutor()
@@ -124,9 +132,8 @@ public actor AgentLoop {
 
     /// 跨轮更新本轮上下文（模型 / 系统提示词）；历史完整保留。
     /// 会话级持久循环专用：切换模型或提示词配置后调用，工具上下文不丢失。
-    public func setTurnContext(model: String, systemPrompt: String?) {
-        self.model = model
-        self.systemPrompt = systemPrompt
+    public func setTurnContext(model: String, systemPrompt: String?, maxTokens: Int?, thinkingLevel: LLM.ThinkingLevel?) {
+        (self.model, self.systemPrompt, self.maxTokens, self.thinkingLevel) = (model, systemPrompt, maxTokens, thinkingLevel)
     }
 
     public var lastTurnResult: AgentResult {
@@ -263,13 +270,10 @@ public actor AgentLoop {
                     return await cancelledResult(turn, stepMessages, toolTraces)
                 }
                 step += 1
-                // 能力门控：provider 画像不支持工具调用时不下发 tools（如未细分的本地引擎），模型直接作答
-                let request = await LLMRequest(
-                    model: model,
-                    messages: history,
-                    systemPrompt: systemPrompt,
-                    tools: llm.profile.supportsToolCalls ? tools.schemas() : nil
-                )
+                // 能力门控：画像不支持工具调用时不下发 tools（如未细分的本地引擎），模型直接作答
+                let request = await LLMRequest(model: model, messages: history, systemPrompt: systemPrompt,
+                                               tools: llm.profile.supportsToolCalls ? tools.schemas() : nil,
+                                               maxTokens: maxTokens, thinkingLevel: thinkingLevel)
                 let response = try await llm.request(request)
                 // 已取消：不支持取消的 provider 延迟返回的响应必须丢弃（不进 wire 历史、不作最终回答）
                 if Task.isCancelled {

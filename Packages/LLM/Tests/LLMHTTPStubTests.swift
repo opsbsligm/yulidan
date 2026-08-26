@@ -455,3 +455,87 @@ final class AdapterHTTPTests: XCTestCase {
         XCTAssertTrue(AnthropicAdapter(apiKey: "k").supportedModels.contains("claude-3-5-haiku-20241022"))
     }
 }
+
+// MARK: - 思考等级 wire（reasoning_effort 下发门控）
+
+final class ThinkingLevelWireTests: XCTestCase {
+    private let base = URL(string: "http://stub.local/v1")!
+
+    override func setUp() {
+        StubURLProtocol.lastRequest = nil
+        StubURLProtocol.lastBody = nil
+    }
+
+    override func tearDown() {
+        StubURLProtocol.handler = nil
+    }
+
+    private func bodyJSON() throws -> [String: Any] {
+        let body = try XCTUnwrap(StubURLProtocol.lastBody)
+        let obj = try JSONSerialization.jsonObject(with: body)
+        return try XCTUnwrap(obj as? [String: Any])
+    }
+
+    func testOpenAIReasoningModelSendsEffort() async throws {
+        StubURLProtocol.handler = { _ in .init(status: 200, body: okCompletion, contentType: "application/json") }
+        let adapter = OpenAIAdapter(apiKey: "k", baseURL: base, session: makeStubSession())
+        _ = try await adapter.request(LLMRequest(model: "o3",
+                                                 messages: [Message(role: .user, content: [.text("hi")])],
+                                                 thinkingLevel: .high))
+        XCTAssertEqual(try bodyJSON()["reasoning_effort"] as? String, "high")
+    }
+
+    func testOpenAINonReasoningModelDropsEffort() async throws {
+        StubURLProtocol.handler = { _ in .init(status: 200, body: okCompletion, contentType: "application/json") }
+        let adapter = OpenAIAdapter(apiKey: "k", baseURL: base, session: makeStubSession())
+        _ = try await adapter.request(LLMRequest(model: "gpt-4o-mini",
+                                                 messages: [Message(role: .user, content: [.text("hi")])],
+                                                 thinkingLevel: .high))
+        XCTAssertNil(try bodyJSON()["reasoning_effort"], "非推理模型不得下发 reasoning_effort（官方会 400）")
+    }
+
+    func testOffLevelSendsNoField() async throws {
+        StubURLProtocol.handler = { _ in .init(status: 200, body: okCompletion, contentType: "application/json") }
+        let adapter = OpenAIAdapter(apiKey: "k", baseURL: base, session: makeStubSession())
+        _ = try await adapter.request(LLMRequest(model: "o3",
+                                                 messages: [Message(role: .user, content: [.text("hi")])],
+                                                 thinkingLevel: .off))
+        XCTAssertNil(try bodyJSON()["reasoning_effort"])
+    }
+
+    func testDeepSeekSendsEffort() async throws {
+        StubURLProtocol.handler = { _ in .init(status: 200, body: okCompletion, contentType: "application/json") }
+        let adapter = DeepSeekAdapter(apiKey: "k", baseURL: base, session: makeStubSession())
+        _ = try await adapter.request(LLMRequest(model: "deepseek-chat",
+                                                 messages: [Message(role: .user, content: [.text("hi")])],
+                                                 thinkingLevel: .medium))
+        XCTAssertEqual(try bodyJSON()["reasoning_effort"] as? String, "medium")
+    }
+
+    func testLocalSendsEffort() async throws {
+        StubURLProtocol.handler = { _ in .init(status: 200, body: okCompletion, contentType: "application/json") }
+        let adapter = LocalAdapter(baseURL: base, session: makeStubSession())
+        _ = try await adapter.request(LLMRequest(model: "qwen3:4b",
+                                                 messages: [Message(role: .user, content: [.text("hi")])],
+                                                 thinkingLevel: .low))
+        XCTAssertEqual(try bodyJSON()["reasoning_effort"] as? String, "low")
+    }
+
+    func testStreamCarriesEffort() async throws {
+        StubURLProtocol.handler = { _ in .init(status: 200, body: sseBody, contentType: "text/event-stream") }
+        let adapter = DeepSeekAdapter(apiKey: "k", baseURL: base, session: makeStubSession())
+        for try await _ in try await adapter.stream(LLMRequest(model: "deepseek-reasoner",
+                                                               messages: [Message(role: .user, content: [.text("hi")])],
+                                                               thinkingLevel: .high)) {}
+        XCTAssertEqual(try bodyJSON()["reasoning_effort"] as? String, "high")
+    }
+
+    func testAnthropicNeverSendsEffort() async throws {
+        StubURLProtocol.handler = { _ in .init(status: 200, body: anthropicBody, contentType: "application/json") }
+        let adapter = AnthropicAdapter(apiKey: "sk-ant", baseURL: base, session: makeStubSession())
+        _ = try await adapter.request(LLMRequest(model: "claude-3-5-haiku-20241022",
+                                                 messages: [Message(role: .user, content: [.text("hi")])],
+                                                 thinkingLevel: .high))
+        XCTAssertNil(try bodyJSON()["reasoning_effort"], "Anthropic 走独立 thinking 机制，不得混用 OpenAI 字段")
+    }
+}

@@ -355,13 +355,14 @@ final class AppViewModel: ObservableObject {
     @Published var settingsReturnTab: AppTab = .chat
     @Published var selectedTab: AppTab = .chat {
         didSet {
-            if selectedTab == .settings && oldValue != .settings {
+            if selectedTab == .settings, oldValue != .settings {
                 settingsReturnTab = oldValue
-            } else if oldValue == .settings && selectedTab != .settings {
+            } else if oldValue == .settings, selectedTab != .settings {
                 settingsReturnTab = selectedTab
             }
         }
     }
+
     @Published var selectedSession: SessionRecord?
     @Published var toastMessage: String?
 
@@ -1724,15 +1725,16 @@ final class AppViewModel: ObservableObject {
         if let factory = Self.providerFactory {
             return factory(cfg, key)
         }
+        // API 地址统一走「覆盖值优先」：local → 本地服务地址；其他 → baseURLOverride → 官方默认
+        let base = cfg.provider.effectiveBaseURL(cfg)
         switch cfg.provider {
         case .openAI:
-            return OpenAIAdapter(apiKey: key)
+            return OpenAIAdapter(apiKey: key, baseURL: base)
         case .deepSeek:
-            return DeepSeekAdapter(apiKey: key)
+            return DeepSeekAdapter(apiKey: key, baseURL: base)
         case .anthropic:
-            return AnthropicAdapter(apiKey: key)
+            return AnthropicAdapter(apiKey: key, baseURL: base)
         case .local:
-            let base = URL(string: cfg.localBaseURL) ?? URL(string: "http://localhost:11434/v1")!
             return LocalAdapter(apiKey: key.isEmpty ? "local" : key,
                                 baseURL: base,
                                 profile: ProviderProfile.local(forModel: cfg.modelName))
@@ -1877,7 +1879,7 @@ final class AppViewModel: ObservableObject {
         // 主聊天路径：会话级持久 AgentLoop（跨轮保留工具上下文；工具注册表 → 参数校验 → 执行 → 结果回填 → 收敛）
         let sessionID = selectedSession?.id ?? SessionID()
         let agent = obtainChatLoop(sessionID: sessionID,
-                                   contextStamp: "\(cfg.providerRaw)|\(cfg.localBaseURL)",
+                                   contextStamp: "\(cfg.providerRaw)|\(cfg.effectiveBaseURLString)",
                                    context: ChatLoopContext(cfg: cfg, key: key, seed: seed, systemPrompt: systemPrompt))
         chatAgent = agent
         defer {
@@ -1885,7 +1887,8 @@ final class AppViewModel: ObservableObject {
             activeToolName = nil
         }
         // 每轮上下文刷新（模型切换 / 记忆注入变化）；历史完整保留
-        await agent.setTurnContext(model: cfg.modelName, systemPrompt: systemPrompt)
+        await agent.setTurnContext(model: cfg.modelName, systemPrompt: systemPrompt,
+                                   maxTokens: cfg.maxTokens, thinkingLevel: cfg.thinkingLevel)
         attachToolProgress(agent)
 
         // AgentLoop 内部统一捕获 LLM/工具异常并收敛为 result.error，此处无需 do/catch

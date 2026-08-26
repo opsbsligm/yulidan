@@ -138,6 +138,91 @@ struct NavRow: View {
     }
 }
 
+// MARK: - 侧边栏底栏（展开态；Codex 式：设置 + 头像，与折叠态 rail 对齐）
+
+/// 展开态侧边栏底栏：设置行（⌘,，选中态高亮）+ 头像行（点击折叠侧边栏）。
+/// P0 实机验收发现（2026-08-26）：展开态此前无底栏，设置仅能从顶部「Harness ⌄」菜单进入，
+/// 进入后无「当前在设置」指示、无持久返回入口，用户点进设置后无路可退
+struct SidebarBottomBar: View {
+    @Binding var selectedTab: AppTab
+    let onToggleCollapse: () -> Void
+    /// 设置行 hover
+    @State private var settingsHover = false
+
+    /// 用户姓名首字（头像用）
+    private var avatarInitial: String {
+        String(NSFullUserName().prefix(1))
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Divider().padding(.horizontal, 10)
+            VStack(spacing: 2) {
+                Button {
+                    withAnimation(.smooth(duration: 0.18)) { selectedTab = .settings }
+                } label: {
+                    HStack(spacing: 9) {
+                        Image(systemName: AppTab.settings.icon)
+                            .font(.system(size: 14, weight: selectedTab == .settings ? .semibold : .regular))
+                            .frame(width: 18)
+                            .foregroundStyle(
+                                selectedTab == .settings ? HarnessTheme.accent
+                                    : settingsHover ? HarnessTheme.textPrimary
+                                    : HarnessTheme.textSecondary
+                            )
+                        Text("设置")
+                            .font(.system(size: 13, weight: selectedTab == .settings ? .medium : .regular))
+                            .foregroundStyle(
+                                selectedTab == .settings || settingsHover
+                                    ? HarnessTheme.textPrimary
+                                    : HarnessTheme.textSecondary
+                            )
+                        Spacer()
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(selectedTab == .settings ? Color.blue.opacity(0.12) :
+                        settingsHover ? HarnessTheme.surface : .clear)
+                    .cornerRadius(6)
+                }
+                .buttonStyle(.plain)
+                .onHover { settingsHover = $0 }
+                .keyboardShortcut(",", modifiers: .command)
+                .help("设置（⌘,）")
+                .padding(.horizontal, 6)
+                .accessibilityAddTraits(selectedTab == .settings ? .isSelected : [])
+
+                Button(action: onToggleCollapse) {
+                    HStack(spacing: 9) {
+                        ZStack {
+                            Circle().fill(HarnessTheme.surface)
+                            Text(avatarInitial)
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(HarnessTheme.accent)
+                        }
+                        .frame(width: 20, height: 20)
+                        Text(NSFullUserName())
+                            .font(.system(size: 12))
+                            .foregroundStyle(HarnessTheme.textSecondary)
+                            .lineLimit(1)
+                        Spacer()
+                        Image(systemName: "sidebar.left")
+                            .font(.system(size: 10))
+                            .foregroundStyle(HarnessTheme.textTertiary)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 7)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("折叠侧边栏")
+                .padding(.horizontal, 6)
+                .padding(.bottom, 10)
+            }
+        }
+    }
+}
+
 /// 条件键盘快捷键（index 为 nil 时不附加，避免与 ⌘6 齿轮重复绑定）
 struct NavShortcutModifier: ViewModifier {
     let index: Int?

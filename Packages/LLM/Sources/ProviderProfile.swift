@@ -18,31 +18,38 @@ public struct ProviderProfile: Sendable, Equatable {
     public let supportsReasoning: Bool
     /// 协议强制要求的 max_tokens 缺省值（如 Anthropic 必填 max_tokens）
     public let defaultMaxTokens: Int?
+    /// API 是否受理 `reasoning_effort`（思考等级下发门控；Anthropic 走独立 thinking 机制，暂不接入）
+    public let supportsThinkingLevel: Bool
 
     public init(family: ProviderFamily,
                 supportsToolCalls: Bool,
                 supportsReasoning: Bool,
-                defaultMaxTokens: Int? = nil) {
+                defaultMaxTokens: Int? = nil,
+                supportsThinkingLevel: Bool = false) {
         self.family = family
         self.supportsToolCalls = supportsToolCalls
         self.supportsReasoning = supportsReasoning
         self.defaultMaxTokens = defaultMaxTokens
+        self.supportsThinkingLevel = supportsThinkingLevel
     }
 
     /// OpenAI：完整工具调用；o 系列推理不在本客户端范围内（reasoning 关）
     public static let openAI = ProviderProfile(family: .openAICompat,
                                                supportsToolCalls: true,
-                                               supportsReasoning: false)
+                                               supportsReasoning: false,
+                                               supportsThinkingLevel: true)
     /// DeepSeek：chat/reasoner 均走 OpenAI 兼容协议；reasoner 输出 reasoning_content
     public static let deepSeek = ProviderProfile(family: .openAICompat,
                                                  supportsToolCalls: true,
-                                                 supportsReasoning: true)
+                                                 supportsReasoning: true,
+                                                 supportsThinkingLevel: true)
     /// 本地 OpenAI 兼容服务（Ollama / vLLM / LM Studio）：
     /// 工具调用支持依赖具体引擎，默认关闭，避免上层误判能力；
     /// 按模型名细分请用 `local(forModel:)`
     public static let local = ProviderProfile(family: .openAICompat,
                                               supportsToolCalls: false,
-                                              supportsReasoning: false)
+                                              supportsReasoning: false,
+                                              supportsThinkingLevel: true)
 
     /// 已知具备 tool calling 能力的开源模型族（Ollama/vLLM 实测可用；名称前缀/子串匹配，大小写不敏感）
     private static let localToolCapableModelMarkers = [
@@ -61,13 +68,15 @@ public struct ProviderProfile: Sendable, Equatable {
         let supportsReasoning = model.contains("deepseek-r1") || model.contains("deepseek-r1-")
         return ProviderProfile(family: .openAICompat,
                                supportsToolCalls: supportsTools,
-                               supportsReasoning: supportsReasoning)
+                               supportsReasoning: supportsReasoning,
+                               supportsThinkingLevel: true)
     }
 
     /// 进程内 mock / 脚本化 provider 默认画像：视为具备完整能力（真实适配器各自覆写）
     public static let mock = ProviderProfile(family: .openAICompat,
                                              supportsToolCalls: true,
-                                             supportsReasoning: false)
+                                             supportsReasoning: false,
+                                             supportsThinkingLevel: true)
     /// Anthropic：tools 必填 input_schema；max_tokens 为必填字段
     public static let anthropic = ProviderProfile(family: .anthropic,
                                                   supportsToolCalls: true,
