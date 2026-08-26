@@ -93,13 +93,10 @@ struct RAGR17GapTests {
         ])
 
         // 快照（排序闭包执行 ≥1 次）。
-        // 生产代码奇特性（轮 17 实锤，记 P2）：排序比较器 `docID < docID' || index < index'`
-        // 不是严格弱序（跨文档互判「小于」），跨文档顺序未定义；同文档内退化为 index 比较是良定的。
+        // 轮 18 修复回归：比较器已改为严格弱序（documentID 为主键、index 为次键，轮 17 定性 P2 已修）
+        // → 跨文档顺序确定：docA 全部切片在前（index 升序），docB 在后。
         let snap = await store.snapshot()
-        #expect(Set(snap.map(\.id)) == Set(["a1", "a2", "b1", "b2"]))
-        let byDoc = Dictionary(grouping: snap, by: \.documentID)
-        #expect(byDoc["docA"]?.map(\.index) == [1, 2])
-        #expect(byDoc["docB"]?.map(\.index) == [1, 2])
+        #expect(snap.map(\.id) == ["a1", "a2", "b1", "b2"])
 
         // filter tag=b → docA 切片被 matches 拒绝（return false 分支）
         let hits = await store.search(queryVector: vectorizer.embed("beta one"), topK: 5, filter: ["tag": "b"])

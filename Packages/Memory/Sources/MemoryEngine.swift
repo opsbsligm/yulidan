@@ -238,7 +238,7 @@ public actor MemoryEngine {
     }
 
     static func trimSentence(_ s: String) -> String {
-        let cut = s.range(of: "[。！!？?]\\s*$")
+        let cut = s.range(of: "[。！!？?]\\s*$", options: .regularExpression)
         let body = cut.map { String(s[s.startIndex ..< $0.lowerBound]) } ?? s
         return String(body.prefix(200)).trimmingCharacters(in: .whitespacesAndNewlines)
     }

@@ -90,14 +90,22 @@ struct MemoryR17GapTests {
     }
 
     /// ⑦ trimSentence → map 闭包分支
-    /// 生产代码奇特性（轮 17 实锤，记 P2）：range(of:) 缺 .regularExpression 选项 → 按字面查找，
-    /// 尾部标点剥离实际失效；当前行为下仅「字面含模式文本」的输入能触发 map 闭包。
-    @Test("trimSentence: 模式文本字面匹配 → map 闭包")
+    /// 轮 18 修复回归：range(of:) 补 .regularExpression 后尾部标点剥离真实生效（轮 17 定性 P2 已修）。
+    @Test("trimSentence: 尾部标点正则剥离（轮 18 修复回归）")
     func trimSentencePatternLiteral() {
+        // 尾部单标点剥离
+        #expect(MemoryEngine.trimSentence("记住要用 pnpm 管理依赖。") == "记住要用 pnpm 管理依赖")
+        // 多个尾部标点 + 尾部空白全部剥离
+        #expect(MemoryEngine.trimSentence("部署完成！ \n") == "部署完成")
+        // 句中句号（非尾部）不剥离
+        #expect(MemoryEngine.trimSentence("句中句号。结尾无标点") == "句中句号。结尾无标点")
+        // 修复前行为回归：字面模式文本不再触发字面匹配（输入以 $ 结尾，正则不匹配 → 原文保留）
         let prefix = String(repeating: "覆盖", count: 40)
         let input = prefix + "[。！!？?]" + String("\\s*$")
-        let out = MemoryEngine.trimSentence(input)
-        #expect(out == prefix)
+        #expect(MemoryEngine.trimSentence(input) == String(input.prefix(200)))
+        // 长输入 → prefix(200)
+        let long = String(repeating: "甲", count: 250) + "。"
+        #expect(MemoryEngine.trimSentence(long).count == 200)
     }
 
     // MARK: LongTermMemoryStore 排序闭包

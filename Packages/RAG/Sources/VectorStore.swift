@@ -121,7 +121,7 @@ public actor VectorStore {
 
     /// 快照（持久化/调试）
     public func snapshot() -> [StoredChunk] {
-        entries.values.flatMap(\.self).sorted { $0.documentID < $1.documentID || $0.index < $1.index }
+        entries.values.flatMap(\.self).sorted { $0.documentID == $1.documentID ? $0.index < $1.index : $0.documentID < $1.documentID }
     }
 
     // MARK: 持久化
