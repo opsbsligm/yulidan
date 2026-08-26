@@ -434,4 +434,4 @@ cf0e230  docs(quality): 刷新质量报告 — 前端阶段1/2 基线
 
 1. 用户依赖（不阻塞）：① Apple Developer Team/描述文件（SSO + iCloud 真机验收；当前按「无 entitlements 优雅降级」设计，UI 显示「需配置 entitlement/描述文件」+ 重新申请入口）② 「账号与同步」设置子页 + P0.2 项目模块实机视觉验收（演示数据已注入真实 DB，可右键删除项目清理）③ GitHub Actions 远端仍暂缓（ci-local 四模式本地模拟；KVS 冲突裁决 UI 已随 P0.1.4 闭环，原待办项核销）
 2. 持续观察：P1 macOS 27 beta 协作池调度停滞（每轮全量回归观察，CI 有界重试兜底；macOS 正式版若复现再升级）+ P2 macOS 27 beta 窗口服务器幻影 CGWindowList 报告（缓解已上线 `4beb21d`，实机渲染不受影响；macOS 官方正式版修复后复核并移除缓解逻辑）
-3. 持续迭代候选（均不阻塞）：① ~~in-flight LLM 调用 cancel 联动中断~~（**本轮已闭环**：turn Task 化 + 联动取消，645/645）② KVS 冲突裁决 UI（含 workspace 冲突）③ 项目拖拽排序 UI 暴露 ④ 覆盖率工具链口径统一（官方工具链修复 profdata -f bug 后恢复）
+3. 持续迭代候选（均不阻塞）：① ~~in-flight LLM 调用 cancel 联动中断~~（**本轮已闭环**：turn Task 化 + 联动取消，645/645）② KVS 冲突裁决 UI（含 workspace 冲突）③ 项目拖拽排序 UI 暴露 ④ 覆盖率工具链口径统一（官方工具链修复 profdata -f bug 后恢复）⑤ ~~启动前 bundle 版本核验流程化~~（**08-26 已核销**：`tools/rebuild-app.sh` 升级——sync 模式 cp 后 pre-sign sha 断言 + 同步戳（src_sha/git HEAD/时间），verify 模式对拍构建产物 sha + nm 符号探测（`verify [符号]`），兼容旧 `relaunch` 用法；20:51 端到端实测 @f77a1ee（ThinkingLevel×209 在位））
