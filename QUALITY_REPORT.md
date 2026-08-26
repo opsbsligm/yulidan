@@ -177,6 +177,7 @@
 | HarnessPluginWorker 进程泄漏（P1） | `c5bdc41` |
 | WebUIApp 超时取消后 whenIdle 有界挂起 | `84c7b6f` |
 | RAG 同文件重复入库不去重 | `c5bdc41` |
+| ~~loadProjectRows 无 UUID 大小写变体重复行防护（08-26 13:2x 实机重复项目事件跟进 P2）~~ | **已闭环（`5638ef9`）**：`loadProjectRows` 加载后按 UUID 值去重（平台规范形式 `uuid.uuidString` 优先，无规范取排序首行，不可解析 id 保留；纯函数 + 4 测试）；macOS 27 beta `uuidString` 实测大写发现入册（规则平台自适应不硬编码大小写）；pr 门禁 808/808 全绿 |
 | SSE 流式不转发 reasoning 增量 | `c5bdc41` |
 | local 画像默认关闭工具调用 | `c5bdc41`（按模型名白名单细分） |
 | 冷编译警告（RAG 测试 docs1 未使用） | `851a100` |
