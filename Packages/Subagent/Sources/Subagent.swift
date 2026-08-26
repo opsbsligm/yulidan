@@ -325,7 +325,8 @@ public actor SubagentCoordinator {
 
     /// 落终态：补 finishedAt、唤醒等待者、释放并发槽位、发事件
     /// 阶段优先级：timedOut > cancelled > failed > succeeded
-    private func finalize(_ id: SubagentID, result: AgentResult?) {
+    /// 测试缝：private→internal（行为零变更；供 NO-STATE 防御分支直测，覆盖审计轮 17）
+    func finalize(_ id: SubagentID, result: AgentResult?) {
         guard var state = states[id] else {
             slotLog("finalize-NO-STATE name=\(stateNameFor(id))")
             return
@@ -400,7 +401,8 @@ public actor SubagentCoordinator {
     /// ⚠️ 若「先递减、再唤醒」，在 `runningCount` 回落到 0 与等待者唤醒自增之间存在
     /// 空窗：此时新任务的快速路径会抢占幽灵槽位，叠加等待者自增后并发数将超过
     /// `maxConcurrent`（作业调度顺序反转时必现，macOS 27 beta 调度停滞曾暴露此竞态）。
-    private func releaseSlot() {
+    /// 测试缝：private→internal（行为零变更；供 guard-EMPTY 防御分支直测，覆盖审计轮 17）
+    func releaseSlot() {
         if !slotWaiters.isEmpty {
             slotLog("release-transfer waiters=\(slotWaiters.count) count=\(runningCount)")
             slotWaiters.removeFirst().resume()
