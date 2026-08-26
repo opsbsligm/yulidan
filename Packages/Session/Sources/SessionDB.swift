@@ -219,11 +219,17 @@ public actor SessionDB {
     // MARK: - 项目（projects 表，域模型映射见 Workspace.Project）
 
     /// 加载全部项目行（含归档；排序：sort_order 升序 → created_at 升序）
+    ///
+    /// 防御性去重（2026-08-26 实机重复项目事件，详见 P0 验收清单 13:2x 条目）：
+    /// `projects.id` 是 TEXT 主键，同一 UUID 值仅十六进制大小写不同的两个字面量
+    /// 可在库中共存（开发期种子残留）；解析后 UUID 值相等 → 侧边栏出现两个相同项目、
+    /// 会话归属（metadata_json 按系统 `uuidString` 形式编码）命中不确定。加载后按
+    /// UUID 值去重（规则见 `dedupProjectRowsByUUIDValue`）。
     public func loadProjectRows() throws -> [ProjectRow] {
         try dbQueue.read { db in
             let req: SQLRequest<Row> = "SELECT * FROM projects ORDER BY sort_order ASC, created_at ASC"
             let rows = try req.fetchAll(db)
-            return rows.compactMap { rd in
+            let mapped: [ProjectRow] = rows.compactMap { rd in
                 // 与 mapRow 一致：用类型化下标读取（Int?/Double? 由 GRDB 完成值转换）
                 let archivedInt: Int? = rd["archived"]
                 let collapsedInt: Int? = rd["collapsed"]
@@ -236,6 +242,34 @@ public actor SessionDB {
                     sortOrder: rd["sort_order"] as? Double ?? 0
                 )
             }
+            return Self.dedupProjectRowsByUUIDValue(mapped)
+        }
+    }
+
+    /// 项目行按 UUID 值去重（纯函数，直接可单测；保持输入相对顺序）
+    ///
+    /// 规则（确定性）：
+    /// - 不可解析为 UUID 的 id 原样保留（正常项目创建路径恒经 `UUID().uuidString` 落库，此分支纯防御）；
+    /// - 同一 UUID 值多行：优先保留 id 与系统规范形式（`uuid.uuidString`，即会话
+    ///   metadata_json 编码与项目持久化/删除路径共用形式）一致的行；
+    ///   规范形式大小写以平台实际输出为准（本机 macOS 27 beta / Swift 6.3.3 实测为大写，
+    ///   旧平台为小写——此处不硬编码大小写）；
+    /// - 无规范形式行：保留排序最前的一行；
+    /// - 不同 UUID 值不受影响。
+    static func dedupProjectRowsByUUIDValue(_ rows: [ProjectRow]) -> [ProjectRow] {
+        // 第一遍：记录哪些 UUID 值存在规范形式行
+        var hasCanonicalForm: Set<UUID> = []
+        for row in rows {
+            guard let uuid = UUID(uuidString: row.id), row.id == uuid.uuidString else { continue }
+            hasCanonicalForm.insert(uuid)
+        }
+        // 第二遍：每个 UUID 值只保留一行（非规范行在存在规范行时直接丢弃、不占位）
+        var kept: Set<UUID> = []
+        return rows.filter { row in
+            guard let uuid = UUID(uuidString: row.id) else { return true }
+            let isCanonical = row.id == uuid.uuidString
+            guard isCanonical || !hasCanonicalForm.contains(uuid) else { return false }
+            return kept.insert(uuid).inserted
         }
     }
 

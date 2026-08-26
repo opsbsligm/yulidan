@@ -315,6 +315,75 @@ final class SessionDBTests: XCTestCase {
         XCTAssertEqual(rows.count, 0)
     }
 
+    // MARK: - 项目行 UUID 值去重（2026-08-26 实机重复项目事件，P2 数据卫生加固）
+
+    /// 平台规范形式 = 系统 uuidString 实际输出（本机 macOS 27 beta / Swift 6.3.3 实测为大写，
+    /// 旧平台为小写；测试不硬编码大小写，与 `dedupProjectRowsByUUIDValue` 的平台自适应规则一致）
+    private static func canonicalID(_ base: String) -> String {
+        UUID(uuidString: base)!.uuidString
+    }
+
+    func testDedupCaseVariantRowsKeepsCanonicalForm() {
+        let now = Date()
+        let base = "771da037-abcd-4ef0-8abc-1234567890ab"
+        let canonical = Self.canonicalID(base)
+        let variant = (canonical == base) ? base.uppercased() : base
+        // 复现事件：同一 UUID 值仅大小写不同、sort_order/created_at 相同（物理排序不确定）
+        let rowC = ProjectRow(id: canonical, name: "工作演示", createdAt: now,
+                              archived: false, collapsed: false, sortOrder: 0)
+        let rowV = ProjectRow(id: variant, name: "工作演示", createdAt: now,
+                              archived: false, collapsed: false, sortOrder: 0)
+        // 两种输入顺序均保留平台规范形式行
+        XCTAssertEqual(SessionDB.dedupProjectRowsByUUIDValue([rowC, rowV]).map(\.id), [canonical])
+        XCTAssertEqual(SessionDB.dedupProjectRowsByUUIDValue([rowV, rowC]).map(\.id), [canonical])
+    }
+
+    func testDedupNoCanonicalFormKeepsFirstInSortOrder() {
+        let now = Date()
+        let base = "771da037-abcd-4ef0-8abc-1234567890ab"
+        let canonical = Self.canonicalID(base)
+        let mixed = "771Da037-AbCd-4eF0-8aBc-1234567890aB"
+        // 取两个非规范变体（平台规范形式已被剔除，恒剩 2 个）
+        let variants = [base, base.uppercased(), mixed].filter { $0 != canonical }
+        XCTAssertEqual(variants.count, 2)
+        let v1 = ProjectRow(id: variants[0], name: "A", createdAt: now,
+                            archived: false, collapsed: false, sortOrder: 0)
+        let v2 = ProjectRow(id: variants[1], name: "A", createdAt: now,
+                            archived: false, collapsed: false, sortOrder: 0)
+        // 无规范形式行：保留排序最前的一行
+        XCTAssertEqual(SessionDB.dedupProjectRowsByUUIDValue([v1, v2]).map(\.id), [v1.id])
+        XCTAssertEqual(SessionDB.dedupProjectRowsByUUIDValue([v2, v1]).map(\.id), [v2.id])
+    }
+
+    func testDedupDistinctValuesAndNonUUIDIDsUnchanged() {
+        let now = Date()
+        let r1 = ProjectRow(id: "a", name: "A", createdAt: now,
+                            archived: false, collapsed: false, sortOrder: 0) // 非 UUID id，防御性保留
+        let r2 = ProjectRow(id: "771da037-abcd-4ef0-8abc-1234567890ab", name: "B", createdAt: now,
+                            archived: false, collapsed: false, sortOrder: 1)
+        let r3 = ProjectRow(id: "00000000-1111-2222-3333-444444444444", name: "C", createdAt: now,
+                            archived: false, collapsed: false, sortOrder: 2)
+        let out = SessionDB.dedupProjectRowsByUUIDValue([r1, r2, r3])
+        XCTAssertEqual(out.map(\.id), [r1.id, r2.id, r3.id])
+    }
+
+    func testLoadProjectRowsDedupesCaseVariantIDs() async throws {
+        // DB 级：TEXT 主键下同一 UUID 值大小写变体可共存两行 → loadProjectRows 仅保留平台规范形式行
+        let now = Date()
+        let base = "771da037-abcd-4ef0-8abc-1234567890ab"
+        let canonical = Self.canonicalID(base)
+        let variant = (canonical == base) ? base.uppercased() : base
+        let a = ProjectRow(id: variant, name: "工作演示", createdAt: now,
+                           archived: false, collapsed: false, sortOrder: 0)
+        let b = ProjectRow(id: canonical, name: "工作演示", createdAt: now,
+                           archived: false, collapsed: false, sortOrder: 0)
+        try await db.saveProjectRow(a) // 先插非规范行、后插规范行
+        try await db.saveProjectRow(b)
+        let rows = try await db.loadProjectRows()
+        XCTAssertEqual(rows.count, 1)
+        XCTAssertEqual(rows[0].id, canonical) // 保留平台规范形式（会话/持久化共用编码形式）
+    }
+
     // MARK: - v1 → v2 迁移
 
     func testV1ToV2Migration() async throws {
