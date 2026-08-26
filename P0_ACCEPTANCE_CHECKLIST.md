@@ -15,6 +15,8 @@
 
 > ✅ **2026-08-26 DSH CLI 后端全链路 e2e 复跑（HEAD `d2cb3fb`，无头，锁屏环境可执行）**：`dsh run` + local/qwen3:4b @localhost:11434 —— 真实流式 → Agent 主循环 **2 次工具调用**（write_file → read_file）→ 文件落盘 `e2e-check-0826.txt` 11 字节内容 `e2e-0826-ok`（md5 9b6a9d627c52a96aad4678a6f8251896，原件存档 /tmp/e2e-check-0826-verified.txt，仓库已清理）→ 最终回复引用读取结果，闭环正确；技能体系自动沉淀（write-file-weekend-ok，2 次相似任务触发）；MCP 测试服务器（fs-test/rm-test/dup）连接失败时 Agent 优雅降级不中断（与 08-22/08-23 历次 e2e 行为一致，属预期）。日志：/tmp/dsh_e2e_0826.log。
 
+> 🔄 **2026-08-26 12:43 用户实机走查进行中（被动证据，不代替验收打勾）**：机器解锁后 App（PID 70301）置顶核验——左侧边栏渲染真实数据：导航五项（对话/多Agent/插件/技能/工具）+ 项目分组（工作演示 0 / test 1，含展开箭头与会话计数）+ 全局会话（test、帮我创建一个新项目，含相对时间戳）；设置面板打开于「插件管理」页（通用/模型服务/插件/插件管理/关于五页在列）；**归档管理 sheet 实测可见**：归档项目（1）「归档示例项目」+ 归档会话（1）「帮我创建一个新项目」，各带「恢复」按钮（§三 归档管理入口 + 取消归档实机证据）。截图 /tmp/p0_0826_app.png。
+
 > ✅ **前置条件已解决（2026-08-22）**：对话类验收项（§二会话工作区 / §五全链路 / §六流式·停止生成·工具回显）所需 LLM 已就绪——Ollama 0.32.15（brew formula，launchd 托管 `brew services list | grep ollama`）已装并 `pull qwen3:4b`（2.5GB，Metal/M5，端点 `http://localhost:11434/v1` 实测可用）；App 配置已切 **local provider + qwen3:4b**（原配置 openai/o4-mini 无 key 不可用，已备份 /tmp/harness_llmconfig_old_readable.json，验收后可随时还原）；工具调用 e2e 实测：OpenAI 兼容请求正确返回 `write_file` tool_calls（与 App wire 格式一致，max_tokens 4096 足够含思考输出）；**DSHCLI 全链路 e2e 实跑（2026-08-22，`dsh run` + local/qwen3:4b）**：真实 LLM 流式 → Agent 主循环 2 次工具调用（write_file→read_file）→ 文件落盘 `ws-check` 8 字节核验一致 → 最终回复正确；MCP 测试服务器（/usr/bin/true×3）优雅降级不中断；记忆蒸馏落盘（无记忆价值任务正确判空）、技能进化观测在阈值下正确未误触发；**2026-08-23 周末无人值守复测**：`dsh run` 复跑（local/qwen3:4b）2 次工具调用（write_file→read_file）→ `weekend-check.txt` 10 字节（md5 dfcec55e…）落盘一致、MCP 测试服务器降级行为一致、最终回复正确（日志 /tmp/dsh_e2e_weekend.log）。若服务停止：`brew services restart ollama`。不依赖 LLM 的项（§三 全部 / §四 导航 / 会话重命名）仍可先行验收。
 
 ## 一、基线
