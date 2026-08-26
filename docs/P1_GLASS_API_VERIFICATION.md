@@ -66,3 +66,12 @@
 | `Glass` | "defines the configuration of the Liquid Glass material... combine Liquid Glass effects using a [GlassEffectContainer], which supports morphing views... based on the geometry of their associated views" | 材质配置入口 = 预设 + tint + interactive（与 §四 差异点一致：无数值模糊/曲率/高光参数） |
 
 **悬停/交互反馈**：SDK 签名 `Glass.interactive(_:)` 存在（交互开关，默认 true）+ 官方「foreground effects」措辞 → 悬停/按压反馈属材质自带行为，P1 验收以实机观察为准（文档未单列 hover 小节）。
+
+## 七、2026-08-26 锁屏复核（补充证据 + 1 项新发现）
+
+> 背景：P0 验收等待期（机器锁屏，用户离席），对本文档结论做独立复核并补强证据。未写任何 P1 视觉代码（铁律 2）。
+
+1. **编译探针实锤（强于签名核验）**：以本机工具链（Xcode 26.6 (17F113) / MacOSX26.5 SDK / target `arm64-apple-macos26.0`）对 §二 全族 API 做 `swiftc -typecheck` 探针——`GlassEffectContainer(spacing:)` 包裹 + `.glassEffect(.regular.tint(.blue).interactive(true), in: RoundedRectangle(...))` + `.glassEffectID("tab-a", in: ns)` + `.glassEffect(.clear, in: .rect(cornerRadius: 8))` + `.glassEffectUnion(id: "group-1", namespace: ns)` + `.glassEffectTransition(.materialize/.matchedGeometry/.identity)` + `Glass` 三预设/`tint`/`interactive` 全部编译通过 ✅（探针 /tmp/glassprobe.swift，仅 typecheck 未运行，不进仓库）。结论：§五「P1 开工前置条件」的 API 可用性从「签名在 interface」升级为「实编译通过」。
+2. **⚠️ 新发现——AppKit 侧玻璃 API（§四.1 曲率决策点获得原生候选）**：macOS 26.5 SDK AppKit 含 `NSGlassEffectView`（`contentView` / `cornerRadius` / `tintColor` / `style`：regular/clear）与 `NSGlassEffectContainerView`（`contentView` / `spacing`，邻近合并语义与 SwiftUI 容器一致），均 `@API_AVAILABLE(macos(26.0))`（`NSGlassEffectView.h` 逐字在案）。**主题插件「曲率」参数**存在原生 AppKit 映射候选（`NSGlassEffectView.cornerRadius`，可经 `NSViewRepresentable` 嵌入）；但铁律 4 枚举清单未含此 API，**仍属设计决策点，待 P0 验收后与用户确认口径，不作默认**。模糊/高光仍无公开数值参数（结论不变）。
+3. **官方文档复核（2026-08-26 重拉）**：`glassEffect(_:in:)` / `GlassEffectContainer` / `glassEffectTransition(_:)` 官方文档页平台可用性均仍为 **macOS 26.0+**（与 SDK availability 注解一致，无漂移）；`glassEffectID` 文档页拉取未返回平台行（接口文件 availability 已实锤 macOS 26.0+，以 SDK 为准）。
+4. **工具链环境注记**：本机 OS = macOS 27.0 beta（26A5416b），Xcode = 26.6，已装 SDK 仅 MacOSX26.5（无 27 SDK）→ 编译面以 26.5 SDK 为准；文档头 ⚠️「xcrun 指向 CLT 旧 SDK」现象本轮未复现（`xcrun --show-sdk-path` = Xcode 26.5 SDK）。另：macOS 27 运行时下 `UUID().uuidString` 实测输出大写（与 Glass API 无关，P0 数据卫生轮发现，见 P0 验收清单 22:0x 条目）。
