@@ -10,6 +10,8 @@ struct ArchiveManagerView: View {
     let titleFor: (SessionRecord) -> String
     let onUnarchiveProject: (Project) -> Void
     let onUnarchiveSession: (SessionRecord) -> Void
+    /// sheet 自关闭（P0 实机验收发现：原「关闭」按钮为空闭包假按钮，macOS sheet 无滑动手势，用户无法关闭，2026-08-26）
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -65,7 +67,7 @@ struct ArchiveManagerView: View {
             }
             HStack {
                 Spacer()
-                Button("关闭") {}
+                Button("关闭") { dismiss() }
                     .keyboardShortcut(.cancelAction)
             }
         }
@@ -76,7 +78,7 @@ struct ArchiveManagerView: View {
 
 // MARK: - 导航行（图标 + 文字）
 
-/// ⌘1–⌘6 面板快捷键索引（展开/折叠两态共用）
+/// ⌘1–⌘5 面板快捷键索引（展开/折叠两态共用；settings 走 macOS 标准 ⌘,，由底栏齿轮承载）
 enum NavRowShortcut {
     static func index(for tab: AppTab) -> Int? {
         switch tab {
@@ -85,7 +87,7 @@ enum NavRowShortcut {
         case .plugins: 3
         case .skills: 4
         case .tools: 5
-        case .settings: 6
+        case .settings: nil // ⌘, 由底栏齿轮承载；不注册 ⌘6（与折叠态 rail 一致）
         }
     }
 }
@@ -96,7 +98,7 @@ struct NavRow: View {
     let action: () -> Void
     @State private var isHovered = false
 
-    /// ⌘1–⌘6 面板快捷键（Codex 式；settings 走 ⌘6 由底栏齿轮承载）
+    /// ⌘1–⌘5 面板快捷键（Codex 式；settings 走 ⌘, 由底栏齿轮承载，⌘6 未注册避免与标准 Preferences 冲突）
     private var shortcutIndex: Int? {
         NavRowShortcut.index(for: tab)
     }

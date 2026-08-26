@@ -218,6 +218,18 @@ struct SettingsView: View {
                     .fontWeight(.semibold)
                     .foregroundStyle(HarnessTheme.textPrimary)
                 Spacer()
+                // 关闭设置（返回进入前的 tab；P0 实机验收：设置页无返回途径，2026-08-26）
+                Button(action: closeSettings) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(HarnessTheme.textSecondary)
+                        .frame(width: 24, height: 24)
+                        .background(Circle().fill(Color.secondary.opacity(0.08)))
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .help("关闭设置，返回上一页面")
+                .accessibilityLabel("关闭设置")
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
@@ -279,6 +291,13 @@ struct SettingsView: View {
     private func goBack() {
         withAnimation(.smooth) {
             nav.goBack()
+        }
+    }
+
+    /// 关闭设置：回到进入设置前记录的 tab（AppViewModel.settingsReturnTab）
+    private func closeSettings() {
+        withAnimation(.smooth) {
+            viewModel.selectedTab = viewModel.settingsReturnTab
         }
     }
 }

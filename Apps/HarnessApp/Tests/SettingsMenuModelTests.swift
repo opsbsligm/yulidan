@@ -1,3 +1,4 @@
+import Foundation
 @testable import HarnessApp
 import Testing
 
@@ -93,5 +94,83 @@ struct SettingsMenuModelTests {
                 #expect(nav.selectedTab == tab)
             }
         }
+    }
+}
+
+// MARK: - 设置页返回途径（P0 实机验收 2026-08-26：点进设置无路可退 → 记录来源 tab + 关闭设置）
+
+@MainActor
+@Suite("设置返回 tab 跟踪", .serialized)
+struct SettingsReturnTabTests {
+    init() {
+        AppViewModel.notificationServiceFactory = { NoopNotificationService() }
+    }
+
+    private func makeVM() -> AppViewModel {
+        let db = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("harness-return-tab-\(UUID().uuidString).sqlite")
+        let skills = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("harness-return-tab-skills-\(UUID().uuidString)")
+        defer {
+            try? FileManager.default.removeItem(at: db)
+            try? FileManager.default.removeItem(at: skills)
+        }
+        return AppViewModel(skillUserDirectory: skills, sessionDBURL: db)
+    }
+
+    @Test("默认返回 tab = 对话")
+    func defaultReturnTabIsChat() {
+        let vm = makeVM()
+        #expect(vm.settingsReturnTab == .chat)
+    }
+
+    @Test("从对话进入设置：返回 tab = 对话")
+    func enteringSettingsFromChat() {
+        let vm = makeVM()
+        vm.selectedTab = .settings
+        #expect(vm.settingsReturnTab == .chat)
+    }
+
+    @Test("从工具页进入设置：返回 tab = 工具；关闭后回到工具")
+    func enteringSettingsFromTools() {
+        let vm = makeVM()
+        vm.selectedTab = .tools
+        vm.selectedTab = .settings
+        #expect(vm.settingsReturnTab == .tools)
+        // 模拟「关闭设置」
+        vm.selectedTab = vm.settingsReturnTab
+        #expect(vm.selectedTab == .tools)
+        #expect(vm.settingsReturnTab == .tools)
+    }
+
+    @Test("设置页内直接切到其他 tab：返回 tab 更新为该 tab")
+    func leavingSettingsUpdatesReturnTab() {
+        let vm = makeVM()
+        vm.selectedTab = .tools
+        vm.selectedTab = .settings
+        vm.selectedTab = .skills
+        #expect(vm.settingsReturnTab == .skills)
+        vm.selectedTab = vm.settingsReturnTab  // 关闭设置
+        #expect(vm.selectedTab == .skills)
+    }
+
+    @Test("设置页内重复选中设置：返回 tab 不变")
+    func reselectingSettingsKeepsReturnTab() {
+        let vm = makeVM()
+        vm.selectedTab = .plugins
+        vm.selectedTab = .settings
+        vm.selectedTab = .settings  // 底栏齿轮重复点击（no-op）
+        #expect(vm.settingsReturnTab == .plugins)
+    }
+
+    @Test("连续切换：对话→设置→工具→设置：返回 tab 依次跟踪")
+    func consecutiveSwitches() {
+        let vm = makeVM()
+        vm.selectedTab = .settings   // returnTab = .chat
+        #expect(vm.settingsReturnTab == .chat)
+        vm.selectedTab = .agents     // 离开设置 → returnTab = .agents
+        #expect(vm.settingsReturnTab == .agents)
+        vm.selectedTab = .settings   // 再进设置 → returnTab = .agents
+        #expect(vm.settingsReturnTab == .agents)
     }
 }

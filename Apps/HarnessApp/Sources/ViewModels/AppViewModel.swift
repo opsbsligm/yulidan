@@ -350,7 +350,18 @@ enum NavLoadState: Equatable {
 @MainActor
 final class AppViewModel: ObservableObject {
     // 导航
-    @Published var selectedTab: AppTab = .chat
+    /// 关闭设置时返回的 tab（P0 实机验收 2026-08-26：设置页无返回途径——
+    /// 进入设置前记录来源 tab；离开设置时更新为当前 tab，「关闭设置」按钮跳回原位）
+    @Published var settingsReturnTab: AppTab = .chat
+    @Published var selectedTab: AppTab = .chat {
+        didSet {
+            if selectedTab == .settings && oldValue != .settings {
+                settingsReturnTab = oldValue
+            } else if oldValue == .settings && selectedTab != .settings {
+                settingsReturnTab = selectedTab
+            }
+        }
+    }
     @Published var selectedSession: SessionRecord?
     @Published var toastMessage: String?
 
