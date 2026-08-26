@@ -199,6 +199,7 @@
 		CEEA54059CE64342E60022F2 /* AccountTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = B753803AE771FE3868883ECF /* AccountTypes.swift */; };
 		D00A37B2868EC62E4A59B5F5 /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7E4E2FCC4C34D368E59BA20 /* SidebarView.swift */; };
 		D0899EEB2A7E5C002BA738EC /* libServiceContainer.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 61C6CA6563030BB3744F87F3 /* libServiceContainer.a */; };
+		D131DFFC0B794D047AD0159E /* AgentRequestParamsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CC32EB3F1053D29E6CCE1F0 /* AgentRequestParamsTests.swift */; };
 		D278B1613A96A565BB7249A6 /* libHarnessCore.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 036680198B0B30775372E14A /* libHarnessCore.a */; };
 		D48D471A178519EA90E4DE69 /* PluginXPCProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 013128D156FDBAA74EB95D02 /* PluginXPCProtocol.swift */; };
 		D4C63F3C24F105107D7C75AA /* libTools.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 79E5F6006DEBDEA15451740D /* libTools.a */; };
@@ -943,6 +944,7 @@
 		37197D2AF43865186EE7E8FB /* LLMMappingBranchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMMappingBranchTests.swift; sourceTree = "<group>"; };
 		37A65C4DB41A7ABC7699E91D /* XPCPluginHost.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XPCPluginHost.swift; sourceTree = "<group>"; };
 		394972AC961A90C269BA46C1 /* SubagentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubagentView.swift; sourceTree = "<group>"; };
+		3CC32EB3F1053D29E6CCE1F0 /* AgentRequestParamsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentRequestParamsTests.swift; sourceTree = "<group>"; };
 		3DDFAD9EC4C77383BD08834A /* MetadataSyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetadataSyncService.swift; sourceTree = "<group>"; };
 		3E78B521DE41874E27BE6C00 /* MCP.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCP.swift; sourceTree = "<group>"; };
 		41230179DFAC377C1C6663EC /* Project.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Project.swift; sourceTree = "<group>"; };
@@ -1239,6 +1241,7 @@
 				31DE3C2C5EA507265705AB6F /* AgentInFlightCancellationTests.swift */,
 				296224C023D70C88B5E6A1D5 /* AgentLoopCoverageTests.swift */,
 				7E5C874D8924178FDCF7EB6B /* AgentProviderGatingTests.swift */,
+				3CC32EB3F1053D29E6CCE1F0 /* AgentRequestParamsTests.swift */,
 				01AA80BD388E38BEA0B00971 /* AgentTests.swift */,
 				B82E02CAF1E5B4A61890B4F8 /* AgentToolExecutorWiringTests.swift */,
 				92DED0043F75C1188E7B75B6 /* AgentToolTraceTests.swift */,
@@ -3371,6 +3374,7 @@
 				6DD8C24B5F3DE3976B36CDAF /* AgentInFlightCancellationTests.swift in Sources */,
 				B2FF57DCE14C45433DA16EFA /* AgentLoopCoverageTests.swift in Sources */,
 				52BD1392264A2FAECE7F2E68 /* AgentProviderGatingTests.swift in Sources */,
+				D131DFFC0B794D047AD0159E /* AgentRequestParamsTests.swift in Sources */,
 				15CE2651C22623BFBEDA6D1B /* AgentTests.swift in Sources */,
 				BAF141605A4ACE3CD65CA3D7 /* AgentToolExecutorWiringTests.swift in Sources */,
 				03E1A656567EFE0811091D63 /* AgentToolTraceTests.swift in Sources */,
