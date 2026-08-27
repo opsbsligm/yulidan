@@ -106,5 +106,5 @@
 | 加号菜单 | 输入框 + | 文件附件 + 插件工具入口（按 category 分组，选中插入 @toolName） |
 
 ## 七、质量基线（已实测，供核对）
-- **当前基线（2026-08-26 轮 18 P2 修复，四门禁全绿 @0991eab）**：pr 门禁 SPM 790/790（Swift Testing 172 suites，0 违规，/tmp/ci_pr_agent18.log）+ xcode 7-bundle swift-testing 353 + XCTest 131（per-bundle 口径，/tmp/ci_xcode_agent18.log）+ main 门禁（Release + 全量 + 覆盖率，干净口径：核心 14 包 98.85%（7035/7117）/ 18 包全量 96.35%（9600/9964）/ Agent 100%，/tmp/ci_main_agent18.log）+ leaks 门禁（**0 leaks**，/tmp/ci_leaks_agent18.log）+ xcode 门禁（**TEST SUCCEEDED** 7 bundle，/tmp/ci_xcode_agent18.log）；前轮基线：四门禁 @c49c6e6（轮 17）/ 968/968（轮 16 /tmp/ci_pr_agent16.log）
+- **当前基线（2026-08-27 Ollama 原生 API 重构轮，四门禁全绿 @97de3eb）**：pr 门禁（SwiftLint strict 0 违规 / SwiftFormat 0 文件 / 构建 0 警告 / **XCTest 255/255 + Swift Testing 810/810（175 suites）合计 1065/1065**，/tmp/ci_pr_native4.log）+ leaks 门禁（**0 leaks**，/tmp/ci_leaks_native.log）+ main 门禁（Release + 全量 + 覆盖率：**后端 Sources 90 文件 10,557 行 96.13%**（前轮 95.58% +0.55pp；<90% 仅 4 文件，AppleSignInService 15.86% 属 entitlements 依赖不可单测区已标注），/tmp/ci_main_native.log）+ xcode 门禁（**BUILD SUCCEEDED / TEST SUCCEEDED**，/tmp/ci_xcode_native.log）+ opt-in 实机集成铁证（`HARNESS_INTEGRATION=1`：/api/ps context_length=32768，3.1s 通过）；**App 浸泡：新 bundle sha 5320b066 1h11m 零崩溃**（18:12 启动，19:18 查 DiagnosticReports 零 crash 记录）；前轮基线：四门禁 @0991eab（2026-08-26 轮 18）
 - 本地镜像备份：`/Users/liguangming/code/swift-harness-backup.git`（每次提交后 mirror 同步）
