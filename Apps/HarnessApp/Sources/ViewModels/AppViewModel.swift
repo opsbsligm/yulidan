@@ -1888,7 +1888,7 @@ final class AppViewModel: ObservableObject {
         }
         // 每轮上下文刷新（模型切换 / 记忆注入变化）；历史完整保留
         await agent.setTurnContext(model: cfg.modelName, systemPrompt: systemPrompt,
-                                   maxTokens: cfg.maxTokens, thinkingLevel: cfg.thinkingLevel)
+                                   maxTokens: cfg.maxTokens, thinkingLevel: cfg.thinkingLevel, numCtx: cfg.provider == .local ? cfg.contextWindow : nil)
         attachToolProgress(agent)
 
         // AgentLoop 内部统一捕获 LLM/工具异常并收敛为 result.error，此处无需 do/catch

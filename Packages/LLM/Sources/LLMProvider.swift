@@ -51,8 +51,11 @@ public struct LLMRequest: Sendable {
     public let temperature: Double?
     /// 思考等级（nil / .off = 不下发 reasoning_effort）
     public let thinkingLevel: ThinkingLevel?
+    /// 上下文窗口（Ollama options.num_ctx；nil = 不下发，仅本地模型使用）
+    public let numCtx: Int?
 
-    public init(model: String, messages: [Message], systemPrompt: String? = nil, tools: [ToolSchema]? = nil, maxTokens: Int? = nil, temperature: Double? = nil, thinkingLevel: ThinkingLevel? = nil) {
+    public init(model: String, messages: [Message], systemPrompt: String? = nil, tools: [ToolSchema]? = nil, maxTokens: Int? = nil, temperature: Double? = nil,
+                thinkingLevel: ThinkingLevel? = nil, numCtx: Int? = nil) {
         self.model = model
         self.messages = messages
         self.systemPrompt = systemPrompt
@@ -60,12 +63,13 @@ public struct LLMRequest: Sendable {
         self.maxTokens = maxTokens
         self.temperature = temperature
         self.thinkingLevel = thinkingLevel
+        self.numCtx = numCtx
     }
 
     /// 替换思考等级（OpenAI 模型名门控用）
     public func withThinkingLevel(_ level: ThinkingLevel?) -> LLMRequest {
         LLMRequest(model: model, messages: messages, systemPrompt: systemPrompt, tools: tools,
-                   maxTokens: maxTokens, temperature: temperature, thinkingLevel: level)
+                   maxTokens: maxTokens, temperature: temperature, thinkingLevel: level, numCtx: numCtx)
     }
 }
 

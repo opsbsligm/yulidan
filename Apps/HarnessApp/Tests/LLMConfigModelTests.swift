@@ -19,6 +19,18 @@ struct LLMConfigModelTests {
         #expect(cfg.baseURLOverride == nil)
         #expect(cfg.thinkingLevel == .off)
         #expect(cfg.maxTokens == 4096)
+        #expect(cfg.contextWindow == nil)
+    }
+
+    @Test("上下文大小归一化：越界丢弃（回落跟随默认），范围内保留")
+    func contextWindowNormalize() {
+        var cfg = LLMConfig.makeDefault()
+        cfg.contextWindow = 512
+        #expect(LLMConfig.normalized(cfg).contextWindow == nil, "低于下限 1024 应丢弃")
+        cfg.contextWindow = 2_000_000
+        #expect(LLMConfig.normalized(cfg).contextWindow == nil, "高于上限 1M 应丢弃")
+        cfg.contextWindow = 262_144
+        #expect(LLMConfig.normalized(cfg).contextWindow == 262_144, "范围内应保留")
     }
 
     @Test("maxTokens 钳制：越界归一化到 128–1M")
@@ -62,6 +74,7 @@ struct LLMConfigModelTests {
         cfg.baseURLOverride = "https://relay.example.com/v1"
         cfg.thinkingLevel = .high
         cfg.maxTokens = 1_048_576
+        cfg.contextWindow = 1_048_576
         let data = try JSONEncoder().encode(cfg)
         let back = try JSONDecoder().decode(LLMConfig.self, from: data)
         #expect(back == cfg)

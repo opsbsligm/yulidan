@@ -13,6 +13,8 @@ struct LLMConfig: Codable, Equatable {
     var baseURLOverride: String?
     /// 思考等级（off = 不下发 reasoning_effort，跟随提供商默认）
     var thinkingLevel: ThinkingLevel
+    /// 上下文大小（context window token 数；nil = 跟随模型默认；仅本地提供商生效 → Ollama num_ctx）
+    var contextWindow: Int?
 
     var provider: ModelProvider {
         get { ModelProvider(rawValue: providerRaw) ?? .deepSeek }
@@ -21,6 +23,9 @@ struct LLMConfig: Codable, Equatable {
 
     /// 最大 Token 数合法范围（1M 量级：滑块无意义，直输 + 钳制）
     static let maxTokensRange: ClosedRange<Int> = 128 ... 1_048_576
+
+    /// 上下文大小合法范围（1M 量级：直输 + 预设；下限 1024 = Ollama num_ctx 实用下限）
+    static let contextWindowRange: ClosedRange<Int> = 1024 ... 1_048_576
 
     /// 生效 API 地址（local → 本地服务地址；其余 → 覆盖值优先，缺省官方地址）
     var effectiveBaseURLString: String {
@@ -33,7 +38,8 @@ struct LLMConfig: Codable, Equatable {
          localBaseURL: String,
          systemPrompt: String,
          baseURLOverride: String?,
-         thinkingLevel: ThinkingLevel) {
+         thinkingLevel: ThinkingLevel,
+         contextWindow: Int? = nil) {
         self.providerRaw = providerRaw
         self.modelName = modelName
         self.maxTokens = maxTokens
@@ -41,6 +47,7 @@ struct LLMConfig: Codable, Equatable {
         self.systemPrompt = systemPrompt
         self.baseURLOverride = baseURLOverride
         self.thinkingLevel = thinkingLevel
+        self.contextWindow = contextWindow
     }
 
     /// 解码旧版配置（无 baseURLOverride / thinkingLevel 字段）→ 缺省值兜底
@@ -53,6 +60,7 @@ struct LLMConfig: Codable, Equatable {
         systemPrompt = try c.decode(String.self, forKey: .systemPrompt)
         baseURLOverride = try c.decodeIfPresent(String.self, forKey: .baseURLOverride)
         thinkingLevel = (try? c.decode(ThinkingLevel.self, forKey: .thinkingLevel)) ?? .off
+        contextWindow = try? c.decodeIfPresent(Int.self, forKey: .contextWindow)
     }
 
     static let configDidChangeNotification = Notification.Name("LLMConfigDidChange")
@@ -77,10 +85,13 @@ struct LLMConfig: Codable, Equatable {
         return Self.normalized(cfg)
     }
 
-    /// 加载后归一化：maxTokens 钳制到合法范围
+    /// 加载后归一化：maxTokens 钳制到合法范围；contextWindow 越界视为无效（回落跟随默认）
     static func normalized(_ cfg: LLMConfig) -> LLMConfig {
         var c = cfg
         c.maxTokens = maxTokensRange.clamp(c.maxTokens)
+        if let cw = c.contextWindow, !contextWindowRange.contains(cw) {
+            c.contextWindow = nil
+        }
         return c
     }
 

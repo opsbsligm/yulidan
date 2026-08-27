@@ -13,6 +13,9 @@ struct LLMSettingsContainer: View {
     static func tokenPresetLabel(_ v: Int) -> String {
         switch v {
         case 8192: "8K"
+        case 16384: "16K"
+        case 32768: "32K"
+        case 65536: "64K"
         case 131_072: "128K"
         case 262_144: "256K"
         case 1_048_576: "1M"
@@ -159,6 +162,26 @@ struct LLMSettingsContainer: View {
                     }
                 }
                 Text("范围 \(LLMConfig.maxTokensRange.lowerBound) – \(LLMConfig.maxTokensRange.upperBound)（1M）；保存时校验，越界不保存")
+                    .font(.system(size: 11))
+                    .foregroundStyle(HarnessTheme.textTertiary)
+
+                HStack(spacing: 8) {
+                    Text("上下文大小")
+                    Spacer()
+                    TextField("留空 = 跟随模型默认", text: $viewModel.contextWindowText)
+                        .font(.system(.body, design: .monospaced))
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 170)
+                        .onSubmit { viewModel.save() }
+                    ForEach([8192, 16384, 32768, 65536, 131_072, 262_144, 1_048_576], id: \.self) { v in
+                        Button(Self.tokenPresetLabel(v)) {
+                            viewModel.contextWindowText = "\(v)"
+                        }
+                        .controlSize(.small)
+                        .buttonStyle(.bordered)
+                    }
+                }
+                Text("范围 \(LLMConfig.contextWindowRange.lowerBound) – \(LLMConfig.contextWindowRange.upperBound)（1M）；仅本地模型生效（Ollama num_ctx），远程提供商忽略此值")
                     .font(.system(size: 11))
                     .foregroundStyle(HarnessTheme.textTertiary)
 
@@ -353,6 +376,7 @@ final class LLMSettingsViewModel: ObservableObject {
     @Published var apiKey: String = ""
     @Published var modelName: String
     @Published var maxTokensText: String
+    @Published var contextWindowText: String
     @Published var apiBaseURLText: String
     @Published var thinkingLevel: ThinkingLevel
     @Published var systemPrompt: String
@@ -368,6 +392,7 @@ final class LLMSettingsViewModel: ObservableObject {
         selectedProvider = cfg.provider
         modelName = cfg.modelName
         maxTokensText = "\(cfg.maxTokens)"
+        contextWindowText = cfg.contextWindow.map { "\($0)" } ?? ""
         apiBaseURLText = cfg.provider == .local ? cfg.localBaseURL : (cfg.baseURLOverride ?? "")
         thinkingLevel = cfg.thinkingLevel
         systemPrompt = cfg.systemPrompt
@@ -445,6 +470,15 @@ final class LLMSettingsViewModel: ObservableObject {
             cfg.baseURLOverride = base.isEmpty ? nil : base
         }
         cfg.thinkingLevel = thinkingLevel
+        let cwRaw = contextWindowText.trimmingCharacters(in: .whitespaces)
+        if cwRaw.isEmpty {
+            cfg.contextWindow = nil // 留空 = 显式回落到跟随模型默认
+        } else if let v = Int(cwRaw), LLMConfig.contextWindowRange.contains(v) {
+            cfg.contextWindow = v
+        } else if paramError == nil {
+            // 非法值保留原值不写入；maxTokens 已有报错时不覆盖错误展示
+            paramError = "上下文大小须为 \(LLMConfig.contextWindowRange.lowerBound) – \(LLMConfig.contextWindowRange.upperBound) 的整数或留空（跟随模型默认）；本次未更新该项，其余已保存"
+        }
         cfg.systemPrompt = systemPrompt
         if !apiKey.trimmingCharacters(in: .whitespaces).isEmpty {
             KeychainStorage.saveAPIKey(apiKey.trimmingCharacters(in: .whitespaces),

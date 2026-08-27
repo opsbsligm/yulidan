@@ -41,6 +41,8 @@
 > - **⚠️ 实机验证待办（bundle 同步后）**：偏好页排版 / 模型参数页新字段 / 账号与同步页新文案 三处截图核验（见 QUALITY_REPORT 08-26 20:12 条目）。
 > ✅ **2026-08-27 11:16–11:46 第 4 批修复实机截图核验闭环（解锁态，运行 bundle @57022f4，PID 15930）**：四页截图 + 返回途径复核——① 提供商与密钥：「API 地址」行在位（本地服务 http://localhost:11434/v1 + OpenAI 兼容端点提示 + 钥匙串存储标注），/tmp/s1_prefs.png；② 请求参数：最大 Token 数直输 4096 + 预设 8K/128K/256K/1M + 范围提示（128–1,048,576，越界不保存）+ 思考等级菜单（关=跟随提供商，reasoning_effort 门控提示）+ 系统提示词，/tmp/s5_params.png；③ 偏好：主题/主题插件/正文字号均无重复标签（labelsHidden 修复生效）+ 头部 X 可见，/tmp/s3_back.png；④ 账号与同步：SSO 诚实标注「需付费 Apple 开发者 Team + Sign in with Apple 能力；当前 ad-hoc 构建不可用」+ iCloud 降级态「iCloud 不可用，已自动降级为本地模式」+「重新申请 iCloud 权限」入口，/tmp/s4_account.png。**返回途径回归（第 3 批报障）**：文件沙箱子页头部 ← 在位 → 点 ← → 回偏好根（chevron 消失）✓（/tmp/s2_params.png → /tmp/s3_back.png）。**X 关闭回归（末项，12:50 解锁态复核）**：设置 → 点右上 X → 回对话 tab（「雷猴」会话选中）✓ /tmp/s6c_closed.png；副作用记录：同轮核验第二次点击误开对话右上「…」菜单（置顶/添加附件/派生子Agent/复制/导出/重命名/清空/删除），未点击任何菜单项，焦点切换后自动收起——13:11 被动复核（CGWindowList @pid 15930）无菜单残留窗、App 未前台（frontmost=Terminal 用户网络作业中），零数据影响。**P0 UI 验证 6/6 全闭环**（四设置页 + ← 返回途径 + X 关闭）。
 
+> ✅ **2026-08-27 P0 补充：「上下文大小」设置字段（第 4 批报障第 2 项唯一残留缺口，代码 + wire 单测证据闭环）**：设置 → 请求参数新增「上下文大小」行——直输 + 预设 8K/16K/32K/64K/128K/256K/1M（范围 1,024–1,048,576，越界不保存，留空 = 跟随模型默认）；**仅本地提供商生效** → 经 Ollama `options.num_ctx` 下发（wire 格式经 URLProtocol 桩断言 `"options":{"num_ctx":N}`；远程提供商不下发，UI 已诚实标注），AppViewModel → AgentLoop.setTurnContext → LLMRequest → Adapters → OpenAICompatChat 全链路传播单测（Agent 传播 2 例 + LLM wire 2 例 + 配置归一化 1 例 + legacy 解码兼容，全绿）。PR 门禁：SwiftLint/SwiftFormat 0 违规 / 构建 0 警告 / **810/810**（基线 808 + 2 net new，stash 对照）。⏳ 实机截图核验待用户机器空闲窗口补拍（13:3x 用户 WeChat 作业中不抢焦点；App 已重启至新 bundle PID 18256 @sha 86f55bc，用户可自点「设置 → 请求参数」直接查看）。
+
 ## 一、基线
 | 项 | 操作 | 预期 |
 |---|---|---|

@@ -72,6 +72,8 @@ public actor AgentLoop {
     private var maxTokens: Int?
     /// 思考等级（请求参数，nil/.off = 不下发 reasoning_effort；跨轮可更新）
     private var thinkingLevel: LLM.ThinkingLevel?
+    /// 上下文窗口（请求参数，nil = 不下发；仅本地 Ollama num_ctx 生效；跨轮可更新）
+    private var numCtx: Int?
     private let maxSteps: Int
     /// 上下文保留上限：每轮 turn 结束后裁剪到最近 N 条（防长会话内存无界增长）
     private let maxHistoryMessages: Int
@@ -132,8 +134,8 @@ public actor AgentLoop {
 
     /// 跨轮更新本轮上下文（模型 / 系统提示词）；历史完整保留。
     /// 会话级持久循环专用：切换模型或提示词配置后调用，工具上下文不丢失。
-    public func setTurnContext(model: String, systemPrompt: String?, maxTokens: Int?, thinkingLevel: LLM.ThinkingLevel?) {
-        (self.model, self.systemPrompt, self.maxTokens, self.thinkingLevel) = (model, systemPrompt, maxTokens, thinkingLevel)
+    public func setTurnContext(model: String, systemPrompt: String?, maxTokens: Int?, thinkingLevel: LLM.ThinkingLevel?, numCtx: Int? = nil) {
+        (self.model, self.systemPrompt, self.maxTokens, self.thinkingLevel, self.numCtx) = (model, systemPrompt, maxTokens, thinkingLevel, numCtx)
     }
 
     public var lastTurnResult: AgentResult {
@@ -273,7 +275,7 @@ public actor AgentLoop {
                 // 能力门控：画像不支持工具调用时不下发 tools（如未细分的本地引擎），模型直接作答
                 let request = await LLMRequest(model: model, messages: history, systemPrompt: systemPrompt,
                                                tools: llm.profile.supportsToolCalls ? tools.schemas() : nil,
-                                               maxTokens: maxTokens, thinkingLevel: thinkingLevel)
+                                               maxTokens: maxTokens, thinkingLevel: thinkingLevel, numCtx: numCtx)
                 let response = try await llm.request(request)
                 // 已取消：不支持取消的 provider 延迟返回的响应必须丢弃（不进 wire 历史、不作最终回答）
                 if Task.isCancelled {

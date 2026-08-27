@@ -19,6 +19,7 @@ struct RequestParamsPropagationTests {
         private let lock = NSLock()
         private var lastMaxTokensValue: Int?
         private var lastThinkingValue: LLM.ThinkingLevel?
+        private var lastNumCtxValue: Int?
 
         var lastMaxTokens: Int? {
             lock.withLock { lastMaxTokensValue }
@@ -28,10 +29,15 @@ struct RequestParamsPropagationTests {
             lock.withLock { lastThinkingValue }
         }
 
+        var lastNumCtx: Int? {
+            lock.withLock { lastNumCtxValue }
+        }
+
         func request(_ request: LLMRequest) async throws -> LLMResponse {
             lock.withLock {
                 lastMaxTokensValue = request.maxTokens
                 lastThinkingValue = request.thinkingLevel
+                lastNumCtxValue = request.numCtx
             }
             return textResponse("ok")
         }
@@ -81,5 +87,22 @@ struct RequestParamsPropagationTests {
         _ = await awaitTurnResult(loop)
         #expect(llm.lastMaxTokens == nil)
         #expect(llm.lastThinking == nil)
+        #expect(llm.lastNumCtx == nil)
+    }
+
+    @Test("setTurnContext 跨轮更新：numCtx（上下文大小）即时生效")
+    func turnContextNumCtxUpdate() async {
+        let llm = CapturingLLM()
+        let loop = AgentLoop(id: AgentID(), sessionID: SessionID(), llm: llm, tools: ToolRegistry(),
+                             model: "mock-model", maxTokens: 4096, thinkingLevel: .off)
+        await loop.send(UserMessage(content: [.text("第一轮")]), target: .nextTurn, wakeup: true)
+        _ = await awaitTurnResult(loop)
+        #expect(llm.lastNumCtx == nil, "未设置时应为 nil（不下发）")
+
+        await loop.setTurnContext(model: "mock-model", systemPrompt: nil, maxTokens: 4096, thinkingLevel: .off,
+                                  numCtx: 131_072)
+        await loop.send(UserMessage(content: [.text("第二轮")]), target: .nextTurn, wakeup: true)
+        _ = await awaitTurnResult(loop)
+        #expect(llm.lastNumCtx == 131_072, "setTurnContext 后 numCtx 未生效")
     }
 }

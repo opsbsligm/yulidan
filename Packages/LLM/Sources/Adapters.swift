@@ -11,7 +11,8 @@ private enum OpenAICompatAdapters {
                                              tools: request.tools,
                                              maxTokens: request.maxTokens,
                                              temperature: request.temperature,
-                                             thinkingLevel: profile.supportsThinkingLevel ? request.thinkingLevel : nil)
+                                             thinkingLevel: profile.supportsThinkingLevel ? request.thinkingLevel : nil,
+                                             numCtx: request.numCtx)
         return LLMResponseNormalizer.response(model: request.model, result: result, profile: profile)
     }
 
@@ -31,7 +32,8 @@ private enum OpenAICompatAdapters {
                                                              tools: request.tools,
                                                              maxTokens: request.maxTokens,
                                                              temperature: request.temperature,
-                                                             thinkingLevel: profile.supportsThinkingLevel ? request.thinkingLevel : nil) {
+                                                             thinkingLevel: profile.supportsThinkingLevel ? request.thinkingLevel : nil,
+                                                             numCtx: request.numCtx) {
                         switch event {
                         case let .text(t):
                             if let data = t.data(using: .utf8) {
