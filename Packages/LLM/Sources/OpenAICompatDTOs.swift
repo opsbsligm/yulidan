@@ -116,10 +116,8 @@ struct ChatRequestDTO: Encodable {
     var maxTokens: Int?
     var temperature: Double?
     var reasoningEffort: String?
-    /// Ollama 专属 options（上下文窗口 num_ctx）；其余提供商忽略此字段
-    var options: [String: Int]?
     enum CodingKeys: String, CodingKey {
-        case model, messages, tools, temperature, options
+        case model, messages, tools, temperature
         case maxTokens = "max_tokens"
         case reasoningEffort = "reasoning_effort"
     }

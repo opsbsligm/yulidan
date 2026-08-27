@@ -123,24 +123,6 @@ final class OpenAICompatChatHTTPTests: XCTestCase {
         XCTAssertTrue(req.url!.absoluteString.hasSuffix("/chat/completions"))
     }
 
-    func testNumCtxSerializedAsOllamaOptions() async throws {
-        StubURLProtocol.handler = { _ in .init(status: 200, body: okCompletion, contentType: "application/json") }
-        _ = try await client().complete(model: "qwen3:4b",
-                                        messages: [Message(role: .user, content: [.text("hi")])],
-                                        numCtx: 32768)
-        let body = try JSONSerialization.jsonObject(with: StubURLProtocol.lastBody!) as? [String: Any]
-        XCTAssertEqual((body?["options"] as? [String: Int])?["num_ctx"], 32768,
-                       "num_ctx 应经 Ollama options 通道下发")
-    }
-
-    func testNoNumCtxByDefault() async throws {
-        StubURLProtocol.handler = { _ in .init(status: 200, body: okCompletion, contentType: "application/json") }
-        _ = try await client().complete(model: "qwen3:4b",
-                                        messages: [Message(role: .user, content: [.text("hi")])])
-        let body = try JSONSerialization.jsonObject(with: StubURLProtocol.lastBody!) as? [String: Any]
-        XCTAssertNil(body?["options"], "未设置 numCtx 时不应下发 options 字段")
-    }
-
     func testCompleteMissingKeyThrows() async {
         let empty = OpenAICompatChat(apiKey: "", baseURL: base, session: makeStubSession())
         do {

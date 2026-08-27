@@ -181,7 +181,7 @@ struct LLMSettingsContainer: View {
                         .buttonStyle(.bordered)
                     }
                 }
-                Text("范围 \(LLMConfig.contextWindowRange.lowerBound) – \(LLMConfig.contextWindowRange.upperBound)（1M）；仅本地模型生效（Ollama num_ctx），远程提供商忽略此值")
+                Text("范围 \(LLMConfig.contextWindowRange.lowerBound) – \(LLMConfig.contextWindowRange.upperBound)（1M）；仅 Ollama 本地模型生效（原生 API options.num_ctx 真实下发）；远程提供商与 vLLM/LM Studio 忽略")
                     .font(.system(size: 11))
                     .foregroundStyle(HarnessTheme.textTertiary)
 
@@ -423,7 +423,7 @@ final class LLMSettingsViewModel: ObservableObject {
         case .deepSeek:
             "low/medium/high → 下发 reasoning_effort（官方：medium 映射 high，默认 high）；关 = 不下发"
         case .local:
-            "low/medium/high → 下发 reasoning_effort（官方：仅思考模型生效，如 qwen3 系）；关 = 不下发"
+            "low/medium/high → 下发 Ollama（官方：仅思考模型生效，如 qwen3 系）；关 = 不下发"
         }
     }
 

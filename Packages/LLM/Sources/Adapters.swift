@@ -2,7 +2,8 @@ import Foundation
 
 // MARK: - OpenAI 家族共享实现（OpenAI / DeepSeek / Local 均走 OpenAI 兼容协议）
 
-private enum OpenAICompatAdapters {
+/// 模块内共享（LocalAdapter.swift 的兼容路径分支亦引用）
+enum OpenAICompatAdapters {
     /// 非流式：下发 tools → 解析 tool_calls/reasoning/finish_reason → 归一化为统一 LLMResponse
     static func request(_ request: LLMRequest, chat: OpenAICompatChat, profile: ProviderProfile) async throws -> LLMResponse {
         let result = try await chat.complete(model: request.model,
@@ -11,8 +12,7 @@ private enum OpenAICompatAdapters {
                                              tools: request.tools,
                                              maxTokens: request.maxTokens,
                                              temperature: request.temperature,
-                                             thinkingLevel: profile.supportsThinkingLevel ? request.thinkingLevel : nil,
-                                             numCtx: request.numCtx)
+                                             thinkingLevel: profile.supportsThinkingLevel ? request.thinkingLevel : nil)
         return LLMResponseNormalizer.response(model: request.model, result: result, profile: profile)
     }
 
@@ -32,8 +32,7 @@ private enum OpenAICompatAdapters {
                                                              tools: request.tools,
                                                              maxTokens: request.maxTokens,
                                                              temperature: request.temperature,
-                                                             thinkingLevel: profile.supportsThinkingLevel ? request.thinkingLevel : nil,
-                                                             numCtx: request.numCtx) {
+                                                             thinkingLevel: profile.supportsThinkingLevel ? request.thinkingLevel : nil) {
                         switch event {
                         case let .text(t):
                             if let data = t.data(using: .utf8) {
@@ -150,45 +149,6 @@ public struct DeepSeekAdapter: LLMProvider {
 
     public func checkConnection() async throws -> String {
         try await OpenAICompatChat(apiKey: apiKey, baseURL: baseURL, session: session).checkConnection()
-    }
-}
-
-// MARK: - 本地模型适配器（Ollama / vLLM / LM Studio，OpenAI 兼容协议）
-
-public struct LocalAdapter: LLMProvider {
-    public let id = "local"
-    public let supportedModels: [String] = ["local"]
-    public let profile: ProviderProfile
-
-    private let apiKey: String
-    private let baseURL: URL
-    private let session: URLSession
-
-    /// 默认指向 Ollama 的 OpenAI 兼容端点；profile 可按模型名细分（ProviderProfile.local(forModel:)）
-    public init(apiKey: String = "ollama",
-                baseURL: URL = URL(string: "http://localhost:11434/v1")!,
-                session: URLSession = .shared,
-                profile: ProviderProfile = .local) {
-        self.apiKey = apiKey
-        self.baseURL = baseURL
-        self.session = session
-        self.profile = profile
-    }
-
-    private var chat: OpenAICompatChat {
-        OpenAICompatChat(apiKey: apiKey, baseURL: baseURL, session: session)
-    }
-
-    public func request(_ request: LLMRequest) async throws -> LLMResponse {
-        try await OpenAICompatAdapters.request(request, chat: chat, profile: profile)
-    }
-
-    public func stream(_ request: LLMRequest) async throws -> AsyncThrowingStream<StreamChunk, Error> {
-        OpenAICompatAdapters.stream(request, chat: chat, profile: profile)
-    }
-
-    public func checkConnection() async throws -> String {
-        try await chat.checkConnection()
     }
 }
 
