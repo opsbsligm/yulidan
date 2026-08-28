@@ -3,14 +3,15 @@
 > 目的：P0 验收通过后 P1.1 开工即执行，无需再盘点。
 > ✅ **2026-08-28 P1.1 已执行（@949759b）**：容器落点 C1/C2/C3 已落地 + C5 按钮已玻璃化 + C4 保持独立；行号刷新至当前 HEAD（原 08-24 基线行号因 08-26/27 设置页重构有漂移，已核正；原「#2 侧边栏头部」实测为折叠 rail，非展开态头部——分组结论不变）。
 > ✅ **2026-08-28 P1.2 已执行（@d43411b）**：「§五 与 P1.2 的接口约定」全部兑现——C1 容器内六分区 morph 面落地（`GlassMorphTabBar`，选中玻璃面同 namespace 同 ID 原生 morph）；原 5 行 NavRow 删除（死代码），#1 侧边栏主体表面行号漂移（导航区缩短约 90pt）。
+> ✅ **2026-08-28 P1.3 已执行（@209f480）**：① C1 容器上提——`GlassEffectContainer` 由展开体/折叠体各自包裹合并为 body `Group` 单容器（`SidebarView:98`，展开/折叠两面共享 = 最优 morph 条件）；#1/#2 两面加 `morphID("harness-sidebar-collapse") + sidebarMorphNS + .matchedGeometry`（`:332/:446`，同 `.regular` 变体同型 shape）→ 折叠/展开原生 morph（跨态未官方实证，最坏淡变）；② 新增玻璃面 ×5：项目分区 thin 卡（`SidebarProjectSections.sectionCard:298`，C4 式逐分区独立）+ 4 处 sheet 内容根 `.regular,12 + .materialize`（归档管理 / MCP 日志 / 重命名 `:160` / 删除 `:190`）。
 > 官方语义（已核验，见 P1_GLASS_API_VERIFICATION.md §六）：同区域玻璃组件放同一 `GlassEffectContainer` → 光学采样一致 + 渲染性能；`spacing:` 控制融合提前量。
 
 ## 一、现状盘点（P0 既有玻璃接入点，10 调用点 / 5 文件）
 
 | # | 位置 | level | cornerRadius | 角色 |
 |---|------|-------|--------------|------|
-| 1 | `SidebarView.swift:329`（容器 :331） | .regular | 0 | 侧边栏展开主体表面（P1.1 已容器化 C1a） |
-| 2 | `SidebarView.swift:437`（容器 :439） | .prominent | 0 | 折叠 rail 表面（08-28 核正：原「头部」实为折叠态 rail；P1.1 已容器化 C1b） |
+| 1 | `SidebarView.swift:332`（容器 :98 上提） | .regular | 0 | 侧边栏展开主体表面（P1.3 起带 collapseMorphID + sidebarMorphNS + .matchedGeometry） |
+| 2 | `SidebarView.swift:446`（容器 :98 上提） | .prominent | 0 | 折叠 rail 表面（level 仅 fallback 参数；P1.3 起与 #1 同 morph 配对 → 原生 Glass 值恒 .regular 同变体） |
 | 3 | `ChatInputArea.swift:117`（容器 :135） | .regular | 16 | composer 输入面板（P1.1 已容器化 C2） |
 | 4 | `SettingsView.swift:202`（容器 :164 整体包裹） | .prominent | 0 | 设置 sheet 侧栏面（P1.1 已容器化 C3） |
 | 5 | `SettingsView.swift:477` | .thin | 4 | 设置项卡片（ShortcutRow kbd 键帽，C3 成员） |
@@ -26,7 +27,7 @@
 
 | 容器 | 成员（file:line） | 说明 |
 |---|---|---|
-| **C1 侧边栏容器** ✅P1.1 已落地 | #1 主体 + #2 折叠 rail + P1.2 六分区 Tab Morph 面（预留） | 最大同区域组；P1.2 Morph 的分段面必须与侧边栏同容器（官方：并集融合要求同 shape + 同 Glass 变体） |
+| **C1 侧边栏容器** ✅P1.3 已上提单容器 | #1 主体 + #2 折叠 rail（两面 collapseMorphID 配对）+ P1.2 六分区 Tab Morph 面 + P1.3 项目 thin 卡 | P1.3：容器由 C1a/C1b 双体包裹上提至 body Group（`SidebarView:98`）= 展开/折叠 morph 共享容器；六分区面独立 namespace 不冲突 |
 | **C2 Composer 容器** ✅P1.1 已落地 | #3 输入面板（加号/模型下拉在卡内，chips 为 .thin） | 输入区同区域；当前唯一玻璃成员 = 输入卡 |
 | **C3 设置容器** ✅P1.1 已落地 | #4 sheet 面 + #5 设置项卡 + #6 子页卡 | sheet 生命周期内一个容器；.prominent 面与 .thin 卡异 level 共存合法（morph 仅同变体间发生，见验证文档 §六 glassEffectUnion 语义） |
 | **C4 卡片独立** ✅P1.1 确认不动 | #10 消息卡等 | 逐实例独立玻璃（跨区域，不强行合并；合并会扩大采样区影响性能） |
