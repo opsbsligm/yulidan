@@ -424,7 +424,7 @@ cf0e230  docs(quality): 刷新质量报告 — 前端阶段1/2 基线
 | 窗口标题栏 | `.titled + .fullSizeContentView + titlebarAppearsTransparent + titleVisibility=.hidden`（Codex 风格边到边）符合 Tahoe 美学，通过 |
 | 弹窗（sheet） | 4 个 sheet 的 `glassSurface` 为 P1 §1 有意添加（非系统冗余）；唯一风险 = sheet 子窗口内 glassEffect 渲染，已在 P1.3 注记（最坏无视觉） |
 | 弹出层（popover） | 代码库不使用 `.popover`（上下文菜单 = 系统原生），系统自带玻璃条款不适用 |
-| 疑似违规 | 侧边栏品牌行「Harness ⌄」与红绿灯按钮几何重叠（文字左上角约 14pt，红绿灯占左上区域）：代码层疑似、实机走查确认；若确认修复 = 单行左缩进 |
+| 疑似违规（已预防性修复 2026-08-29 `fix 轮`） | 侧边栏品牌行「Harness ⌄」与红绿灯按钮几何重叠（文字左上角约 14pt，红绿灯占左上区域 x≈10–62/y≈8–28）：已按预案单行左缩进（品牌 Menu leading +56 → 总 70pt 越过红绿灯区；右侧按钮经 Spacer 原位，rail 态独立布局不受影响）；实机走查保留 = 用户确认视觉效果 |
 
 ## 八、下一阶段
 
