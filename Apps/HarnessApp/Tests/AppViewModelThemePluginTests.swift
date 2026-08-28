@@ -121,6 +121,25 @@ struct AppViewModelThemePluginTests {
         #expect(vm.toastMessage?.contains("回落") == true)
     }
 
+    // MARK: 用例 4b：MCP 非法主题 spec e2e（诚实闭环：越界玻璃强度 = 不识别为主题，不半生效）
+
+    @Test("MCP 非法 spec e2e：blurIntensity=1.5 → 不识别为主题，回落基准")
+    func mcpInvalidThemeSpecFallsBack() async throws {
+        let (vm, _) = makeVM()
+
+        let script = try writeThemeMCPScript(extraThemeField: "\"blurIntensity\": 1.5")
+        defer { try? FileManager.default.removeItem(atPath: script) }
+
+        await vm.importMCPServer(name: "bad-theme-mcp", command: "/usr/bin/env",
+                                 arguments: "python3 \(script)", environment: "")
+        // 服务器本身连通正常，但 spec 越界 = 视为非主题服务器（与文件包口径一致）
+        #expect(vm.mcpServers.count == 1)
+        #expect(vm.mcpServers.first?.isAvailable == true)
+        #expect(vm.mcpServers.first?.isTheme != true, "越界 spec 不应打主题徽章")
+        #expect(!vm.themeOptions.map(\.id).contains("mcp-mint"))
+        #expect(vm.activeThemeSpec == .systemBaseline)
+    }
+
     // MARK: 用例 5：hex 解析 + ThemeSpec 颜色回落
 
     @Test("Color(hex:) 合法/非法解析与 ThemeSpec 颜色回落")
@@ -146,12 +165,20 @@ struct AppViewModelThemePluginTests {
     // MARK: 工具
 
     /// 写一个最小 MCP stdio 主题服务器（暴露 get_theme_spec，返回 ThemeSpec JSON 文本）
-    private func writeThemeMCPScript() throws -> String {
+    private func writeThemeMCPScript(extraThemeField: String? = nil) throws -> String {
+        var source = themeMCPServerSource
+        if let extraThemeField {
+            // 锚点 = THEME 字典 description 行（文件内唯一）：追加额外字段（如越界 blurIntensity）
+            let anchor = #"    "description": "fake MCP theme server""#
+            let patched = anchor + ",\n    " + extraThemeField
+            #expect(source.replacingOccurrences(of: anchor, with: patched) != source)
+            source = source.replacingOccurrences(of: anchor, with: patched)
+        }
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("harness-theme-mcp-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let path = dir.appendingPathComponent("theme_server.py").path
-        try themeMCPServerSource.write(toFile: path, atomically: true, encoding: .utf8)
+        try source.write(toFile: path, atomically: true, encoding: .utf8)
         return path
     }
 }

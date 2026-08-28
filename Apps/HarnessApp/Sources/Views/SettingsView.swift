@@ -417,23 +417,39 @@ struct GeneralPreferencesView: View {
     }
 
     /// P1.4：激活主题玻璃参数展示行（材质档位明示 = P1.1 决策「主题玻璃参数 = 材质档位 + tint」的 UI 兑现；
-    /// 系统基准/未配置 = 系统默认，文案不硬编主题值（铁律 5））
+    /// 系统基准/未配置 = 系统默认，文案不硬编主题值（铁律 5）。
+    /// 诚实闭环（P2.3）：blurIntensity/highlightIntensity 为预留提示字段（原生 Glass API 不暴露数值参数），
+    /// 主题声明后渲染层不消费 —— 设置界面明示「已声明 · 平台托管」，禁止静默无效（与导入校验同口径）
     @ViewBuilder
     private var glassParamRow: some View {
         let spec = viewModel.activeThemeSpec
-        if spec.glassTintHex == nil, spec.glassMaterial == nil {
+        let hasTintOrMaterial = spec.glassTintHex != nil || spec.glassMaterial != nil
+        let hasIntensity = spec.blurIntensity != nil || spec.highlightIntensity != nil
+        if !hasTintOrMaterial, !hasIntensity {
             Text("玻璃：系统默认（当前主题未配置玻璃参数）")
                 .font(.system(size: 11)).foregroundStyle(HarnessTheme.textTertiary)
         } else {
-            HStack(spacing: 6) {
-                if let tint = spec.glassTintHex.flatMap({ Color(hex: $0) }) {
-                    RoundedRectangle(cornerRadius: 3).fill(tint).frame(width: 12, height: 12)
-                        .overlay(RoundedRectangle(cornerRadius: 3).stroke(HarnessTheme.border, lineWidth: 0.5))
+            VStack(alignment: .leading, spacing: 4) {
+                if hasTintOrMaterial {
+                    HStack(spacing: 6) {
+                        if let tint = spec.glassTintHex.flatMap({ Color(hex: $0) }) {
+                            RoundedRectangle(cornerRadius: 3).fill(tint).frame(width: 12, height: 12)
+                                .overlay(RoundedRectangle(cornerRadius: 3).stroke(HarnessTheme.border, lineWidth: 0.5))
+                        }
+                        Text("玻璃：tint \(spec.glassTintHex ?? "无（系统默认）") · 材质档位 \(GlassSurfaceModifier.materialLabel(glassMaterial: spec.glassMaterial))")
+                            .font(.system(size: 11)).foregroundStyle(HarnessTheme.textTertiary)
+                    }
                 }
-                Text("玻璃：tint \(spec.glassTintHex ?? "无（系统默认）") · 材质档位 \(GlassSurfaceModifier.materialLabel(glassMaterial: spec.glassMaterial))")
-                    .font(.system(size: 11)).foregroundStyle(HarnessTheme.textTertiary)
+                if hasIntensity {
+                    Text("玻璃模糊/高光：已声明（\(glassIntensityText(spec.blurIntensity)) / \(glassIntensityText(spec.highlightIntensity))）· 原生 API 无数值参数，渲染由平台托管")
+                        .font(.system(size: 11)).foregroundStyle(HarnessTheme.textTertiary)
+                }
             }
         }
+    }
+
+    private func glassIntensityText(_ value: Double?) -> String {
+        value.map { String(format: "%.2f", $0) } ?? "默认"
     }
 
     var body: some View {

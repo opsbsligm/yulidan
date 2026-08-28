@@ -14,6 +14,8 @@ public enum ThemePackageError: LocalizedError, Equatable {
     case invalidJSON(String)
     case invalidID
     case invalidColor(String)
+    /// 玻璃模糊/高光强度越界（nil = 系统默认合法；非 nil 须 0...1 有限值）
+    case invalidGlassIntensity(field: String, value: Double)
 
     public var errorDescription: String? {
         switch self {
@@ -27,6 +29,8 @@ public enum ThemePackageError: LocalizedError, Equatable {
             "主题 id 非法（需非空，最长 40 字符）"
         case let .invalidColor(value):
             "颜色值非法（需 #RRGGBB 或 #AARRGGBB）：\(value)"
+        case let .invalidGlassIntensity(field, value):
+            "玻璃参数越界（\(field) 需 0...1 有限值，或省略）：\(value)"
         }
     }
 }
@@ -129,6 +133,18 @@ public enum ThemePackageImporter {
         for color in [spec.accentHex, spec.userMessageHex, spec.assistantMessageHex, spec.glassTintHex] {
             guard let color else { continue } // nil = 系统默认（合法）
             guard isValidHex(color) else { throw ThemePackageError.invalidColor(color) }
+        }
+        // 诚实闭环：blurIntensity/highlightIntensity 为预留提示字段（原生 Glass API 不暴露数值参数，
+        // 见 P1 GLASS_API_VERIFICATION §四），渲染层不消费但必须范围合法 —— 越界 = manifest 错误拒绝，
+        // 防止主题作者「设了参数却静默无效」的假配置（与 hex 校验同口径）
+        for (field, value) in [
+            ("blurIntensity", spec.blurIntensity),
+            ("highlightIntensity", spec.highlightIntensity),
+        ] {
+            guard let value else { continue } // nil = 系统默认（合法）
+            guard value.isFinite, (0 ... 1).contains(value) else {
+                throw ThemePackageError.invalidGlassIntensity(field: field, value: value)
+            }
         }
     }
 

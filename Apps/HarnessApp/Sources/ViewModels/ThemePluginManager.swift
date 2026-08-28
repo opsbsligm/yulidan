@@ -116,9 +116,15 @@ final class ThemePluginManager {
         do {
             let raw = try await mcpManager.callTool(client: serverName, name: Self.themeToolName, arguments: [:])
             guard let data = raw.data(using: .utf8),
-                  let spec = try? JSONDecoder().decode(ThemeSpec.self, from: data),
-                  !spec.id.isEmpty, !spec.name.isEmpty
+                  let spec = try? JSONDecoder().decode(ThemeSpec.self, from: data)
             else {
+                return nil
+            }
+            // 与文件型主题包同一校验口径（id/name 非空 + 颜色合法 + 玻璃强度 0...1）：
+            // 非法 spec = 视为非主题服务器 → 回落系统基准，不半生效（防假配置静默）
+            do {
+                try ThemePackageImporter.validate(spec)
+            } catch {
                 return nil
             }
             return spec
@@ -181,6 +187,6 @@ extension ThemeSpec {
 }
 
 extension EnvironmentValues {
-    // 当前激活主题规格（根视图注入；主题切换时整体刷新）
+    /// 当前激活主题规格（根视图注入；主题切换时整体刷新）
     @Entry var harnessThemeSpec: ThemeSpec = .systemBaseline
 }
