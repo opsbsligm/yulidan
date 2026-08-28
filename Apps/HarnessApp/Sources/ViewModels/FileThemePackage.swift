@@ -125,7 +125,8 @@ public enum ThemePackageImporter {
         guard !spec.name.trimmingCharacters(in: .whitespaces).isEmpty else {
             throw ThemePackageError.invalidID
         }
-        for color in [spec.accentHex, spec.userMessageHex, spec.assistantMessageHex] {
+        // P1.4：glassTintHex 纳入颜色校验（与其余颜色同口径；glassMaterial 未知值不拒绝 = 渲染层宽容回落）
+        for color in [spec.accentHex, spec.userMessageHex, spec.assistantMessageHex, spec.glassTintHex] {
             guard let color else { continue } // nil = 系统默认（合法）
             guard isValidHex(color) else { throw ThemePackageError.invalidColor(color) }
         }

@@ -389,6 +389,26 @@ struct GeneralPreferencesView: View {
         )
     }
 
+    /// P1.4：激活主题玻璃参数展示行（材质档位明示 = P1.1 决策「主题玻璃参数 = 材质档位 + tint」的 UI 兑现；
+    /// 系统基准/未配置 = 系统默认，文案不硬编主题值（铁律 5））
+    @ViewBuilder
+    private var glassParamRow: some View {
+        let spec = viewModel.activeThemeSpec
+        if spec.glassTintHex == nil, spec.glassMaterial == nil {
+            Text("玻璃：系统默认（当前主题未配置玻璃参数）")
+                .font(.system(size: 11)).foregroundStyle(HarnessTheme.textTertiary)
+        } else {
+            HStack(spacing: 6) {
+                if let tint = spec.glassTintHex.flatMap({ Color(hex: $0) }) {
+                    RoundedRectangle(cornerRadius: 3).fill(tint).frame(width: 12, height: 12)
+                        .overlay(RoundedRectangle(cornerRadius: 3).stroke(HarnessTheme.border, lineWidth: 0.5))
+                }
+                Text("玻璃：tint \(spec.glassTintHex ?? "无（系统默认）") · 材质档位 \(GlassSurfaceModifier.materialLabel(glassMaterial: spec.glassMaterial))")
+                    .font(.system(size: 11)).foregroundStyle(HarnessTheme.textTertiary)
+            }
+        }
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
@@ -435,6 +455,8 @@ struct GeneralPreferencesView: View {
                         }
                         Text("主题一律来自主题插件（本地插件 / MCP 主题服务器）；卸载正在使用的主题自动回落系统基准。")
                             .font(.system(size: 11)).foregroundStyle(HarnessTheme.textTertiary)
+                        // P1.4：激活主题玻璃参数明示（tint 色板 + 材质档位；解析与渲染同一纯函数单点）
+                        glassParamRow
 
                         HStack {
                             Text("正文字号")

@@ -23,6 +23,8 @@ public struct ThemeSpec: Sendable, Codable, Equatable, Hashable {
 
     /// 玻璃 tint 色调 hex；nil = 系统默认
     public var glassTintHex: String?
+    /// 玻璃材质档位 manifest 值（P1.4：`"regular"` / `"clear"`；nil 或未知值 = 默认 .regular 宽容回落，不破坏主题加载）
+    public var glassMaterial: String?
     /// 模糊强度提示（0...1）；nil = 系统默认
     public var blurIntensity: Double?
     /// 高光强度提示（0...1）；nil = 系统默认
@@ -36,6 +38,7 @@ public struct ThemeSpec: Sendable, Codable, Equatable, Hashable {
         assistantMessageHex: String? = nil,
         description: String? = nil,
         glassTintHex: String? = nil,
+        glassMaterial: String? = nil,
         blurIntensity: Double? = nil,
         highlightIntensity: Double? = nil
     ) {
@@ -46,6 +49,7 @@ public struct ThemeSpec: Sendable, Codable, Equatable, Hashable {
         self.assistantMessageHex = assistantMessageHex
         self.description = description
         self.glassTintHex = glassTintHex
+        self.glassMaterial = glassMaterial
         self.blurIntensity = blurIntensity
         self.highlightIntensity = highlightIntensity
     }

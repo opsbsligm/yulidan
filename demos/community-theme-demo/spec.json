@@ -4,5 +4,7 @@
   "accentHex": "#0FB5A6",
   "userMessageHex": "#0D3B38",
   "assistantMessageHex": "#10222E",
-  "description": "DSH 社区文件型主题包样例（P0.4.3 导入验证）：青绿强调色 + 深绿气泡色调；导入后出现在设置主题列表，切换即时生效；停用插件即删除主题。"
+  "description": "DSH 社区文件型主题包样例（P0.4.3 导入验证）：青绿强调色 + 深绿气泡色调；导入后出现在设置主题列表，切换即时生效；停用插件即删除主题。 P1.4 起含玻璃参数（glassTintHex 玻璃 tint + glassMaterial 材质档位，实机走查用）。",
+  "glassTintHex": "#0FB5A6",
+  "glassMaterial": "regular"
 }

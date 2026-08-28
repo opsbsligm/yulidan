@@ -88,14 +88,41 @@ struct GlassSurfaceModifier: ViewModifier {
         }
     }
 
-    /// P1.1 玻璃解析（纯函数，可单测）：显式 tint > 主题 glassTintHex > 无 tint
-    /// 材质档位暂固定 .regular（P1.4 材质档位决策点：主题插件可切换 regular/clear）
-    static func resolvedGlass(explicitTint: Color?, themeTintHex: String?) -> Glass {
+    /// P1.4 玻璃材质档位（manifest 值 → 官方 Glass 变体；仅开放 regular/clear 两档）
+    enum GlassMaterial {
+        case regular
+        case clear
+    }
+
+    /// P1.4 纯函数：manifest 材质值 → 材质档位（宽容回落：nil/空/未知值 → .regular，
+    /// 与 tint 回落同口径——主题参数缺失/异常不得破坏渲染，铁律：fallback .regular）
+    static func resolveMaterial(_ raw: String?) -> GlassMaterial {
+        switch raw?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "clear": .clear
+        default: .regular
+        }
+    }
+
+    /// P1.4 材质档位展示文案（设置 UI 明示用；与渲染同一 resolveMaterial 单点，口径不漂移）
+    static func materialLabel(glassMaterial: String?) -> String {
+        switch resolveMaterial(glassMaterial) {
+        case .regular: "标准（.regular）"
+        case .clear: "透明（.clear）"
+        }
+    }
+
+    /// P1.1/P1.4 玻璃解析（纯函数，可单测）：显式 tint > 主题 glassTintHex > 无 tint；
+    /// 材质档位取自主题 manifest（P1.4 打通，fallback .regular；显式 tint 不覆盖档位）
+    static func resolvedGlass(explicitTint: Color?, themeTintHex: String?, themeMaterial: String? = nil) -> Glass {
+        let base: Glass = switch resolveMaterial(themeMaterial) {
+        case .regular: .regular
+        case .clear: .clear
+        }
         let tint = explicitTint ?? Color(hex: themeTintHex)
         if let tint {
-            return .regular.tint(tint)
+            return base.tint(tint)
         }
-        return .regular
+        return base
     }
 
     /// P1.3 morph/过渡配置解析（纯函数，可单测）
@@ -171,7 +198,11 @@ struct GlassSurfaceModifier: ViewModifier {
             // P1.1：tint 解析收敛为纯函数 resolvedGlass（显式 > 主题 > 无 tint，fallback 系统默认）
             // P1.3：morph 身份 / 过渡预设（降级模式 no-op = P1.1 不变量）
             if #available(macOS 26.0, *) {
-                nativeFace(content: content, glass: Self.resolvedGlass(explicitTint: tint, themeTintHex: themeSpec.glassTintHex))
+                nativeFace(content: content, glass: Self.resolvedGlass(
+                    explicitTint: tint,
+                    themeTintHex: themeSpec.glassTintHex,
+                    themeMaterial: themeSpec.glassMaterial
+                ))
             } else {
                 // 防御分支（mode 解析已按 OS 门控，理论上不可达）
                 content.background(VisualEffectMaterial(material: material, blendingMode: .behindWindow))

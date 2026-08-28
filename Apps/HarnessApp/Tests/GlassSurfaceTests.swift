@@ -1,5 +1,6 @@
 import AppKit
 @testable import HarnessApp
+import SwiftUI
 import Testing
 
 // MARK: - GlassSurface 表面系统（resolveMode 降级链纯函数 / override 钩子 / 材质映射）
@@ -119,5 +120,47 @@ struct GlassSurfaceTests {
             Issue.record("expected .none")
             return
         }
+    }
+
+    // MARK: - P1.4 主题材质档位（resolveMaterial / resolvedGlass / materialLabel 纯函数）
+
+    @Test("resolveMaterial：nil/空/未知 → .regular 宽容回落；clear 大小写/空白不敏感")
+    func resolveMaterialMatrix() {
+        #expect(GlassSurfaceModifier.resolveMaterial(nil) == .regular)
+        #expect(GlassSurfaceModifier.resolveMaterial("regular") == .regular)
+        #expect(GlassSurfaceModifier.resolveMaterial("clear") == .clear)
+        #expect(GlassSurfaceModifier.resolveMaterial(" Clear ") == .clear)
+        #expect(GlassSurfaceModifier.resolveMaterial("frosted") == .regular)
+        #expect(GlassSurfaceModifier.resolveMaterial("") == .regular)
+    }
+
+    @Test("resolvedGlass：主题材质 clear → .clear（无 tint 与带 tint 两态）")
+    func resolvedGlassMaterialClear() {
+        #expect(GlassSurfaceModifier.resolvedGlass(explicitTint: nil, themeTintHex: nil, themeMaterial: "clear") == .clear)
+        guard let tint = Color(hex: "#0A84FF") else {
+            Issue.record("hex 解析失败")
+            return
+        }
+        #expect(
+            GlassSurfaceModifier.resolvedGlass(explicitTint: nil, themeTintHex: "#0A84FF", themeMaterial: "clear")
+                == .clear.tint(tint)
+        )
+    }
+
+    @Test("resolvedGlass：未知材质值 → .regular fallback（主题参数异常不破坏渲染）")
+    func resolvedGlassUnknownMaterialFallback() {
+        #expect(GlassSurfaceModifier.resolvedGlass(explicitTint: nil, themeTintHex: nil, themeMaterial: "frosted") == .regular)
+        #expect(GlassSurfaceModifier.resolvedGlass(explicitTint: nil, themeTintHex: nil, themeMaterial: nil) == .regular)
+        // 显式 tint 优先级不变（材质档位不覆盖 tint 解析链）
+        let explicit = GlassSurfaceModifier.resolvedGlass(explicitTint: .red, themeTintHex: nil, themeMaterial: "clear")
+        #expect(explicit != .clear)
+    }
+
+    @Test("materialLabel：展示文案与解析结果一致（设置明示单点，口径不漂移）")
+    func materialLabelConsistency() {
+        #expect(GlassSurfaceModifier.materialLabel(glassMaterial: nil) == "标准（.regular）")
+        #expect(GlassSurfaceModifier.materialLabel(glassMaterial: "regular") == "标准（.regular）")
+        #expect(GlassSurfaceModifier.materialLabel(glassMaterial: "clear") == "透明（.clear）")
+        #expect(GlassSurfaceModifier.materialLabel(glassMaterial: "bogus") == "标准（.regular）")
     }
 }

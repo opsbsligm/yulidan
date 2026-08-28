@@ -58,9 +58,11 @@ struct GlassMorphTabBar: View {
 
     var body: some View {
         // 主题玻璃单点解析（P1.1 纯函数；P1.4 主题插件 glassTintHex 实时生效）
+        // P1.4：材质档位同走主题 manifest（resolvedGlass 单点；morph 同变体约束 = 分段间同 spec，不受影响）
         let glass = GlassSurfaceModifier.resolvedGlass(
             explicitTint: nil,
-            themeTintHex: themeSpec.glassTintHex
+            themeTintHex: themeSpec.glassTintHex,
+            themeMaterial: themeSpec.glassMaterial
         )
         LazyVGrid(columns: columns, spacing: 6) {
             ForEach(segments) { seg in

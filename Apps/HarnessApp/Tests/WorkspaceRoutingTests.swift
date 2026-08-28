@@ -364,8 +364,29 @@ struct FileThemePackageTests {
         try Data(#"{"id":"ok","name":"x","accentHex":"red"}"#.utf8).write(to: bad)
         #expect((try? ThemePackageImporter.importPackage(fileURL: bad, into: root)) == nil)
 
+        // P1.4：glassTintHex 纳入颜色校验（非法 hex 拒绝，与其余颜色同口径）
+        try Data(#"{"id":"ok","name":"x","glassTintHex":"not-a-hex"}"#.utf8).write(to: bad)
+        #expect((try? ThemePackageImporter.importPackage(fileURL: bad, into: root)) == nil)
+
         try Data("not-json".utf8).write(to: bad)
         #expect((try? ThemePackageImporter.importPackage(fileURL: bad, into: root)) == nil)
+    }
+
+    @Test("P1.4：glassTintHex 合法 + glassMaterial 可导入且落盘往返保持")
+    func glassFieldsRoundTrip() throws {
+        let root = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("themes-glass-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let source = root.appendingPathComponent("src.json")
+        let spec: [String: String] = ["id": "glassy", "name": "玻璃主题", "glassTintHex": "#7C3AED", "glassMaterial": "clear"]
+        try JSONEncoder().encode(spec).write(to: source)
+        let plugin = try ThemePackageImporter.importPackage(fileURL: source, into: root)
+        #expect(plugin.themeSpec.glassTintHex == "#7C3AED")
+        #expect(plugin.themeSpec.glassMaterial == "clear")
+        let reloaded = try ThemePackageImporter.loadAll(in: root)
+        #expect(reloaded.count == 1)
+        #expect(reloaded[0].themeSpec.glassMaterial == "clear")
     }
 
     @Test("sanitizeID：大小写/非法字符/长度")

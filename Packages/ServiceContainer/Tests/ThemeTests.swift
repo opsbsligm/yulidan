@@ -66,6 +66,7 @@ struct ThemeTests {
         #expect(ThemeSpec.systemBaseline.userMessageHex == nil)
         #expect(ThemeSpec.systemBaseline.assistantMessageHex == nil)
         #expect(ThemeSpec.systemBaseline.glassTintHex == nil)
+        #expect(ThemeSpec.systemBaseline.glassMaterial == nil)
         #expect(ThemeSpec.systemBaseline.blurIntensity == nil)
         #expect(ThemeSpec.systemBaseline.highlightIntensity == nil)
     }
@@ -76,11 +77,13 @@ struct ThemeTests {
             id: "x", name: "X", accentHex: "#AABBCC",
             userMessageHex: "#AABBCC26", assistantMessageHex: "#AABBCC14",
             description: "desc", glassTintHex: "#123456",
+            glassMaterial: "clear",
             blurIntensity: 0.4, highlightIntensity: 0.8
         )
         let data = try JSONEncoder().encode(spec)
         let back = try JSONDecoder().decode(ThemeSpec.self, from: data)
         #expect(back == spec)
+        #expect(back.glassMaterial == "clear")
         // 省略可选字段可解码（兼容最小 JSON 的主题服务器）
         let minimal = #"{"id":"m","name":"M"}"#
         let decoded = try JSONDecoder().decode(ThemeSpec.self, from: Data(minimal.utf8))
