@@ -417,7 +417,16 @@ c8e3cc4  fix(test): 根除跨 suite 全局覆盖竞态（瞬态测试失败根�
 cf0e230  docs(quality): 刷新质量报告 — 前端阶段1/2 基线
 ```
 
-## 七、下一阶段
+## 七、P1.5 Tahoe 窗口规范走查（2026-08-28 P1.5 代码层审查，@050ef24）
+
+| 项目 | 结论 |
+|---|---|
+| 窗口标题栏 | `.titled + .fullSizeContentView + titlebarAppearsTransparent + titleVisibility=.hidden`（Codex 风格边到边）符合 Tahoe 美学，通过 |
+| 弹窗（sheet） | 4 个 sheet 的 `glassSurface` 为 P1 §1 有意添加（非系统冗余）；唯一风险 = sheet 子窗口内 glassEffect 渲染，已在 P1.3 注记（最坏无视觉） |
+| 弹出层（popover） | 代码库不使用 `.popover`（上下文菜单 = 系统原生），系统自带玻璃条款不适用 |
+| 疑似违规 | 侧边栏品牌行「Harness ⌄」与红绿灯按钮几何重叠（文字左上角约 14pt，红绿灯占左上区域）：代码层疑似、实机走查确认；若确认修复 = 单行左缩进 |
+
+## 八、下一阶段
 
 已完成（2026-08-22 P0.1.5 轮，`70a40a2`）：① 工作区运行时接线（P0.1.2/1.3 真缺口：WorkspaceRootProvider 存在但 App 层零消费）— WorkspaceRouter（current 根 / 五目录契约 / sessionCwd / refresh 根变化检测 / materialize）+ SharedRAGEngine indexURL 注入与 resetIndexURL（根变化重建索引）+ PluginMetadataStore（v1 清单原子写）+ AppViewModel 全接线（会话 cwd 路由 / 根变化 RAG reset + memoryEngine 重挂 + 文件主题重建 + reconcile 对账（isICloud 守卫）/ persistPluginMetadata）② P0.4.3 文件型主题包导入（spec.json 文件|目录、颜色校验、sanitizeID、themes/ 持久化 + 安装为 ThemeProviderPlugin + 停用删除 + MCP 待重导横幅 + fileImporter 入口 + PluginDetailComponents 拆出）③ runRead 越界崩溃修复（身份锁定，3/3 绿）+ 并发门禁两处 flaky 点（旧下标错槽 / skills state-数据竞态）④ 17 新单测（App 15 fakes 全套 + RAG 2）⑤ PR 门禁 638/638（131 suites）0 警告 0 停滞 ⑥ 工具枚举稳定序修复（schemas() 字典序漂移 → 分类序+名称，P2 闭环，639/639 + pr 连跑 3 轮稳定）。**P0 代码更完整闭环**（iCloud 存储分工 / 插件元数据跨设备同步 / 社区主题包兼容全部接线）。
 已完成（2026-08-22 P0.1.5 消费端轮，本轮提交）：⑦ 会话工作区「消费端」接线闭环（P0 验收前审计发现的真缺口——cwd 只存不消费）：ToolRunContext.workingDirectory + resolveToolPath（相对路径先解析进会话工作区再沙箱校验，防绕过）+ Read/Write/ListFiles 相对路径解析 + exec 继承会话工作目录 + AgentLoop workingDirectoryProvider（@Sendable 会话级解析）+ AppViewModel obtainChatLoop provider 下发 + UI executeTool context 下发（双端一致）；5 新测试（相对路径三工具解析 / 越界相对路径沙箱拒绝 / exec pwd==工作区 / provider 下发 / App 全链路 e2e：消息→write_file 相对路径→文件落 agents/<sessionID>）；PR 门禁 642/642 + XCTest 0 失败。**P0 验收前高风险项审计全过**（拖拽悬停高亮 / 对话内工具回显 / iCloud 权限降级+重新申请 / 主题卸载回落 / 跨模块 e2e 主链 / 多 Agent 创建+销毁；持有循环 router→accountService 单向 + sink 全 weak）。同轮闭环 2 处测试基建缺陷：UserDefaults sandboxRoot 跨 suite 磁盘持久化泄漏（fixture 隔离 + synchronize）+ exec 输出断言格式漂移。
