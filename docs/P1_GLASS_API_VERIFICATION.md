@@ -49,8 +49,8 @@
 - [x] `import SwiftUI` 即可用（`@_exported import SwiftUICore`）
 - [x] `ThemeSpec.glassTintHex/blurIntensity/highlightIntensity` 字段已预留（Theme.swift:25-29）
 - [x] `GlassSurface` 三层降级链已就位（P0 资产：native/legacy/solid；reduceTransparency 最高优先级）
-- [ ] P0 实机验收通过（铁律 2 解锁条件）
-- [ ] §四 两个设计决策点与用户确认（模糊/曲率/高光口径；legacy 分支去留）
+- [x] **P0 实机验收通过**（2026-08-28 用户回复「P0 验收通过」，已入册 `P0_ACCEPTANCE_CHECKLIST.md` 顶部 + `P0_STAGE_REPORT.md` 状态刷新，@d64e6f5）
+- [x] §四 两个设计决策点**按推荐执行**（2026-08-28 用户未提异议，P1 两决策入册于验收清单横幅）：① 主题插件玻璃参数 = 材质档位 + tint（模糊/曲率/高光无数值参数，UI 明示「材质档位」；AppKit `NSGlassEffectView.cornerRadius` 候选保留但非默认）② 保留 GlassSurface legacy 降级链（渐进迁移）
 
 ## 六、官方文档行为语义核验（铁律 1：developer.apple.com 实拉，2026-08-22）
 
@@ -75,3 +75,23 @@
 2. **⚠️ 新发现——AppKit 侧玻璃 API（§四.1 曲率决策点获得原生候选）**：macOS 26.5 SDK AppKit 含 `NSGlassEffectView`（`contentView` / `cornerRadius` / `tintColor` / `style`：regular/clear）与 `NSGlassEffectContainerView`（`contentView` / `spacing`，邻近合并语义与 SwiftUI 容器一致），均 `@API_AVAILABLE(macos(26.0))`（`NSGlassEffectView.h` 逐字在案）。**主题插件「曲率」参数**存在原生 AppKit 映射候选（`NSGlassEffectView.cornerRadius`，可经 `NSViewRepresentable` 嵌入）；但铁律 4 枚举清单未含此 API，**仍属设计决策点，待 P0 验收后与用户确认口径，不作默认**。模糊/高光仍无公开数值参数（结论不变）。
 3. **官方文档复核（2026-08-26 重拉）**：`glassEffect(_:in:)` / `GlassEffectContainer` / `glassEffectTransition(_:)` 官方文档页平台可用性均仍为 **macOS 26.0+**（与 SDK availability 注解一致，无漂移）；`glassEffectID` 文档页拉取未返回平台行（接口文件 availability 已实锤 macOS 26.0+，以 SDK 为准）。
 4. **工具链环境注记**：本机 OS = macOS 27.0 beta（26A5416b），Xcode = 26.6，已装 SDK 仅 MacOSX26.5（无 27 SDK）→ 编译面以 26.5 SDK 为准；文档头 ⚠️「xcrun 指向 CLT 旧 SDK」现象本轮未复现（`xcrun --show-sdk-path` = Xcode 26.5 SDK）。另：macOS 27 运行时下 `UUID().uuidString` 实测输出大写（与 Glass API 无关，P0 数据卫生轮发现，见 P0 验收清单 22:0x 条目）。
+
+
+## 八、2026-08-28 P1 解锁复核（独立二次核验，非重复引用）
+
+> 背景：P0 验收通过 → P1 解锁（@d64e6f5）。开工前按铁律 1 对 §二 签名做独立复核 + 探针重跑，确认与当前工具链零漂移。
+
+1. **签名独立重核（本机 MacOSX26 SDK，`MacOSX26.sdk/.../SwiftUICore.swiftmodule/arm64e-apple-macos.swiftinterface`，target `arm64e-apple-macos26.5`）**：
+   - `glassEffect(_ glass: Glass = .regular, in shape: some Shape = DefaultGlassEffectShape()) -> some View`（`extension View`，nonisolated）——与 §二 逐字一致
+   - `GlassEffectContainer<Content: View>`：`init(spacing: CGFloat? = nil, @ViewBuilder content: () -> Content)`——一致
+   - `GlassEffectTransition`：`.matchedGeometry` / `.materialize` / `.identity` + `glassEffectTransition(_:)`（MainActor）——一致
+   - `glassEffectID(_ id: (some Hashable & Sendable)?, in namespace: Namespace.ID)`（nonisolated）——一致
+   - `glassEffectUnion(id: (some Hashable & Sendable)?, namespace: Namespace.ID)`（MainActor）——一致
+   - `Glass`：`.regular` / `.clear` / `.identity` + `tint(_ color: Color?) -> Glass` + `interactive(_ isEnabled: Bool = true) -> Glass`（Equatable & Sendable）——一致
+   - 全部 `@available(iOS 26.0, macOS 26.0, tvOS 26.0, watchOS 26.0, *)` + visionOS unavailable；App 部署目标 `.macOS(.v26)` 对齐 → **无需 availability 守卫**
+2. **`@_exported import SwiftUICore` 复核**：SwiftUI arm64e interface 第 17 行（`import SwiftUI` 即可用，§一 结论不变）
+3. **编译探针重跑（当前工具链 Xcode 26.6，`xcrun --show-sdk-path` = MacOSX26.5.sdk，target `arm64-apple-macos26.0`）**：
+   - `/tmp/glassprobe.swift`（§七-1 原探针：container + glassEffect 三变体 + tint/interactive + glassEffectID + glassEffectUnion + 三种 transition）→ **TYPECHECK PASSED**
+   - `/tmp/glassprobe2.swift`（**本轮新增**：`.buttonStyle(.glass)` / `.glassProminent` / `.glass(Glass.regular.tint(.teal))`）→ **TYPECHECK PASSED**——§二 表末行按钮风格由「interface 核验」升级为「实编译通过」，5+2 族 API 全部编译级实证
+4. **负面核验**：全框架 swiftinterface 范围 grep `GlassRegularEffect` → **不存在**（本 SDK 材质模型即 `Glass` 值类型，非 WWDC25 早期会话口径的 protocol 模型；签名以本文为准）
+5. **结论**：§一~§七 全部结论有效，P1 开工前置条件 6/6 就绪（§五），可开工 P1.1。
