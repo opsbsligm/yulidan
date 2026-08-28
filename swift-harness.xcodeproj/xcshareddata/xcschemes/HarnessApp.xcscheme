@@ -116,6 +116,138 @@
                ReferencedContainer = "container:swift-harness.xcodeproj">
             </BuildableReference>
          </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "8B4748FDF1641329E3C57407"
+               BuildableName = "MCPTests.xctest"
+               BlueprintName = "MCPTests"
+               ReferencedContainer = "container:swift-harness.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "03FEB55788D933EE7D13C854"
+               BuildableName = "SkillTests.xctest"
+               BlueprintName = "SkillTests"
+               ReferencedContainer = "container:swift-harness.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "D3904C88049B36B271F99811"
+               BuildableName = "SubagentTests.xctest"
+               BlueprintName = "SubagentTests"
+               ReferencedContainer = "container:swift-harness.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "BCC2E3218571E22E29889305"
+               BuildableName = "PromptTests.xctest"
+               BlueprintName = "PromptTests"
+               ReferencedContainer = "container:swift-harness.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "0F4B707B59757BCF02BC0A7E"
+               BuildableName = "RAGTests.xctest"
+               BlueprintName = "RAGTests"
+               ReferencedContainer = "container:swift-harness.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "9150170A48BA5F08EB1E0B27"
+               BuildableName = "MemoryTests.xctest"
+               BlueprintName = "MemoryTests"
+               ReferencedContainer = "container:swift-harness.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "9C81F59307046D96C7FB24DB"
+               BuildableName = "NotificationsTests.xctest"
+               BlueprintName = "NotificationsTests"
+               ReferencedContainer = "container:swift-harness.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "80D60A55CC6F5D964AE9A401"
+               BuildableName = "PluginXPCTests.xctest"
+               BlueprintName = "PluginXPCTests"
+               ReferencedContainer = "container:swift-harness.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "60F916AA2C1D658821609101"
+               BuildableName = "SandboxTests.xctest"
+               BlueprintName = "SandboxTests"
+               ReferencedContainer = "container:swift-harness.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "23E50C709D01A6FC5843BA47"
+               BuildableName = "TerminalTests.xctest"
+               BlueprintName = "TerminalTests"
+               ReferencedContainer = "container:swift-harness.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "89EA6CEAF6549519FF4B1976"
+               BuildableName = "WebUITests.xctest"
+               BlueprintName = "WebUITests"
+               ReferencedContainer = "container:swift-harness.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "A0B495F31040872929A3A980"
+               BuildableName = "HarnessCoreTests.xctest"
+               BlueprintName = "HarnessCoreTests"
+               ReferencedContainer = "container:swift-harness.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
       <CommandLineArguments>
       </CommandLineArguments>

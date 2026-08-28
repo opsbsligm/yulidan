@@ -27,6 +27,14 @@ final class PathSandboxTests: XCTestCase {
         return url
     }
 
+    /// 内核级规范路径（与 PathSandbox.canonical 同一口径 realpath(3)：
+    /// 解析全部符号链接，/var→/private/var、/tmp→/private/tmp 别名归一）
+    private func canonicalPath(_ p: String) -> String {
+        guard let c = realpath(p, nil) else { return p }
+        defer { free(c) }
+        return String(cString: c)
+    }
+
     func testInsideSandboxAllowed() throws {
         let file = try write("a/b.txt")
         XCTAssertTrue(sandbox.isAllowed(file.path))
@@ -119,7 +127,13 @@ final class PathSandboxTests: XCTestCase {
 
     func testResolveTrimsWhitespace() throws {
         let file = try write("t.txt")
-        XCTAssertEqual(sandbox.resolve("  " + file.path + "  "), file)
+        // resolve 返回内核规范形（realpath 口径；/var 临时目录 = /private/var 别名归一）
+        let expected = URL(fileURLWithPath: canonicalPath(file.path))
+        XCTAssertEqual(sandbox.resolve("  " + file.path + "  "), expected)
+        XCTAssertEqual(sandbox.resolve(file.path), expected)
+        var isDir: ObjCBool = false
+        XCTAssertTrue(FileManager.default.fileExists(atPath: expected.path, isDirectory: &isDir))
+        XCTAssertFalse(isDir.boolValue)
     }
 
     func testAssertAllowedOutsideCarriesAttemptedAndRoots() {
@@ -131,7 +145,7 @@ final class PathSandboxTests: XCTestCase {
                 return XCTFail("应为 outsideSandbox，实际：\($0)")
             }
             XCTAssertEqual(attempted, missingOutside)
-            XCTAssertEqual(roots, [base.path])
+            XCTAssertEqual(roots, [canonicalPath(base.path)])
         }
     }
 

@@ -244,6 +244,22 @@ targets:
         OTHER_SWIFT_FLAGS:
           - -Xcc
           - -fmodule-map-file=$(SRCROOT)/Support/CSQLite/module.modulemap
+  WebUI:
+    type: library.static
+    platform: macOS
+    sources: [Packages/WebUI/Sources]
+    dependencies:
+      - target: ServiceContainer
+      - target: Session
+      - target: LLM
+      - target: Agent
+      - target: Tools
+    settings:
+      base:
+        # WebUI 经 Session→GRDB 间接依赖 CSQLite：Xcode 26 不传播 systemLibrary modulemap，显式注入
+        OTHER_SWIFT_FLAGS:
+          - -Xcc
+          - -fmodule-map-file=$(SRCROOT)/Support/CSQLite/module.modulemap
   Notifications:
     type: library.static
     platform: macOS
@@ -423,6 +439,193 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.harness.AgentTests
         GENERATE_INFOPLIST_FILE: YES
+  # ---- 补齐测试 target（2026-08-29：xcode 门禁对齐全量 SPM 套件，QUALITY_REPORT §四 观察项闭环）----
+  MCPTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources: [Packages/MCP/Tests]
+    dependencies:
+      - target: MCP
+      - target: ServiceContainer
+      - target: Tools
+      - target: Session
+      - target: LLM
+      - target: Terminal
+      - target: Sandbox
+      - package: GRDB
+        product: GRDB
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.harness.MCPTests
+        GENERATE_INFOPLIST_FILE: YES
+  SkillTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources: [Packages/Skill/Tests]
+    dependencies:
+      - target: Skill
+      - target: Tools
+      - target: Session
+      - target: RAG
+      - target: ServiceContainer
+      - target: LLM
+      - target: Terminal
+      - target: Sandbox
+      - package: GRDB
+        product: GRDB
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.harness.SkillTests
+        GENERATE_INFOPLIST_FILE: YES
+  SubagentTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources: [Packages/Subagent/Tests]
+    dependencies:
+      - target: Subagent
+      - target: Agent
+      - target: LLM
+      - target: Tools
+      - target: Session
+      - target: ServiceContainer
+      - target: Terminal
+      - target: Sandbox
+      - package: GRDB
+        product: GRDB
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.harness.SubagentTests
+        GENERATE_INFOPLIST_FILE: YES
+  PromptTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources: [Packages/Prompt/Tests]
+    dependencies:
+      - target: Prompt
+      - target: ServiceContainer
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.harness.PromptTests
+        GENERATE_INFOPLIST_FILE: YES
+  RAGTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources: [Packages/RAG/Tests]
+    dependencies:
+      - target: RAG
+      - target: Tools
+      - target: Session
+      - target: ServiceContainer
+      - target: LLM
+      - target: Terminal
+      - target: Sandbox
+      - package: GRDB
+        product: GRDB
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.harness.RAGTests
+        GENERATE_INFOPLIST_FILE: YES
+  MemoryTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources: [Packages/Memory/Tests]
+    dependencies:
+      - target: Memory
+      - target: RAG
+      - target: Tools
+      - target: Session
+      - target: ServiceContainer
+      - target: LLM
+      - target: Terminal
+      - target: Sandbox
+      - package: GRDB
+        product: GRDB
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.harness.MemoryTests
+        GENERATE_INFOPLIST_FILE: YES
+  NotificationsTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources: [Packages/Notifications/Tests]
+    dependencies:
+      - target: Notifications
+      - target: ServiceContainer
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.harness.NotificationsTests
+        GENERATE_INFOPLIST_FILE: YES
+  PluginXPCTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources: [Packages/PluginXPC/Tests]
+    dependencies:
+      - target: PluginXPC
+      - target: ServiceContainer
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.harness.PluginXPCTests
+        GENERATE_INFOPLIST_FILE: YES
+  SandboxTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources: [Packages/Sandbox/Tests]
+    dependencies:
+      - target: Sandbox
+      - target: ServiceContainer
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.harness.SandboxTests
+        GENERATE_INFOPLIST_FILE: YES
+  TerminalTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources: [Packages/Terminal/Tests]
+    dependencies:
+      - target: Terminal
+      - target: ServiceContainer
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.harness.TerminalTests
+        GENERATE_INFOPLIST_FILE: YES
+  WebUITests:
+    type: bundle.unit-test
+    platform: macOS
+    sources: [Packages/WebUI/Tests]
+    dependencies:
+      - target: WebUI
+      - target: Session
+      - target: LLM
+      - target: Agent
+      - target: Tools
+      - target: ServiceContainer
+      - target: Terminal
+      - target: Sandbox
+      - package: GRDB
+        product: GRDB
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.harness.WebUITests
+        GENERATE_INFOPLIST_FILE: YES
+  HarnessCoreTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources: [Apps/HarnessCore/Tests]
+    dependencies:
+      - target: HarnessCore
+      - target: ServiceContainer
+      - target: Session
+      - target: LLM
+      - target: Tools
+      - target: Agent
+      - target: Terminal
+      - target: Sandbox
+      - package: GRDB
+        product: GRDB
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.harness.HarnessCoreTests
+        GENERATE_INFOPLIST_FILE: YES
 schemes:
   HarnessApp:
     build:
@@ -440,6 +643,18 @@ schemes:
         - AgentTests
         - AccountTests
         - WorkspaceTests
+        - MCPTests
+        - SkillTests
+        - SubagentTests
+        - PromptTests
+        - RAGTests
+        - MemoryTests
+        - NotificationsTests
+        - PluginXPCTests
+        - SandboxTests
+        - TerminalTests
+        - WebUITests
+        - HarnessCoreTests
   All:
     build:
       targets:
@@ -456,3 +671,15 @@ schemes:
         - AgentTests
         - AccountTests
         - WorkspaceTests
+        - MCPTests
+        - SkillTests
+        - SubagentTests
+        - PromptTests
+        - RAGTests
+        - MemoryTests
+        - NotificationsTests
+        - PluginXPCTests
+        - SandboxTests
+        - TerminalTests
+        - WebUITests
+        - HarnessCoreTests
