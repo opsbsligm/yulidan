@@ -216,6 +216,7 @@
 		DCC0576096BBC7975DDBF87E /* ToolPipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = F843259F7C70D8D67550C43A /* ToolPipeline.swift */; };
 		DCF3F89AA8D9F43F40CEE10C /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 7B58E4B4167751F0A4060E14 /* GRDB */; };
 		DD268DAC68BE64BFA8075A4A /* LongTermMemoryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A3A5FAE8468E4CFAA06AC12 /* LongTermMemoryStore.swift */; };
+		DED436D4BAF3FB2A41EE81B8 /* GlassMorphTabBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BED7BB4BAE3AF5D4BAF2979 /* GlassMorphTabBar.swift */; };
 		E1714B54E85DC13A4052EC1B /* AgentWireFormatTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 272D637A0749F8C297C93705 /* AgentWireFormatTests.swift */; };
 		E17A357F05FFA87E5679C1E4 /* BuiltInPromptTemplates.swift in Sources */ = {isa = PBXBuildFile; fileRef = 685896A5EADAC5DF3DDF8AD0 /* BuiltInPromptTemplates.swift */; };
 		E22506440DEDEED0E8363820 /* PromptTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = B126D3AD9017FC67447752EA /* PromptTemplate.swift */; };
@@ -1008,6 +1009,7 @@
 		84ED32EA27BBCD4F5CFD5387 /* LLMHTTPTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMHTTPTests.swift; sourceTree = "<group>"; };
 		8A3A5FAE8468E4CFAA06AC12 /* LongTermMemoryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LongTermMemoryStore.swift; sourceTree = "<group>"; };
 		8ADE8DBB1AD2BAE451BA8759 /* EventBusTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventBusTests.swift; sourceTree = "<group>"; };
+		8BED7BB4BAE3AF5D4BAF2979 /* GlassMorphTabBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassMorphTabBar.swift; sourceTree = "<group>"; };
 		8BF2B7A8D979CB904563ED40 /* libPlan.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libPlan.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		92DED0043F75C1188E7B75B6 /* AgentToolTraceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentToolTraceTests.swift; sourceTree = "<group>"; };
 		9376963820B048270B79E75B /* MemoryItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryItem.swift; sourceTree = "<group>"; };
@@ -1807,6 +1809,7 @@
 				B4EF46F915BFEA6A4C2E5A7E /* ChatAreaView.swift */,
 				6587C9E40611ED8F635E9E1E /* ChatInputArea.swift */,
 				937D4C72EB5952F2F42E0C8F /* FileSandboxSection.swift */,
+				8BED7BB4BAE3AF5D4BAF2979 /* GlassMorphTabBar.swift */,
 				D6BC39D968C1FF4BCBD8E50F /* LocalBuiltInMarketplaceSource.swift */,
 				653CCBBE6BE61AF8F91FE2EF /* MCPServerViews.swift */,
 				76CD863CA1CD8952790BDB55 /* ModelSwitcherMenu.swift */,
@@ -3091,6 +3094,7 @@
 				FAB90BE6B84F579747C9E1DF /* ContentView.swift in Sources */,
 				9C63D11C167AB959A3E0F9B4 /* FileSandboxSection.swift in Sources */,
 				3C3B17FC696AF2F5C5149B31 /* FileThemePackage.swift in Sources */,
+				DED436D4BAF3FB2A41EE81B8 /* GlassMorphTabBar.swift in Sources */,
 				61255681618E68DC7AE29EA1 /* GlassSurface.swift in Sources */,
 				C0A18491177B821E08E31800 /* HarnessApp.swift in Sources */,
 				43A6FF9F0E7F0A810E437D9A /* HarnessTheme.swift in Sources */,

@@ -92,52 +92,6 @@ enum NavRowShortcut {
     }
 }
 
-struct NavRow: View {
-    let tab: AppTab
-    let isSelected: Bool
-    let action: () -> Void
-    @State private var isHovered = false
-
-    /// ⌘1–⌘5 面板快捷键（Codex 式；settings 走 ⌘, 由底栏齿轮承载，⌘6 未注册避免与标准 Preferences 冲突）
-    private var shortcutIndex: Int? {
-        NavRowShortcut.index(for: tab)
-    }
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 9) {
-                Image(systemName: tab.icon)
-                    .font(.system(size: 14, weight: isSelected ? .semibold : .regular))
-                    .frame(width: 18)
-                    .foregroundStyle(
-                        isSelected ? HarnessTheme.accent
-                            : isHovered ? HarnessTheme.textPrimary
-                            : HarnessTheme.textSecondary
-                    )
-                Text(tab.title)
-                    .font(.system(size: 13, weight: isSelected ? .medium : .regular))
-                    .foregroundStyle(
-                        isSelected ? HarnessTheme.textPrimary
-                            : isHovered ? HarnessTheme.textPrimary
-                            : HarnessTheme.textSecondary
-                    )
-                Spacer()
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 7)
-            .background(
-                isSelected ? HarnessTheme.sidebarHover
-                    : isHovered ? HarnessTheme.sidebarHover.opacity(0.6)
-                    : .clear
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
-        }
-        .buttonStyle(.plain)
-        .onHover { isHovered = $0 }
-        .modifier(NavShortcutModifier(index: shortcutIndex))
-    }
-}
-
 // MARK: - 侧边栏底栏（展开态；Codex 式：设置 + 头像，与折叠态 rail 对齐）
 
 /// 展开态侧边栏底栏：设置行（⌘,，选中态高亮）+ 头像行（点击折叠侧边栏）。

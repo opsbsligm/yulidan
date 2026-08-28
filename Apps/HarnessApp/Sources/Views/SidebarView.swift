@@ -47,7 +47,6 @@ struct SidebarView: View {
 
     @State private var searchText = ""
     @State private var showSearch = false
-    @State private var newHover = false
     /// 新建项目弹窗
     @State private var showNewProject = false
     @State private var newProjectName = ""
@@ -233,28 +232,24 @@ struct SidebarView: View {
                 .padding(.bottom, 6)
             }
 
-            // 导航（Codex 式：新对话 + 面板）
-            NavRow(tab: .chat, isSelected: selectedTab == .chat, action: startNewChat)
-                .overlay(alignment: .trailing) {
-                    if newHover {
-                        Button(action: startNewChat) {
-                            Image(systemName: "plus")
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundStyle(HarnessTheme.textSecondary)
-                                .frame(width: 18, height: 18)
-                                .background(Circle().fill(Color.secondary.opacity(0.12)))
+            // P1.2：Tab 分段 Morph 流动玻璃（目标 P1 §2 核心件）
+            // 新对话（瞬时动作，⌘N）+ 五面板（⌘1–⌘5，与折叠 rail 一致）
+            // 选中玻璃面同 namespace 同 ID → 切换时原生 morph（❌ 禁 ZStack 滑块模拟，铁律 4）
+            GlassMorphTabBar(
+                segments: MorphTabSegment.sidebarDefault,
+                selectedID: MorphTabSegment.selectedID(for: selectedTab),
+                onSelect: { seg in
+                    switch seg.action {
+                    case .newChat:
+                        startNewChat()
+                    case let .select(tab):
+                        if tab != selectedTab {
+                            selectedTab = tab
                         }
-                        .buttonStyle(.plain)
-                        .help("新建对话")
-                        .padding(.trailing, 8)
                     }
                 }
-                .onHover { newHover = $0 }
-            NavRow(tab: .agents, isSelected: selectedTab == .agents, action: { selectedTab = .agents })
-            NavRow(tab: .plugins, isSelected: selectedTab == .plugins, action: { selectedTab = .plugins })
-            NavRow(tab: .skills, isSelected: selectedTab == .skills, action: { selectedTab = .skills })
-            NavRow(tab: .tools, isSelected: selectedTab == .tools, action: { selectedTab = .tools })
-                .padding(.bottom, 4)
+            )
+            .padding(.bottom, 4)
 
             // 会话列表（常显；搜索模式 = 扁平结果；否则 = 项目分区 + 全局）
             ScrollView {

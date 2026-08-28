@@ -1,8 +1,10 @@
-# P1 Liquid Glass — 阶段报告（P1.1 全局玻璃化）
+# P1 Liquid Glass — 阶段报告（P1.1 全局玻璃化 + P1.2 Tab Morph）
 
-> 报告时间: 2026-08-28 14:10
-> HEAD: `949759b`（镜像 swift-harness-backup.git 双端同步）
-> 状态: **代码完成，四门禁全绿**；剩余 = 用户侧实机视觉走查（§四）
+> 报告时间: 2026-08-28（P1.2 轮刷新）
+> HEAD: 见 §七 提交链（镜像 swift-harness-backup.git 双端同步）
+> 状态: **P1.1 + P1.2 代码完成，四门禁全绿**；剩余 = 用户侧实机视觉走查（§四 P1.1 / §6.4 P1.2）
+>
+> ✅ **P1.1 验收口径核销**：用户 2026-08-28 回复「继续推进」（无报障/无截图异议）= P1.1 无异议通过，P1.2 解锁（与 P1 两决策同款口径：无意见按推荐执行）。实机视觉走查（§四）转为可选项：发现问题随时截图报障，回滚按单提交粒度进行。
 
 ## 一、模块完成矩阵
 
@@ -56,7 +58,50 @@
 1. §四 实机视觉走查（P1.1 验收判定）
 2. （可选决策）AppKit `NSGlassEffectView.cornerRadius` 曲率候选——当前**不采用**（铁律 4 枚举清单外，验证文档 §七-2 在案）
 
-## 六、P1.2 解锁条件
+## 六、P1.2 Tab 分段 Morph 流动玻璃（目标 P1 §2，核心件）
+
+### 6.1 机制（官方语义落地，验证文档 §六在案）
+- 选中玻璃面 = 唯一 morph 成员：`Color.clear.glassEffect(glass, in: tileShape).glassEffectID("harness-sidebar-selection", in: morphNS).glassEffectTransition(.matchedGeometry)`
+- 切换 = 旧段玻璃面移除 + 新段同 ID 玻璃面插入（同 namespace / 同 `.regular` 变体 / 同型 shape）→ SwiftUI 原生「animate shapes to and from each other during transitions」= 流体形变（❌ 无 ZStack 滑块）
+- 悬停/按压反馈 = `Glass.interactive` 材质自带（interactive 默认 true）
+- 切换动画事务单一来源 = 组件内 `withAnimation(.smooth(duration: 0.3))`（目标 P1 §2「状态切换包裹 withAnimation」）
+- 降级链不变量：`reduceTransparency` → solid 选中块（无 morph，对齐 P0 NavRow 基准）；容器复用 P1.1 `glassSurfaceContainer`（降级 no-op）
+- 主题：Glass 经 P1.1 `resolvedGlass` 单点解析（`glassTintHex` → tint，fallback `.regular`）→ P1.4 只需扩主题管线
+
+### 6.2 落点与交互口径
+- 落点：侧边栏六分区头（实施计划推荐项）：新对话（瞬时动作）+ 对话/多Agent/插件/技能/工具（tab 选中），2×3 网格，替换原 5 行 NavRow（NavRow 死代码已删）
+- 选中态：`.settings` 无分段选中（设置由底栏齿轮承载，P0 行为一致）；「新对话」无持久选中（点击后 startNewChat → 选中 glass 流向「对话」段）
+- **快捷键口径变化（两态一致化）**：⌘N = 新对话（此前仅折叠 rail 注册，现展开态亦生效）；⌘1–⌘5 = 五面板切换——展开态 ⌘1 原为「新对话」，现与 rail 一致 = 切换「对话」面板
+- 移除：原 .chat 行 hover「+」浮钮（P0 附加 affordance；六分区自身 + tooltip 已自明，报障可恢复）
+- 折叠 rail 不动（独立表面，P0 交互保留）
+
+### 6.3 测试与门禁
+- 新增 `GlassMorphTabBarTests` ×2（selectedID 映射 6 断言 + sidebarDefault 形状/快捷键 12 断言）
+- 四门禁 @P1.2 代码提交（见 §七）：全绿
+- 已知 flaky 注记：`ToolsTests.ToolExecutorTests/testEventsEmittedOnSuccess`（事件时序断言）在满载全量首轮出现 1 次失败，隔离复跑 3/3 通过 + 全量复跑通过——**既有 load-sensitive flaky，非 P1.2 回归**（P1.2 未触碰 Tools 包）；留 P2 观察
+### 6.4 P1.2 实机视觉走查（用户侧，约 1 分钟）
+
+1. 打开 App（验收 bundle，先关旧实例）→ 侧边栏顶部应为 2×3 六分区（新对话/对话/多Agent/插件/技能/工具）
+2. **morph 核心观察**：依次点击不同面板——选中玻璃面应**流动变形**到目标分段（非瞬间跳变、非滑块平移）；「工具」→「对话」跨行切换重点看
+3. 点「新对话」：创建新会话 + 选中玻璃流向「对话」段
+4. 快捷键：⌘N 新对话 / ⌘1–⌘5 面板切换（展开态均生效）
+5. 折叠侧边栏 → rail 交互不变（回归）
+6. 切含 `glassTintHex` 的主题 → 选中玻璃 tint 实时变（P1.4 前预埋链路验证）
+7. 「减弱透明度」开启 → 选中块 solid、无 morph（降级回归）
+
+## 七、提交链（P1 轮）
+
+| commit | 内容 |
+|---|---|
+| `d64e6f5` | P0 验收通过入册（P1 解锁） |
+| `1be36a4` | 铁律 1 解锁复核（签名零漂移 + 探针重跑 + 按钮风格探针） |
+| `949759b` | P1.1 全局玻璃化（四门禁全绿，1072/0） |
+| `07c43a4` | P1.1 阶段报告 + 组件地图刷新 |
+| `<P1.2-code>` | P1.2 Tab Morph（GlassMorphTabBar 新件 + SidebarView 接入 + NavRow 死代码删除 + 测试 ×2） |
+| `<P1.2-docs>` | 本报告 §六 + 组件地图 P1.2 状态 |
+
+**P1.2 验收 bundle**（随 docs 提交一并重建）：`.build/debug/HarnessApp.app` cp + ad-hoc 重签 + nm 核验（sha 见 docs 提交说明）。
+## 八、P1.2 解锁条件
 
 - P1.1 验收通过（用户实机确认玻璃化正常 + 无交互回归）
 - P1.2 范围（实施计划 §2）：Tab Morph 流动玻璃——侧边栏六分区头 `@Namespace` + `glassEffectID(id:in:)`（分段身份）+ `glassEffectUnion(id:namespace:)`（并集融合，**同 .regular 变体 + 同型 shape** 官方约束）+ `glassEffectTransition(.materialize)`；**禁 ZStack 滑块模拟**
