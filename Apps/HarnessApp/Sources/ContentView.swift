@@ -39,7 +39,9 @@ struct ContentView: View {
                 onUnarchiveProject: { viewModel.unarchiveProject($0) },
                 onUnarchiveSession: { viewModel.unarchiveSession($0) },
                 sessionsLoadState: viewModel.sessionsLoadState,
-                onRetryLoadSessions: { Task { await viewModel.retryLoadSessions() } }
+                onRetryLoadSessions: { Task { await viewModel.retryLoadSessions() } },
+                accountService: viewModel.accountService,
+                onOpenAccount: { viewModel.openAccountSettings() }
             )
 
             Divider().frame(width: 1)
@@ -115,7 +117,9 @@ struct ContentView: View {
             SettingsView(viewModel: viewModel,
                          onSandboxChange: { viewModel.setSandboxRoot($0) },
                          onNotificationsChange: { viewModel.setNotificationsEnabled($0) },
-                         accountService: viewModel.accountService)
+                         accountService: viewModel.accountService,
+                         pendingSub: viewModel.pendingSettingsSub,
+                         onConsumePendingSub: { viewModel.pendingSettingsSub = nil })
         }
     }
 }

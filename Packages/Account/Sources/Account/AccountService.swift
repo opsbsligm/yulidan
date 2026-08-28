@@ -242,9 +242,11 @@ public final class AccountService: ObservableObject {
         }
         observeKVSEvents()
         refreshOnlineState()
+        startOnlinePolling()
     }
 
     private func deactivateSync() {
+        stopOnlinePolling()
         workspaceEngine = nil
         syncService = nil
         if let observer = kvsObserver {
@@ -259,6 +261,27 @@ public final class AccountService: ObservableObject {
             guard let self, let sync = syncService else { return }
             isOnline = await sync.isOnline()
         }
+    }
+
+    /// P2.2.2：在线态周期刷新（侧栏「离线」指示器需实时反映网络变化；仅 iCloud 激活期存在）
+    private var onlinePollTask: Task<Void, Never>?
+
+    /// 轮询依据（铁律 1）：NSUbiquitousKeyValueStore.synchronize() 官方文档 = 同步尝试是否成功，
+    /// 网络不可达时返回 false；30s 周期为 P2 工程选择（权衡：指示器实时性 vs 同步开销）
+    private func startOnlinePolling() {
+        guard onlinePollTask == nil else { return }
+        onlinePollTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(30))
+                guard let self, !Task.isCancelled else { break }
+                refreshOnlineState()
+            }
+        }
+    }
+
+    private func stopOnlinePolling() {
+        onlinePollTask?.cancel()
+        onlinePollTask = nil
     }
 
     private func observeKVSEvents() {

@@ -1,3 +1,4 @@
+import Account
 import Session
 import SwiftUI
 import Workspace
@@ -103,6 +104,10 @@ enum NavRowShortcut {
 struct SidebarBottomBar: View {
     @Binding var selectedTab: AppTab
     let onToggleCollapse: () -> Void
+    /// P2.2.2：iCloud 同步状态提示行（nil = 未挂接账号服务，不显示）
+    var accountService: AccountService?
+    /// 点击提示行 → 设置「账号与同步」子页深链
+    var onOpenAccount: () -> Void = {}
     /// 设置行 hover
     @State private var settingsHover = false
 
@@ -115,6 +120,10 @@ struct SidebarBottomBar: View {
         VStack(spacing: 0) {
             Divider().padding(.horizontal, 10)
             VStack(spacing: 2) {
+                // P2.2.2：iCloud 同步状态一眼提示（本地模式 = hidden 自动隐藏）
+                if let accountService {
+                    SidebarSyncHintRow(accountService: accountService, onOpenAccount: onOpenAccount)
+                }
                 Button {
                     withAnimation(.smooth(duration: 0.18)) { selectedTab = .settings }
                 } label: {

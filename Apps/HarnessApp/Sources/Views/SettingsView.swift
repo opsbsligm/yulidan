@@ -139,6 +139,10 @@ struct SettingsView: View {
     /// 账号与工作区服务（P0.1；nil = 未就绪）
     var accountService: AccountService?
 
+    /// 一次性深链目标（P2.2.2：侧栏同步提示 → 「账号与同步」；消费后置 nil）
+    var pendingSub: SettingsSubTab?
+    var onConsumePendingSub: () -> Void = {}
+
     /// 导航状态机（选中分类 + 子页栈）
     @State private var nav = SettingsNavigationState()
     /// P2.1 完整设置页面弹窗开关
@@ -164,6 +168,17 @@ struct SettingsView: View {
         // P1.1 C3：设置 sheet 同区域容器化（侧栏 .prominent 面 + 内容区 .thin 卡共存；
         // morph 仅在同变体成员间发生，异 level 成员共存合法 —— 验证文档 §六 glassEffectUnion 语义）
         .glassSurfaceContainer()
+        // P2.2.2：消费一次性深链（onAppear = 从其他 tab 切入；onChange = 已在设置 tab 时再次点按）
+        .onAppear { applyPendingSub() }
+        .onChange(of: pendingSub) { applyPendingSub() }
+    }
+
+    /// 深链消费：跳目标子页 + 通知上游置 nil（幂等：nil = no-op）
+    private func applyPendingSub() {
+        guard let sub = pendingSub else { return }
+        nav.selectTab(sub.parentTab)
+        nav.selectSub(sub)
+        onConsumePendingSub()
     }
 
     // MARK: 侧栏（一级菜单 + 选中项展开二级子项）

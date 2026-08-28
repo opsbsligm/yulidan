@@ -74,6 +74,8 @@ struct ChatTopBar: View {
                 .truncationMode(.tail)
                 .help(viewModel.sessionTitle(for: session))
                 .accessibilityLabel("会话：\(viewModel.sessionTitle(for: session))")
+                // P2.2 右键菜单：与右侧溢出菜单同一动作集（双入口）
+                .contextMenu { sessionMenuActions }
 
             if !viewModel.hasAPIKey {
                 HStack(spacing: 4) {
@@ -89,28 +91,9 @@ struct ChatTopBar: View {
             // 模型选择（Codex 式：右侧紧凑 pill，与 composer 底行共用 ModelSwitcherMenu）
             ModelSwitcherMenu(viewModel: viewModel)
 
-            // 更多（Codex 式：动作按钮收纳进溢出菜单）
+            // 更多（Codex 式：动作按钮收纳进溢出菜单；动作集与标题右键菜单共享 = sessionMenuActions）
             Menu {
-                Button { viewModel.togglePinSession(session) } label: {
-                    Label(session.metadata.pinned ? "取消置顶" : "置顶",
-                          systemImage: session.metadata.pinned ? "pin.slash" : "pin")
-                }
-                Button { viewModel.attachFiles() } label: { Label("添加附件", systemImage: "doc.badge.plus") }
-                Button { viewModel.spawnSubagentFromChat(draftText) } label: { Label("派生子 Agent", systemImage: "fork") }
-                Divider()
-                Button { viewModel.shareChat() } label: { Label("复制到剪贴板", systemImage: "doc.on.doc") }
-                Button { viewModel.exportChat() } label: { Label("导出为 Markdown…", systemImage: "square.and.arrow.down") }
-                Button {
-                    renameText = viewModel.sessionTitle(for: session)
-                    showRenameAlert = true
-                } label: { Label("重命名对话…", systemImage: "pencil") }
-                Divider()
-                Button(role: .destructive) {
-                    showClearConfirm = true
-                } label: { Label("清空本对话", systemImage: "trash") }
-                Button(role: .destructive) {
-                    showDeleteConfirm = true
-                } label: { Label("删除对话", systemImage: "trash.slash") }
+                sessionMenuActions
             } label: {
                 Image(systemName: "ellipsis.circle")
                     .font(.system(size: 16))
@@ -125,23 +108,49 @@ struct ChatTopBar: View {
             .buttonStyle(.plain)
             .onHover { moreHovered = $0 }
             .help("更多操作")
-            .alert("重命名对话", isPresented: $showRenameAlert) {
-                TextField("对话名称", text: $renameText)
-                Button("确定") { viewModel.renameSession(renameText) }
-                Button("取消", role: .cancel) {}
-            }
-            .confirmationDialog("确定删除该对话？此操作不可恢复。",
-                                isPresented: $showDeleteConfirm, titleVisibility: .visible) {
-                Button("删除", role: .destructive) { viewModel.deleteSession(session) }
-                Button("取消", role: .cancel) {}
-            }
-            .confirmationDialog("确定清空本对话的全部消息？此操作不可恢复。",
-                                isPresented: $showClearConfirm, titleVisibility: .visible) {
-                Button("清空", role: .destructive) { viewModel.clearChat() }
-                Button("取消", role: .cancel) {}
-            }
         }
         .padding(.horizontal, 20).padding(.vertical, 10)
+        // P2.2：确认弹窗挂外层容器（溢出菜单与标题右键菜单双入口共用）
+        .alert("重命名对话", isPresented: $showRenameAlert) {
+            TextField("对话名称", text: $renameText)
+            Button("确定") { viewModel.renameSession(renameText) }
+            Button("取消", role: .cancel) {}
+        }
+        .confirmationDialog("确定删除该对话？此操作不可恢复。",
+                            isPresented: $showDeleteConfirm, titleVisibility: .visible) {
+            Button("删除", role: .destructive) { viewModel.deleteSession(session) }
+            Button("取消", role: .cancel) {}
+        }
+        .confirmationDialog("确定清空本对话的全部消息？此操作不可恢复。",
+                            isPresented: $showClearConfirm, titleVisibility: .visible) {
+            Button("清空", role: .destructive) { viewModel.clearChat() }
+            Button("取消", role: .cancel) {}
+        }
+    }
+
+    /// 溢出菜单与标题右键菜单共享的动作集（P2.2：双入口同一动作）
+    @ViewBuilder
+    private var sessionMenuActions: some View {
+        Button { viewModel.togglePinSession(session) } label: {
+            Label(session.metadata.pinned ? "取消置顶" : "置顶",
+                  systemImage: session.metadata.pinned ? "pin.slash" : "pin")
+        }
+        Button { viewModel.attachFiles() } label: { Label("添加附件", systemImage: "doc.badge.plus") }
+        Button { viewModel.spawnSubagentFromChat(draftText) } label: { Label("派生子 Agent", systemImage: "fork") }
+        Divider()
+        Button { viewModel.shareChat() } label: { Label("复制到剪贴板", systemImage: "doc.on.doc") }
+        Button { viewModel.exportChat() } label: { Label("导出为 Markdown…", systemImage: "square.and.arrow.down") }
+        Button {
+            renameText = viewModel.sessionTitle(for: session)
+            showRenameAlert = true
+        } label: { Label("重命名对话…", systemImage: "pencil") }
+        Divider()
+        Button(role: .destructive) {
+            showClearConfirm = true
+        } label: { Label("清空本对话", systemImage: "trash") }
+        Button(role: .destructive) {
+            showDeleteConfirm = true
+        } label: { Label("删除对话", systemImage: "trash.slash") }
     }
 }
 

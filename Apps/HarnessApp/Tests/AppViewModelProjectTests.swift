@@ -172,6 +172,38 @@ struct AppViewModelProjectTests {
 
     // MARK: - 拖拽迁移
 
+    @Test("moveSession：拖入同项目/同全局 = no-op 边界防护（不改状态、无 toast）")
+    func moveSessionNoOpBoundary() async {
+        let dbURL = tempDBURL()
+        let vm = makeVM(dbURL: dbURL)
+        defer { try? FileManager.default.removeItem(at: dbURL) }
+        await waitForReady(vm)
+        vm.createNewSession(silent: true)
+        vm.createProject(name: "P")
+        guard let p = vm.projects.first, let session = vm.sessions.first else {
+            Issue.record("夹具缺失"); return
+        }
+
+        // 全局 → P
+        vm.moveSession(session, to: .project(p.id))
+        #expect(vm.sessions[0].metadata.projectId == p.id.rawValue)
+        vm.toastMessage = nil
+
+        // P 内会话拖回 P（同项目落点）= no-op
+        vm.moveSession(vm.sessions[0], to: .project(p.id))
+        #expect(vm.sessions[0].metadata.projectId == p.id.rawValue)
+        #expect(vm.toastMessage == nil, "no-op 落点不应弹 toast")
+
+        // 全局会话拖回全局 = no-op
+        vm.createNewSession(silent: true)
+        guard let global = vm.sessions.first(where: { $0.metadata.projectId == nil }) else {
+            Issue.record("全局会话缺失"); return
+        }
+        vm.moveSession(global, to: .global)
+        #expect(vm.toastMessage == nil, "no-op 落点不应弹 toast")
+        #expect(vm.sessions.contains { $0.id == global.id })
+    }
+
     @Test("moveSession：全局→项目 / 跨项目 A→B / 项目→全局（含 DB 持久化）")
     func moveSessionMatrix() async {
         let dbURL = tempDBURL()

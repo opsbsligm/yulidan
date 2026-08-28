@@ -363,6 +363,15 @@ final class AppViewModel: ObservableObject {
         }
     }
 
+    /// 设置深链目标（P2.2.2：侧栏同步提示点击 → 直达「账号与同步」子页；一次性消费）
+    @Published var pendingSettingsSub: SettingsSubTab?
+
+    /// 打开设置「账号与同步」子页（侧栏底部同步状态提示入口）
+    func openAccountSettings() {
+        pendingSettingsSub = .account
+        selectedTab = .settings
+    }
+
     @Published var selectedSession: SessionRecord?
     @Published var toastMessage: String?
 

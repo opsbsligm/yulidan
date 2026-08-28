@@ -6,6 +6,24 @@ import Testing
 
 @Suite("设置两级菜单模型")
 struct SettingsMenuModelTests {
+    @Test("深链：selectTab 后 selectSub 达目标子页；异分类子页忽略（P2.2.2）")
+    func deepLinkNavigation() {
+        var nav = SettingsNavigationState()
+        nav.selectTab(.general)
+        nav.selectSub(.account)
+        #expect(nav.selectedTab == .general)
+        #expect(nav.currentSub == .account)
+        // 异分类子页被 guard 忽略
+        nav.selectSub(.providers) // parentTab = .llm
+        #expect(nav.currentSub == .account, "异分类子页应被忽略")
+        // 根子页 = 清栈
+        nav.selectSub(.preferences)
+        #expect(nav.currentSub == .preferences)
+        #expect(nav.path.isEmpty)
+        nav.goBack()
+        #expect(nav.currentSub == nav.selectedTab.rootSubTab)
+    }
+
     @Test("每个一级分类至少有一个子页")
     func everyTabHasChildren() {
         for tab in SettingsTab.allCases {

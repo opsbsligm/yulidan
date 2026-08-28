@@ -1,3 +1,4 @@
+import Account
 import Session
 import SwiftUI
 import Workspace
@@ -44,6 +45,10 @@ struct SidebarView: View {
     var sessionsLoadState: NavLoadState = .loaded
     /// 会话列表加载失败重试
     var onRetryLoadSessions: () -> Void = {}
+    /// P2.2.2：账号服务（底栏 / rail 底部 iCloud 同步状态提示；nil = 未挂接，隐藏）
+    var accountService: AccountService?
+    /// 点按同步提示 → 设置「账号与同步」子页深链
+    var onOpenAccount: () -> Void = {}
 
     @State private var searchText = ""
     @State private var showSearch = false
@@ -273,7 +278,7 @@ struct SidebarView: View {
                                 isGenerating: generatingSessionId == session.id,
                                 onSelect: { onSelectSession(session) },
                                 onTogglePin: { onTogglePin(session) },
-                                onDelete: { onDeleteSession(session) },
+                                onDelete: { onDeleteSession($0) },
                                 onToggleArchive: { onToggleSessionArchived(session) }
                             )
                         }
@@ -325,7 +330,12 @@ struct SidebarView: View {
             // 底栏（Codex 式：设置 + 头像；与折叠态 rail 对齐）
             // P0 实机验收发现（2026-08-26）：展开态此前无底栏，设置仅能从顶部「Harness ⌄」菜单进入，
             // 进入后侧边栏无「当前在设置」指示、无持久返回入口，用户点进设置后无路可退
-            SidebarBottomBar(selectedTab: $selectedTab, onToggleCollapse: onToggleCollapse)
+            SidebarBottomBar(
+                selectedTab: $selectedTab,
+                onToggleCollapse: onToggleCollapse,
+                accountService: accountService,
+                onOpenAccount: onOpenAccount
+            )
         }
         .frame(width: 260)
         // P1.3：与折叠面同 ID 同 namespace 同 .regular 变体同型 shape（cornerRadius 0）→ 折叠/展开原生 morph
@@ -409,6 +419,10 @@ struct SidebarView: View {
             .buttonStyle(.plain)
             .help("归档管理（项目/会话）")
 
+            // P2.2.2：iCloud 同步状态图标（本地模式 = hidden 自动隐藏）
+            if let accountService {
+                SidebarSyncHintIcon(accountService: accountService, onOpenAccount: onOpenAccount)
+            }
             Button {
                 withAnimation(.smooth(duration: 0.18)) { selectedTab = .settings }
             } label: {
