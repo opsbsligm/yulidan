@@ -1,4 +1,4 @@
-# P1 Liquid Glass — 阶段报告（P1.1 全局玻璃化 + P1.2 Tab Morph + P1.3 全局动效过渡）
+# P1 Liquid Glass — 阶段报告（P1.1–P1.4 全阶段：玻璃化 + Tab Morph + 动效过渡 + 主题参数打通）
 
 > 报告时间: 2026-08-28（P1.2 轮刷新）
 > HEAD: 见 §七 提交链（镜像 swift-harness-backup.git 双端同步）
@@ -21,6 +21,10 @@
 | P1.3.1 弹窗出入场 materialize | ✅ | 4 处 sheet 玻璃面补齐（归档管理/MCP 日志/重命名/删除确认；§9） |
 | P1.3.2 侧边栏折叠/展开 morph | ✅ | 两面共享 @Namespace + 同 glassEffectID + 同 .regular 变体；容器上提单容器（§9） |
 | P1.3.3 项目分区玻璃卡 + 拖拽/展开动效 | ✅ | thin 玻璃卡逐分区 + 4 处 withAnimation（§9） |
+| P1.4.1 glassMaterial manifest 字段 + 宽容回落 | ✅ | ThemeSpec + resolveMaterial 纯函数 + 三来源 Codable（§十） |
+| P1.4.2 resolvedGlass 材质档位单点 | ✅ | 容器面/morph 面/卡/sheet 全走单点；tint 优先级链不变（§十） |
+| P1.4.3 设置玻璃参数明示行 + 导入校验 | ✅ | tint 色板 + 材质档位文案；glassTintHex 纳入 hex 校验（§十） |
+| P1.4.4 实时切换 + fallback | ✅ | 既有 apply→Environment 管线；nil/未知 = .regular（§十） |
 
 ## 二、变更清单（12 文件，+112/−15，@949759b）
 
@@ -105,7 +109,9 @@
 | `d43411b` | P1.2 Tab Morph（GlassMorphTabBar 新件 + SidebarView 接入 + NavRow 死代码删除 + 测试 ×2；四门禁全绿 1074/0） |
 | `562e796` | P1.2 阶段报告定稿 + 组件地图刷新 |
 | `209f480` | P1.3 全局动效过渡（4 sheet materialize + 侧边栏折叠 morph + 项目卡玻璃形变 + withAnimation ×4；测试 +4；四门禁全绿 821/0 + 覆盖率 96.13% 持平） |
-| `<本报告提交>` | 本报告 §九 定稿 + 组件地图 P1.3 状态 |
+| `d8fcbb8` | P1.3 阶段报告入册 + 组件地图刷新 |
+| `70d7567` | P1.4 主题插件玻璃参数打通（glassMaterial 字段 + resolveMaterial/materialLabel 纯函数 + resolvedGlass 扩参 + 设置明示行 + 导入校验 + 社区样例补玻璃参数；测试 +5；四门禁全绿 826/0 + 覆盖率 96.12% 持平） |
+| `<本报告提交>` | 本报告 §十 定稿 + 组件地图 P1.4 状态 |
 
 **P1.2 验收 bundle**：`.build/debug/HarnessApp.app` 可执行文件已 `cp`（@d43411b 源码构建）+ ad-hoc 重签（ci.entitlements）+ nm 核验 `GlassMorphTabBar` 符号 ×172 在位；**bundle sha `45affb72`**（P1.1 的 137e7c7c 作废）。
 

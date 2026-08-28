@@ -4,6 +4,7 @@
 > ✅ **2026-08-28 P1.1 已执行（@949759b）**：容器落点 C1/C2/C3 已落地 + C5 按钮已玻璃化 + C4 保持独立；行号刷新至当前 HEAD（原 08-24 基线行号因 08-26/27 设置页重构有漂移，已核正；原「#2 侧边栏头部」实测为折叠 rail，非展开态头部——分组结论不变）。
 > ✅ **2026-08-28 P1.2 已执行（@d43411b）**：「§五 与 P1.2 的接口约定」全部兑现——C1 容器内六分区 morph 面落地（`GlassMorphTabBar`，选中玻璃面同 namespace 同 ID 原生 morph）；原 5 行 NavRow 删除（死代码），#1 侧边栏主体表面行号漂移（导航区缩短约 90pt）。
 > ✅ **2026-08-28 P1.3 已执行（@209f480）**：① C1 容器上提——`GlassEffectContainer` 由展开体/折叠体各自包裹合并为 body `Group` 单容器（`SidebarView:98`，展开/折叠两面共享 = 最优 morph 条件）；#1/#2 两面加 `morphID("harness-sidebar-collapse") + sidebarMorphNS + .matchedGeometry`（`:332/:446`，同 `.regular` 变体同型 shape）→ 折叠/展开原生 morph（跨态未官方实证，最坏淡变）；② 新增玻璃面 ×5：项目分区 thin 卡（`SidebarProjectSections.sectionCard:298`，C4 式逐分区独立）+ 4 处 sheet 内容根 `.regular,12 + .materialize`（归档管理 / MCP 日志 / 重命名 `:160` / 删除 `:190`）。
+> ✅ **2026-08-28 P1.4 已执行（@70d7567）**：§四「主题参数下发点」全部兑现——`ThemeSpec.glassMaterial`（regular/clear，宽容回落 .regular）+ `resolveMaterial`/`materialLabel` 纯函数 + `resolvedGlass` 扩 `themeMaterial` 参数（单点不变：全部玻璃面经 `resolvedGlass(explicitTint:themeTintHex:themeMaterial:)` 取 Glass）；设置「主题插件」下玻璃参数明示行（`SettingsView.glassParamRow`）；`ThemePackageImporter` glassTintHex 纳入 hex 校验；社区样例 spec.json 补玻璃参数（实机走查材料）。
 > 官方语义（已核验，见 P1_GLASS_API_VERIFICATION.md §六）：同区域玻璃组件放同一 `GlassEffectContainer` → 光学采样一致 + 渲染性能；`spacing:` 控制融合提前量。
 
 ## 一、现状盘点（P0 既有玻璃接入点，10 调用点 / 5 文件）
