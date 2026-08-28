@@ -2,7 +2,7 @@
 
 > 报告时间: 2026-08-28 12:05
 > HEAD: `9ea840b`（镜像 swift-harness-backup.git 双端同步）
-> 状态: **代码侧全部闭环，待用户验收**（P1 受铁律 2 门禁：P0 验收通过前不写视觉代码）
+> 状态: **✅ P0 验收通过**（2026-08-28 用户回复「P0 验收通过」）→ **P1 解锁**，铁律 2 门禁解除（验收记录见 `P0_ACCEPTANCE_CHECKLIST.md` 顶部）
 
 ## 一、模块完成矩阵
 
@@ -39,14 +39,15 @@
 ## 四、剩余项（全部用户侧）
 
 1. **Apple Developer Team ID**（10 位付费）→ entitlements + 重签（代码零改动）；到位后 SSO+iCloud 实机验收（清单 §二「有 Team 时」各行）
-2. **验收**：走查 `P0_ACCEPTANCE_CHECKLIST.md` → 回复「**P0 验收通过**」→ 解锁 P1
-3. **两个 P1 决策**（无意见按推荐执行）：
+2. ~~**验收**~~ ✅ **已完成（2026-08-28）**：用户回复「P0 验收通过」→ P1 解锁（已入册 `P0_ACCEPTANCE_CHECKLIST.md` 顶部）
+3. ~~**两个 P1 决策**~~ **按推荐执行**（用户未提异议）：
    - 主题插件可改玻璃参数范围 = **材质档位 + tint**（模糊/曲率归系统管理，不暴露给插件）
    - **保留 GlassSurface legacy** 包装（P1 渐进迁移既有调用点，不破坏性重写）
 4. **10 秒自查**（可选，§三）
 
 ## 五、P1 解锁条件（铁律 2）
 
-- 必要条件：用户回复「P0 验收通过」
+- ✅ **2026-08-28 已满足**：用户回复「P0 验收通过」→ P1 解锁（下一步 P1.1 铁律 1 取证，见 `P0_ACCEPTANCE_CHECKLIST.md` 顶部）
+- 原必要条件：用户回复「P0 验收通过」
 - 不阻塞项：Team ID 到位与否不阻塞 P1 视觉代码（仅阻塞 SSO/iCloud 实机验收）
 - P1 范围（按 goal）：全局 glassEffect 玻璃化（GlassEffectContainer 同区域采样一致）/ Tab Morph 流动玻璃（@Namespace + glassEffectID，禁 ZStack 模拟）/ 全局 glassEffectTransition 动效 / 主题插件玻璃参数打通（缺失参数 fallback 系统默认）/ Tahoe 窗口规范

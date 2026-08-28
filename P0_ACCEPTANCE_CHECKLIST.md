@@ -1,5 +1,10 @@
 # P0 实机验收清单（2026-08-22 首版，当前 HEAD 446c2d7）
 
+> ✅ **2026-08-28 P0 验收通过（用户最终判定，P1 正式解锁）**：用户回复「P0 验收通过」（本清单契约：回复即整体通过）。代码侧全闭环：模块 P0.1–P0.5 + 4 批用户报障全闭环（详见 `P0_STAGE_REPORT.md`）；四门禁基线 @9ea840b（SwiftLint strict 0 / SwiftFormat 0/254 / 构建 0 警告 / XCTest 257（2 skip = opt-in 集成）+ Swift Testing 810 合计 1067，0 失败）；App 浸泡 16h+ 零崩溃（bundle sha 5320b066，DiagnosticReports 零记录）。
+> - 非阻塞剩余（用户侧）：Apple Developer Team ID → SSO/iCloud entitlements（按设计优雅降级，不阻塞 P1 视觉，见 `P0_STAGE_REPORT.md` §四-1）。
+> - P1 两决策按推荐执行（用户未提异议）：① 主题插件可改玻璃参数 = 材质档位 + tint（模糊/曲率归系统管理）② 保留 GlassSurface legacy（渐进迁移，不破坏性重写）。
+> - 下一步：P1.1 铁律 1 取证（SwiftUI swiftinterface 拿 glassEffect 精确签名）→ 最小编译探针 → 再动 UI。
+
 > 用法：逐项操作 → 对照「预期」打勾。全部通过后回复「P0 验收通过」，即解锁 P1 Liquid Glass。
 > 验收环境要求：当前开发机即可（无 Apple Team 时 SSO/iCloud 走「无 entitlements 优雅降级」，属预期行为非缺陷）。
 >
