@@ -57,6 +57,18 @@ struct LocalProfileModelTests {
         #expect(!ThinkingLevel.openAIApplies(toModel: "gpt-4o-mini"))
     }
 
+    @Test("id/displayName：四态矩阵（设置 UI 展示面）")
+    func idAndDisplayName() {
+        #expect(ThinkingLevel.off.id == "off")
+        #expect(ThinkingLevel.low.id == "low")
+        #expect(ThinkingLevel.medium.id == "medium")
+        #expect(ThinkingLevel.high.id == "high")
+        #expect(ThinkingLevel.off.displayName == "关（跟随提供商）")
+        #expect(ThinkingLevel.low.displayName == "低")
+        #expect(ThinkingLevel.medium.displayName == "中")
+        #expect(ThinkingLevel.high.displayName == "高")
+    }
+
     @Test("wireValue：off 不下发")
     func wireValueOffIsNil() {
         #expect(ThinkingLevel.off.wireValue == nil)
