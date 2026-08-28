@@ -63,7 +63,7 @@
 |---|---|---|---|
 | P0 业务 MVP | ✅ 100% | ✅ | ✅ 用户 2026-08-26「P0 验收通过」 |
 | P1 Liquid Glass（P1.1–P1.5） | ✅ 5/5 | ✅（每轮四门禁） | 🔄 用户侧走查清单累计 13 项未核销（P1.1×6 已按「继续推进」口径核销；P1.2×7 / P1.3×6 / P1.4×6 / P1.5×1 中的重叠项按单提交粒度核销——发现问题随时截图报障即可） |
-| P2 次要优化 | ✅ 本表 | ✅ 本轮复核 | 🔄 §五 6 项 |
+| P2 次要优化 | ✅ 本表（含 P2.3 `17e9f22` 玻璃强度诚实闭环，2026-08-29） | ✅ 本轮复核（837 测试 0 失败 ×3 轮） | 🔄 §五 6 项 |
 
 非阻塞尾巴（不改变完成度口径）：① 付费 Apple Developer Team → SSO/iCloud entitlements 实机验收（代码零改动，设计内优雅降级）② GitHub Actions 远端（用户暂缓，ci-local 四模式本地模拟在案）③ macOS 27 beta 协作池调度停滞/幻影窗口观察项（QUALITY_REPORT §四在案）
 
@@ -73,6 +73,7 @@
 0e09868  P2.1 设置 Sheet 弹窗完整页面（七卡片概览）
 675f600  P2.2 交互加固（删除与卸载二次确认）
 11152aa  P2.2 剩余项（iCloud 同步状态指示器 + 聊天顶栏右键菜单 + 拖拽 no-op 边界测试）
+17e9f22  P2.3 玻璃强度「假配置」诚实闭环（import 0...1 校验 + MCP 同口径回落 + 设置诚实明示行 + 测试 +2 + 主题包测试拆独立文件）
 ```
 
-验收 bundle：`tools/rebuild-app.sh sync` sha `bc3fbae8` @ 11152aa（`verify SidebarSyncHint` ×238 符号在位）
+验收 bundle：`tools/rebuild-app.sh` sha `061c8284fc6d` @ 17e9f22（nm `glassIntensityText` 符号在位 + 4 条 P2.3 新文案字节级核验；前轮 sha `bc3fbae8` @ 11152aa / `4776e361` @ ef033bc 已归档）
