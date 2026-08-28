@@ -92,7 +92,7 @@ struct LLMSettingsContainer: View {
                         viewModel.save()
                         showSaveConfirmation = true
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.glassProminent) // P1.1 C5：密钥保存/更新（表单确认）→ 玻璃强调
 
                     if viewModel.hasKey(for: viewModel.selectedProvider) {
                         Button("清除") {
@@ -220,7 +220,7 @@ struct LLMSettingsContainer: View {
                     viewModel.save()
                     showSaveConfirmation = true
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.glassProminent) // P1.1 C5：保存参数（表单确认）→ 玻璃强调
                 .frame(maxWidth: .infinity, alignment: .trailing)
             }
         }

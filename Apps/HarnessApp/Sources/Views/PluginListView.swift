@@ -280,7 +280,8 @@ struct PluginListView: View {
                                                         arguments: arguments, environment: environment)
                     }
                 }
-                .buttonStyle(.borderedProminent)
+                // P1.1 C5：导入 MCP（主操作）→ 玻璃强调
+                .buttonStyle(.glassProminent)
                 .disabled(mcpFormName.trimmingCharacters(in: .whitespaces).isEmpty ||
                     mcpFormCommand.trimmingCharacters(in: .whitespaces).isEmpty)
             }
@@ -548,7 +549,7 @@ struct MarketplaceCard: View {
                 Button("卸载", action: onUninstall).buttonStyle(.bordered).controlSize(.small)
             } else {
                 Button("安装", action: onInstall)
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.glassProminent) // P1.1 C5：插件安装（主操作）→ 玻璃强调
                     .controlSize(.small)
                     .disabled(!item.missingDependencies.isEmpty)
                     .help(item.missingDependencies.isEmpty ? "" : "缺少依赖插件，无法安装")

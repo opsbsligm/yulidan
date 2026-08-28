@@ -142,7 +142,7 @@ struct SkillView: View {
                 Button("保存") {
                     save()
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.glassProminent) // P1.1 C5：保存（表单确认）→ 玻璃强调
                 .disabled(!canSave)
             }
         }

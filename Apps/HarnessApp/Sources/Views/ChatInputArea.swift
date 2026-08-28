@@ -107,7 +107,8 @@ struct ChatInputArea: View {
                         }
                         .frame(width: 28, height: 28)
                     }
-                    .buttonStyle(.plain)
+                    // P1.1 C5：发送/停止（主操作）→ 玻璃强调（圆形状态填充保留为状态指示）
+                    .buttonStyle(.glassProminent)
                     .help(isGenerating ? "停止生成（真实取消请求）" : "发送")
                 }
                 .padding(.horizontal, 10)
@@ -130,5 +131,7 @@ struct ChatInputArea: View {
             .padding(.horizontal, 4)
         }
         .frame(maxWidth: 720) // Codex 式：composer 居中限宽
+        // P1.1 C2：composer 同区域容器化（输入卡片为当前唯一玻璃成员）
+        .glassSurfaceContainer()
     }
 }

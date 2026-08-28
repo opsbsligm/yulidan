@@ -83,7 +83,7 @@ struct NavPermissionBanner: View {
                     .controlSize(.small)
                 Button("授予并安装", action: onGrant)
                     .font(.system(size: 12, weight: .semibold))
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.glassProminent) // P1.1 C5：授予并安装（主操作）→ 玻璃强调
                     .controlSize(.small)
             }
         }

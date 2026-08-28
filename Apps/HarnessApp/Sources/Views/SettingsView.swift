@@ -159,6 +159,9 @@ struct SettingsView: View {
             contentPane
         }
         .background(HarnessTheme.bgPrimary)
+        // P1.1 C3：设置 sheet 同区域容器化（侧栏 .prominent 面 + 内容区 .thin 卡共存；
+        // morph 仅在同变体成员间发生，异 level 成员共存合法 —— 验证文档 §六 glassEffectUnion 语义）
+        .glassSurfaceContainer()
     }
 
     // MARK: 侧栏（一级菜单 + 选中项展开二级子项）

@@ -115,6 +115,7 @@
 		70D8118267BD7E7DB18B927A /* PromptRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB69A901DBF9DDC30FD1310D /* PromptRenderer.swift */; };
 		7219BA121368E3AABEB42C60 /* libWorkspace.a in Frameworks */ = {isa = PBXBuildFile; fileRef = BCCCD92A88B6DD3BE960F1C3 /* libWorkspace.a */; };
 		726A541CE5B4BD0029483387 /* HarnessCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24B1933663CA94EBE076FA86 /* HarnessCore.swift */; };
+		72AF9D402F3A11544876A2E1 /* OllamaNativeIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C86FFC01A3E9AA599CDD063F /* OllamaNativeIntegrationTests.swift */; };
 		73E322B00EA5D433866F51D5 /* MetadataSyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DDFAD9EC4C77383BD08834A /* MetadataSyncService.swift */; };
 		76895B58B4667278B0EB86AD /* Turn.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC19B31F17532CFDD9D43FDA /* Turn.swift */; };
 		7750112E2E44C0084579A657 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 2BE623C953E85611034C38C2 /* GRDB */; };
@@ -1065,6 +1066,7 @@
 		C57C9643D9985DF3BBAD68C8 /* WorkspaceR17GapTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceR17GapTests.swift; sourceTree = "<group>"; };
 		C5B44BA80CFB3E9FFB75448B /* Goal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Goal.swift; sourceTree = "<group>"; };
 		C84877ED4AB8818B9F281F57 /* SessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionTests.swift; sourceTree = "<group>"; };
+		C86FFC01A3E9AA599CDD063F /* OllamaNativeIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OllamaNativeIntegrationTests.swift; sourceTree = "<group>"; };
 		C9A30D33EB00A684839C9270 /* PluginMarketplace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginMarketplace.swift; sourceTree = "<group>"; };
 		CA651ED175214D1BE5E06E8A /* SettingsSubPages.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSubPages.swift; sourceTree = "<group>"; };
 		CB69A901DBF9DDC30FD1310D /* PromptRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptRenderer.swift; sourceTree = "<group>"; };
@@ -1753,6 +1755,7 @@
 				24FFE977F66296DC20013F6A /* LLMToolCallWireTests.swift */,
 				FF2B8B864E1D7D67A3435259 /* LocalAdapterEngineRoutingTests.swift */,
 				83ADDCA0C62B96B7F7C360B6 /* OllamaNativeChatTests.swift */,
+				C86FFC01A3E9AA599CDD063F /* OllamaNativeIntegrationTests.swift */,
 			);
 			path = Tests;
 			sourceTree = "<group>";
@@ -3173,6 +3176,7 @@
 				B9924105E4E811ED740DF747 /* LLMToolCallWireTests.swift in Sources */,
 				5F35E448FAD6517B83DD22AB /* LocalAdapterEngineRoutingTests.swift in Sources */,
 				8490AFC81B580796DBA78C7F /* OllamaNativeChatTests.swift in Sources */,
+				72AF9D402F3A11544876A2E1 /* OllamaNativeIntegrationTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

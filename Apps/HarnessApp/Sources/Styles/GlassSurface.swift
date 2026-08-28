@@ -27,6 +27,9 @@ struct GlassSurfaceModifier: ViewModifier {
     var cornerRadius: CGFloat
     var tint: Color?
 
+    /// 当前激活主题（根视图注入；glassTintHex = 主题插件玻璃 tint，P1.1 起生效）
+    @Environment(\.harnessThemeSpec) private var themeSpec
+
     /// 渲染模式解析（纯函数，可单测）
     enum Mode {
         case solid // 无障碍降级：纯色
@@ -79,6 +82,16 @@ struct GlassSurfaceModifier: ViewModifier {
         }
     }
 
+    /// P1.1 玻璃解析（纯函数，可单测）：显式 tint > 主题 glassTintHex > 无 tint
+    /// 材质档位暂固定 .regular（P1.4 材质档位决策点：主题插件可切换 regular/clear）
+    static func resolvedGlass(explicitTint: Color?, themeTintHex: String?) -> Glass {
+        let tint = explicitTint ?? Color(hex: themeTintHex)
+        if let tint {
+            return .regular.tint(tint)
+        }
+        return .regular
+    }
+
     private var material: NSVisualEffectView.Material {
         Self.material(for: level)
     }
@@ -105,12 +118,12 @@ struct GlassSurfaceModifier: ViewModifier {
                 .overlay(shape.stroke(HarnessTheme.border, lineWidth: 0.5))
         case .native:
             // macOS 26+ 原生 Liquid Glass：内容区域整体成为玻璃表面
+            // P1.1：tint 解析收敛为纯函数 resolvedGlass（显式 > 主题 > 无 tint，fallback 系统默认）
             if #available(macOS 26.0, *) {
-                if let tint {
-                    content.glassEffect(.regular.tint(tint), in: shape)
-                } else {
-                    content.glassEffect(.regular, in: shape)
-                }
+                content.glassEffect(
+                    Self.resolvedGlass(explicitTint: tint, themeTintHex: themeSpec.glassTintHex),
+                    in: shape
+                )
             } else {
                 // 防御分支（mode 解析已按 OS 门控，理论上不可达）
                 content.background(VisualEffectMaterial(material: material, blendingMode: .behindWindow))
@@ -134,6 +147,39 @@ extension View {
         tint: Color? = nil
     ) -> some View {
         modifier(GlassSurfaceModifier(level: level, cornerRadius: cornerRadius, tint: tint))
+    }
+}
+
+// MARK: - P1.1 同区域玻璃容器（GlassEffectContainer 容器化）
+
+/// 同区域玻璃表面容器：同一区域内的多个玻璃表面放入同一 `GlassEffectContainer`
+/// → 光学采样一致 + 渲染性能（官方语义：组合为单一 shape、效果可相互 morph）；
+/// 降级模式（solid/legacy）no-op 不包裹（容器为 macOS 26+ API）。
+struct GlassSurfaceContainerModifier: ViewModifier {
+    /// 融合提前量（官方语义：spacing 越大越早开始融合）；nil = 系统默认
+    var spacing: CGFloat?
+
+    /// 是否真正包裹容器（纯函数，可单测）：仅 native 模式包裹
+    static func shouldWrap(_ mode: GlassSurfaceModifier.Mode) -> Bool {
+        mode == .native
+    }
+
+    func body(content: Content) -> some View {
+        if Self.shouldWrap(GlassSurfaceModifier.currentMode()), #available(macOS 26.0, *) {
+            GlassEffectContainer(spacing: spacing) {
+                content
+            }
+        } else {
+            content
+        }
+    }
+}
+
+extension View {
+    /// P1.1 同区域玻璃容器化（包裹 GlassEffectContainer；降级模式 no-op）
+    /// spacing 为布局级调参（融合提前量），非材质参数 → 不进 ThemeSpec
+    func glassSurfaceContainer(spacing: CGFloat? = nil) -> some View {
+        modifier(GlassSurfaceContainerModifier(spacing: spacing))
     }
 }
 

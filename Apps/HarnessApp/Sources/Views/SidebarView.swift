@@ -327,6 +327,8 @@ struct SidebarView: View {
         }
         .frame(width: 260)
         .glassSurface(.regular, cornerRadius: 0)
+        // P1.1 C1：展开侧边栏同区域容器化（P1.2 六分区 morph 面将作为同容器成员加入）
+        .glassSurfaceContainer()
     }
 
     /// 会话列表加载失败行（P0.3 异常 UI；已加载部分仍渲染在下方）
@@ -433,6 +435,8 @@ struct SidebarView: View {
         }
         .frame(width: 52)
         .glassSurface(.prominent, cornerRadius: 0)
+        // P1.1 C1：折叠 rail 同区域容器化
+        .glassSurfaceContainer()
     }
 }
 

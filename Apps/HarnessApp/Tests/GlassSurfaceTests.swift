@@ -41,4 +41,40 @@ struct GlassSurfaceTests {
         #expect(GlassSurfaceModifier.material(for: .regular) == .popover)
         #expect(GlassSurfaceModifier.material(for: .prominent) == .sidebar)
     }
+
+    // MARK: - P1.1 主题玻璃解析（resolvedGlass 纯函数）
+
+    @Test("resolvedGlass：无显式无主题 → .regular（系统默认 fallback）")
+    func resolvedGlassNoTint() {
+        #expect(GlassSurfaceModifier.resolvedGlass(explicitTint: nil, themeTintHex: nil) == .regular)
+    }
+
+    @Test("resolvedGlass：主题 hex 非法/空 → .regular（解析失败回落，不抛错）")
+    func resolvedGlassInvalidHex() {
+        #expect(GlassSurfaceModifier.resolvedGlass(explicitTint: nil, themeTintHex: "not-a-hex") == .regular)
+        #expect(GlassSurfaceModifier.resolvedGlass(explicitTint: nil, themeTintHex: "0A84FF") == .regular)
+        #expect(GlassSurfaceModifier.resolvedGlass(explicitTint: nil, themeTintHex: "#12345") == .regular)
+    }
+
+    @Test("resolvedGlass：合法主题 hex → tinted 玻璃（区别于无 tint 基准）")
+    func resolvedGlassThemeTint() {
+        #expect(GlassSurfaceModifier.resolvedGlass(explicitTint: nil, themeTintHex: "#0A84FF") != .regular)
+        #expect(GlassSurfaceModifier.resolvedGlass(explicitTint: nil, themeTintHex: "#11223344") != .regular)
+    }
+
+    @Test("resolvedGlass：显式 tint 优先级高于主题 tint")
+    func resolvedGlassExplicitWins() {
+        let explicit = GlassSurfaceModifier.resolvedGlass(explicitTint: .red, themeTintHex: "#00FF00")
+        let themed = GlassSurfaceModifier.resolvedGlass(explicitTint: nil, themeTintHex: "#00FF00")
+        #expect(explicit != themed)
+    }
+
+    // MARK: - P1.1 容器包裹决策（shouldWrap 纯函数）
+
+    @Test("容器包裹决策：仅 native 模式包裹，solid/legacy 降级 no-op")
+    func containerWrapDecision() {
+        #expect(GlassSurfaceContainerModifier.shouldWrap(.native))
+        #expect(!GlassSurfaceContainerModifier.shouldWrap(.solid))
+        #expect(!GlassSurfaceContainerModifier.shouldWrap(.legacy))
+    }
 }

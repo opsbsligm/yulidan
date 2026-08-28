@@ -101,7 +101,7 @@ struct AccountSyncSection: View {
                     Button("使用 Apple 登录") {
                         accountService.signInWithApple()
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.glassProminent) // P1.1 C5：Apple 登录（主操作）→ 玻璃强调
                     .controlSize(.small)
                     .disabled(accountService.state == .ssoPending)
                     Text("需付费 Apple 开发者 Team + Sign in with Apple 能力；当前 ad-hoc 构建不可用。")
@@ -167,7 +167,7 @@ struct AccountSyncSection: View {
                     Button("启用 iCloud 跨设备同步") {
                         accountService.retryICloud()
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.glassProminent) // P1.1 C5：启用 iCloud（主操作）→ 玻璃强调
                     .controlSize(.small)
                 case .ssoPending:
                     EmptyView()

@@ -63,7 +63,7 @@ struct SubagentView: View {
                     } label: {
                         Label("派生", systemImage: "fork")
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.glassProminent) // P1.1 C5：派生子 Agent（主操作）→ 玻璃强调
                     .disabled(!canSpawn)
                 }
                 TextField("任务描述（作为首条消息发给子 Agent）", text: $newTask, axis: .vertical)
