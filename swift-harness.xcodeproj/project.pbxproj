@@ -163,6 +163,7 @@
 		A703E492996673BC6961C89E /* ToolExecutorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81B34943C8716FF9ED7382C9 /* ToolExecutorTests.swift */; };
 		A7206906E591BCB585B15686 /* AppleSignInService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BD9DAE8FF36838ADC890D21 /* AppleSignInService.swift */; };
 		A7569D80CB00A53A42D5FE0E /* PluginContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76FC5AB0C270315397B4BB20 /* PluginContext.swift */; };
+		A785044DEF0E64FF47A2D75A /* SidebarSyncHint.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68E1F323D5117B26148D2617 /* SidebarSyncHint.swift */; };
 		A905D9D3BA0CDE3C91F5A446 /* ArgumentParser in Frameworks */ = {isa = PBXBuildFile; productRef = 87FA68ADAA237BBE01B0BEFC /* ArgumentParser */; };
 		AAC7F8D9BA1707488F23871E /* ToolsGapCoverageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1DC40CC89CCAB316A64B240 /* ToolsGapCoverageTests.swift */; };
 		AB4219C634353FC07780E95A /* DSHMain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8156D78095D32FBB3B0F0D80 /* DSHMain.swift */; };
@@ -178,6 +179,7 @@
 		B2FF57DCE14C45433DA16EFA /* AgentLoopCoverageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 296224C023D70C88B5E6A1D5 /* AgentLoopCoverageTests.swift */; };
 		B3DBABCB298A9C0BD3344631 /* SessionDB.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1734A6B49AF1DA138EDE66B /* SessionDB.swift */; };
 		B46F82F8334A05A07FBF0116 /* ModelSwitcherMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76CD863CA1CD8952790BDB55 /* ModelSwitcherMenu.swift */; };
+		B49994EE0E9711F537AA66F0 /* SettingsCompletePage.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4804DFA0EB61D99A3681E47 /* SettingsCompletePage.swift */; };
 		B4D481F77FA7462186CC0BD3 /* PluginSystemGapTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3BA1961237667AD052168E5 /* PluginSystemGapTests.swift */; };
 		B5D02525925DFFD72B4145CA /* Skill.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1901EABB2990D1E73A8EE64 /* Skill.swift */; };
 		B7F1D2B189A43025965BC027 /* RAGEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96D58A5F9BC3359D28AC072C /* RAGEngine.swift */; };
@@ -985,6 +987,7 @@
 		653CCBBE6BE61AF8F91FE2EF /* MCPServerViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPServerViews.swift; sourceTree = "<group>"; };
 		6587C9E40611ED8F635E9E1E /* ChatInputArea.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatInputArea.swift; sourceTree = "<group>"; };
 		685896A5EADAC5DF3DDF8AD0 /* BuiltInPromptTemplates.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuiltInPromptTemplates.swift; sourceTree = "<group>"; };
+		68E1F323D5117B26148D2617 /* SidebarSyncHint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarSyncHint.swift; sourceTree = "<group>"; };
 		6AA0D31EDEEE99F77923A16D /* SessionListItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionListItem.swift; sourceTree = "<group>"; };
 		6DA9D9A585B0C858E4576177 /* AppViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppViewModel.swift; sourceTree = "<group>"; };
 		6DEBCE868F304D2B92768D1D /* KnowledgeTools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnowledgeTools.swift; sourceTree = "<group>"; };
@@ -1104,6 +1107,7 @@
 		F2564BFF582914F17C4FE3DA /* Message.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Message.swift; sourceTree = "<group>"; };
 		F282D9BA131D2A83C8980EED /* AgentHistorySeedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentHistorySeedTests.swift; sourceTree = "<group>"; };
 		F3BA1961237667AD052168E5 /* PluginSystemGapTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginSystemGapTests.swift; sourceTree = "<group>"; };
+		F4804DFA0EB61D99A3681E47 /* SettingsCompletePage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsCompletePage.swift; sourceTree = "<group>"; };
 		F5C1D0E2CE28973206A4AF37 /* LLMResponseNormalizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMResponseNormalizer.swift; sourceTree = "<group>"; };
 		F843259F7C70D8D67550C43A /* ToolPipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolPipeline.swift; sourceTree = "<group>"; };
 		F8644E8F15B3D103A92BDE4B /* ModelProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelProfile.swift; sourceTree = "<group>"; };
@@ -1818,10 +1822,12 @@
 				819FBA8C27C8E9496803EA65 /* PluginDetailComponents.swift */,
 				BA1BAB2CFB8CB4EF1EC01B69 /* PluginListView.swift */,
 				6AA0D31EDEEE99F77923A16D /* SessionListItem.swift */,
+				F4804DFA0EB61D99A3681E47 /* SettingsCompletePage.swift */,
 				CA651ED175214D1BE5E06E8A /* SettingsSubPages.swift */,
 				A63466BD1739821716363EAA /* SettingsView.swift */,
 				94424AD47F6DE7E7ED163005 /* SidebarProjectSections.swift */,
 				A87A9B3AC43EF39F61019FAA /* SidebarSupportViews.swift */,
+				68E1F323D5117B26148D2617 /* SidebarSyncHint.swift */,
 				B7E4E2FCC4C34D368E59BA20 /* SidebarView.swift */,
 				133A3C55E75D69F1DE30ACB9 /* SkillView.swift */,
 				394972AC961A90C269BA46C1 /* SubagentView.swift */,
@@ -3109,10 +3115,12 @@
 				81F26538EE82C20091DB476D /* PluginListView.swift in Sources */,
 				43EADCA12C108103171066F1 /* PluginMetadataStore.swift in Sources */,
 				44EBC266109EED73B2755D1C /* SessionListItem.swift in Sources */,
+				B49994EE0E9711F537AA66F0 /* SettingsCompletePage.swift in Sources */,
 				08BFE43C5893B6BFB54619FF /* SettingsSubPages.swift in Sources */,
 				F1CBB1E5FF44C2EE7873D04A /* SettingsView.swift in Sources */,
 				F44E1A2D6A52BCBEE436892E /* SidebarProjectSections.swift in Sources */,
 				BF406ADF485FEE1F403B0097 /* SidebarSupportViews.swift in Sources */,
+				A785044DEF0E64FF47A2D75A /* SidebarSyncHint.swift in Sources */,
 				D00A37B2868EC62E4A59B5F5 /* SidebarView.swift in Sources */,
 				55AA075F145D38C19B39126C /* SkillView.swift in Sources */,
 				4D5743F7CCC9A3593078D8FA /* SubagentView.swift in Sources */,
