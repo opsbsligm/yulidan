@@ -141,6 +141,8 @@ struct SettingsView: View {
 
     /// 导航状态机（选中分类 + 子页栈）
     @State private var nav = SettingsNavigationState()
+    /// P2.1 完整设置页面弹窗开关
+    @State private var showCompleteSettings = false
 
     /// 当前选中的一级分类
     private var selectedTab: SettingsTab {
@@ -239,7 +241,17 @@ struct SettingsView: View {
 
             Divider()
 
+            // P2.1 完整设置页面（弹窗概览，作为入口横幅展示）
+            Button("打开完整设置页面（账号 / iCloud / 模型 / 插件 / 记忆 / 权限 / 主题 七卡片概览）") {
+                showCompleteSettings = true
+            }
+            .font(.system(size: 11)).foregroundStyle(HarnessTheme.accent)
+            .padding(.horizontal, 16).padding(.vertical, 8)
+
             subPageView(currentSub)
+        }
+        .sheet(isPresented: $showCompleteSettings) {
+            SettingsCompletePage(viewModel: viewModel)
         }
     }
 
