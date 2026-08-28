@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 @testable import HarnessApp
 import ServiceContainer
@@ -114,11 +115,16 @@ struct AppViewModelThemePluginTests {
         #expect(vm.activeThemeSpec.accentHex == "#34C759")
 
         // 卸载 MCP 服务器 → 主题来源消失 → 回落
+        // toast 经 sink 捕获（2026-08-29 flaky 修复：toastMessage 2.5s 自动清除，
+        // 并行 CI 高负载下 removeMCPServer 卸载后刷新超 2.5s → 直接读值已被清；sink 对发射时点不敏感）
+        var toasts: [String] = []
+        let sink = vm.$toastMessage.compactMap(\.self).removeDuplicates().sink { toasts.append($0) }
         if let item = vm.mcpServers.first {
             await vm.removeMCPServer(item)
         }
+        sink.cancel()
         #expect(vm.activeThemeSpec == .systemBaseline)
-        #expect(vm.toastMessage?.contains("回落") == true)
+        #expect(toasts.contains { $0.contains("回落") }, "卸载回落应通知，实际 toasts=\(toasts)")
     }
 
     // MARK: 用例 4b：MCP 非法主题 spec e2e（诚实闭环：越界玻璃强度 = 不识别为主题，不半生效）
