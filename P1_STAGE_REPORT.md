@@ -36,6 +36,8 @@
 | 门禁 | 结果 | 日志 |
 |---|---|---|
 | PR | SwiftLint strict **0** / SwiftFormat **0/254** / 构建 0 警告 / XCTest **257**（2 skip = opt-in 集成）+ Swift Testing **815**（175 suites）合计 **1072，0 失败** | /tmp/ci_pr_p1_1_{lint,test}.log |
+
+> P1.2 轮基线（@d43411b）：PR 门禁同口径 **1074，0 失败**（Swift Testing 817 / 176 suites；Lint 0 / 256 文件）；leaks 0；main 覆盖率 **96.12%**（持平，P1.2 未改 Packages）；xcode 双 SUCCEEDED（日志 /tmp/ci_{pr_p1_2,xcode_p1_2,leaks_p1_2,main_p1_2_cov}.log）。
 | leaks | **0 leaks**（MemProbe 500 迭代） | /tmp/ci_leaks_p1_1.log |
 | main | Release 构建 + 全量 815/815 + 覆盖率：**后端 90 文件 10,557 行 96.12%**（与基线 96.13% 持平，本 commit 未改 Packages；<90% 同基线 4 文件：AppleSignInService 15.86% entitlements 区 / LLMProvider 79.63% / NotificationService 82.89% / AppleCredentialStore 89.29%） | /tmp/ci_main_p1_1.log |
 | xcode | **BUILD SUCCEEDED / TEST SUCCEEDED** | /tmp/ci_xcode_p1_1.log |
@@ -97,10 +99,10 @@
 | `1be36a4` | 铁律 1 解锁复核（签名零漂移 + 探针重跑 + 按钮风格探针） |
 | `949759b` | P1.1 全局玻璃化（四门禁全绿，1072/0） |
 | `07c43a4` | P1.1 阶段报告 + 组件地图刷新 |
-| `<P1.2-code>` | P1.2 Tab Morph（GlassMorphTabBar 新件 + SidebarView 接入 + NavRow 死代码删除 + 测试 ×2） |
-| `<P1.2-docs>` | 本报告 §六 + 组件地图 P1.2 状态 |
+| `d43411b` | P1.2 Tab Morph（GlassMorphTabBar 新件 + SidebarView 接入 + NavRow 死代码删除 + 测试 ×2；四门禁全绿 1074/0） |
+| `<本报告提交>` | 本报告 §六/§七 定稿 + 组件地图 P1.2 状态 |
 
-**P1.2 验收 bundle**（随 docs 提交一并重建）：`.build/debug/HarnessApp.app` cp + ad-hoc 重签 + nm 核验（sha 见 docs 提交说明）。
+**P1.2 验收 bundle**：`.build/debug/HarnessApp.app` 可执行文件已 `cp`（@d43411b 源码构建）+ ad-hoc 重签（ci.entitlements）+ nm 核验 `GlassMorphTabBar` 符号 ×172 在位；**bundle sha `45affb72`**（P1.1 的 137e7c7c 作废）。
 ## 八、P1.2 解锁条件
 
 - P1.1 验收通过（用户实机确认玻璃化正常 + 无交互回归）
