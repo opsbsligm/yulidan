@@ -457,6 +457,8 @@ struct MarketplaceCard: View {
     let onUpdate: () -> Void
     let onUninstall: () -> Void
     @State private var isHovered = false
+    /// P2.2 插件卸载确认（卸载是破坏性动作，需二次确认，防止误卸载）
+    @State private var showUninstallConfirmation = false
 
     private var hasHighRisk: Bool {
         item.permissions.contains { ["Shell 执行", "终端访问", "子进程创建", "屏幕捕获"].contains($0) }
@@ -546,7 +548,12 @@ struct MarketplaceCard: View {
                 Button("更新", action: onUpdate).buttonStyle(.bordered).controlSize(.small)
             }
             if item.isInstalled {
-                Button("卸载", action: onUninstall).buttonStyle(.bordered).controlSize(.small)
+                Button("卸载") { showUninstallConfirmation = true }.buttonStyle(.bordered).controlSize(.small)
+                    // P2.2 卸载确认弹窗（破坏性动作二次确认）
+                    .alert("确定卸载插件？", isPresented: $showUninstallConfirmation) {
+                        Button("卸载", role: .destructive) { onUninstall() }
+                        Button("取消", role: .cancel) {}
+                    }
             } else {
                 Button("安装", action: onInstall)
                     .buttonStyle(.glassProminent) // P1.1 C5：插件安装（主操作）→ 玻璃强调

@@ -13,8 +13,10 @@ struct SidebarSessionRow: View {
     let isGenerating: Bool
     let onSelect: () -> Void
     let onTogglePin: () -> Void
-    let onDelete: () -> Void
+    let onDelete: (SessionRecord) -> Void
     let onToggleArchive: () -> Void
+    /// P2.2 会话删除确认（行级状态，上下文菜单删除需二次确认）
+    @State private var sessionToDelete: SessionRecord?
 
     var body: some View {
         let payload = SessionDragPayload(
@@ -28,7 +30,7 @@ struct SidebarSessionRow: View {
             isGenerating: isGenerating,
             onSelect: onSelect,
             onTogglePin: onTogglePin,
-            onDelete: onDelete
+            onDelete: { onDelete(session) } // 无参闭包包装（行内删除按钮需记录）
         )
         .draggable(payload)
         .contextMenu {
@@ -37,6 +39,29 @@ struct SidebarSessionRow: View {
             } label: {
                 Label("归档", systemImage: "archivebox")
             }
+            // P2.2 删除需二次确认（打开确认弹窗，非直接删除）
+            Button(role: .destructive) {
+                sessionToDelete = session
+            } label: {
+                Label("删除", systemImage: "trash")
+            }
+        }
+        // 删除确认弹窗（P2.2 交互加固：删除是破坏性动作，需确认）
+        .alert("确定删除会话？", isPresented: Binding(
+            get: { sessionToDelete != nil },
+            set: {
+                if !$0 {
+                    sessionToDelete = nil
+                }
+            }
+        )) {
+            Button("删除", role: .destructive) {
+                if let record = sessionToDelete {
+                    onDelete(record) // 闭包传递记录给父视图（删除动作）
+                    sessionToDelete = nil
+                }
+            }
+            Button("取消", role: .cancel) { sessionToDelete = nil }
         }
     }
 }
@@ -201,7 +226,7 @@ struct SidebarProjectSections: View {
             isGenerating: generatingSessionId == session.id,
             onSelect: { onSelectSession(session) },
             onTogglePin: { onTogglePin(session) },
-            onDelete: { onDeleteSession(session) },
+            onDelete: { onDeleteSession($0) },
             onToggleArchive: { onToggleSessionArchived(session) }
         )
     }
