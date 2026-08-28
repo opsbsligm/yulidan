@@ -73,6 +73,9 @@ struct ArchiveManagerView: View {
         }
         .padding(20)
         .frame(width: 380, height: 420)
+        // P1.3：弹窗 glassEffect 补齐（P1 §1 缺口）+ materialize 出入场
+        // 铁律 1 注记：sheet 子窗口内 glassEffect 未官方实证，最坏 = 无玻璃视觉（无功能回归）
+        .glassSurface(.regular, cornerRadius: 12, transition: .materialize)
     }
 }
 

@@ -52,6 +52,10 @@ struct SidebarView: View {
     @State private var newProjectName = ""
     /// 归档管理面板
     @State private var showArchiveManager = false
+    /// P1.3：展开/折叠两面共享 namespace（同 ID 同 namespace → 折叠/展开时原生 morph，铁律 4）
+    @Namespace private var sidebarMorphNS
+    /// P1.3：侧边栏折叠 morph 身份（展开/折叠玻璃面统一 ID）
+    private static let collapseMorphID = "harness-sidebar-collapse"
 
     /// 用户姓名首字（头像用）
     private var avatarInitial: String {
@@ -89,6 +93,9 @@ struct SidebarView: View {
                 expandedBody
             }
         }
+        // P1.3：展开/折叠双态共享同一容器（morph 面同一 GlassEffectContainer；跨态组合未官方实证，
+        // 铁律 1 注记：最坏 = 交叉淡变不 morph，功能不受损，实机走查判定）
+        .glassSurfaceContainer()
         // 新建项目
         .alert("新建项目", isPresented: $showNewProject) {
             TextField("项目名称", text: $newProjectName)
@@ -321,9 +328,14 @@ struct SidebarView: View {
             SidebarBottomBar(selectedTab: $selectedTab, onToggleCollapse: onToggleCollapse)
         }
         .frame(width: 260)
-        .glassSurface(.regular, cornerRadius: 0)
-        // P1.1 C1：展开侧边栏同区域容器化（P1.2 六分区 morph 面将作为同容器成员加入）
-        .glassSurfaceContainer()
+        // P1.3：与折叠面同 ID 同 namespace 同 .regular 变体同型 shape（cornerRadius 0）→ 折叠/展开原生 morph
+        .glassSurface(
+            .regular,
+            cornerRadius: 0,
+            morphID: Self.collapseMorphID,
+            namespace: sidebarMorphNS,
+            transition: .matchedGeometry
+        )
     }
 
     /// 会话列表加载失败行（P0.3 异常 UI；已加载部分仍渲染在下方）
@@ -429,9 +441,15 @@ struct SidebarView: View {
             .padding(.bottom, 10)
         }
         .frame(width: 52)
-        .glassSurface(.prominent, cornerRadius: 0)
-        // P1.1 C1：折叠 rail 同区域容器化
-        .glassSurfaceContainer()
+        // P1.3：与展开面同 ID 同 namespace（level 仅影响 legacy/solid fallback 材质，原生 Glass 值恒为
+        // resolvedGlass .regular+tint → 两态同变体，满足官方 morph 约束）
+        .glassSurface(
+            .prominent,
+            cornerRadius: 0,
+            morphID: Self.collapseMorphID,
+            namespace: sidebarMorphNS,
+            transition: .matchedGeometry
+        )
     }
 }
 

@@ -26,6 +26,12 @@ struct GlassSurfaceModifier: ViewModifier {
     var level: GlassLevel
     var cornerRadius: CGFloat
     var tint: Color?
+    /// P1.3 morph 身份（需与 namespace 同用：同 namespace 同 ID → 原生 morph 配对，铁律 4 原生机制）
+    var morphID: String?
+    /// P1.3 morph namespace（提升共享给参与 morph 的多面，如侧边栏展开/折叠两面）
+    var namespace: Namespace.ID?
+    /// P1.3 玻璃过渡预设（.materialize = 弹窗出入场 / .matchedGeometry = morph / .identity = 无过渡）
+    var transition: GlassEffectTransition?
 
     /// 当前激活主题（根视图注入；glassTintHex = 主题插件玻璃 tint，P1.1 起生效）
     @Environment(\.harnessThemeSpec) private var themeSpec
@@ -92,6 +98,30 @@ struct GlassSurfaceModifier: ViewModifier {
         return .regular
     }
 
+    /// P1.3 morph/过渡配置解析（纯函数，可单测）
+    /// 优先级：morph 配对（id + namespace）> 纯过渡（如 sheet materialize）> 无
+    enum MorphConfig {
+        case none
+        case transitionOnly(GlassEffectTransition)
+        case morphed(id: String, transition: GlassEffectTransition)
+    }
+
+    static func resolveMorph(
+        morphID: String?,
+        namespaceBound: Bool,
+        transition: GlassEffectTransition?
+    ) -> MorphConfig {
+        if let morphID, namespaceBound {
+            // morph 需要过渡描述（缺省 .matchedGeometry，与 P1.2 一致）
+            return .morphed(id: morphID, transition: transition ?? .matchedGeometry)
+        }
+        if let transition {
+            // 无完整 morph 配对（缺 id 或 namespace）→ 降级纯过渡（不产生假 morph）
+            return .transitionOnly(transition)
+        }
+        return .none
+    }
+
     private var material: NSVisualEffectView.Material {
         Self.material(for: level)
     }
@@ -108,6 +138,26 @@ struct GlassSurfaceModifier: ViewModifier {
         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
     }
 
+    /// P1.3：原生玻璃面 + 可选 morph 身份/过渡（组合形态经 /tmp/glassprobe3.swift 编译探针实证）
+    @MainActor
+    @ViewBuilder
+    private func nativeFace(content: some View, glass: Glass) -> some View {
+        let base = content.glassEffect(glass, in: shape)
+        switch Self.resolveMorph(morphID: morphID, namespaceBound: namespace != nil, transition: transition) {
+        case .none:
+            base
+        case let .transitionOnly(t):
+            base.glassEffectTransition(t)
+        case let .morphed(id, t):
+            // 防御分支：resolveMorph 已按 namespaceBound 门控，理论上 namespace 非 nil
+            if let namespace {
+                base.glassEffectID(id, in: namespace).glassEffectTransition(t)
+            } else {
+                base
+            }
+        }
+    }
+
     func body(content: Content) -> some View {
         switch Self.currentMode() {
         case .solid:
@@ -119,11 +169,9 @@ struct GlassSurfaceModifier: ViewModifier {
         case .native:
             // macOS 26+ 原生 Liquid Glass：内容区域整体成为玻璃表面
             // P1.1：tint 解析收敛为纯函数 resolvedGlass（显式 > 主题 > 无 tint，fallback 系统默认）
+            // P1.3：morph 身份 / 过渡预设（降级模式 no-op = P1.1 不变量）
             if #available(macOS 26.0, *) {
-                content.glassEffect(
-                    Self.resolvedGlass(explicitTint: tint, themeTintHex: themeSpec.glassTintHex),
-                    in: shape
-                )
+                nativeFace(content: content, glass: Self.resolvedGlass(explicitTint: tint, themeTintHex: themeSpec.glassTintHex))
             } else {
                 // 防御分支（mode 解析已按 OS 门控，理论上不可达）
                 content.background(VisualEffectMaterial(material: material, blendingMode: .behindWindow))
@@ -141,12 +189,24 @@ struct GlassSurfaceModifier: ViewModifier {
 
 extension View {
     /// WWDC26 Liquid Glass 表面（自动降级 + 无障碍）
+    /// P1.3：morphID/namespace/transition 可选 — morph 配对（侧边栏展开折叠/项目卡）与弹窗出入场（.materialize）；
+    /// 降级模式（solid/legacy）三参数 no-op（无障碍降级行为不变的 P1.1 不变量）
     func glassSurface(
         _ level: GlassLevel = .regular,
         cornerRadius: CGFloat = HarnessTheme.radiusLarge,
-        tint: Color? = nil
+        tint: Color? = nil,
+        morphID: String? = nil,
+        namespace: Namespace.ID? = nil,
+        transition: GlassEffectTransition? = nil
     ) -> some View {
-        modifier(GlassSurfaceModifier(level: level, cornerRadius: cornerRadius, tint: tint))
+        modifier(GlassSurfaceModifier(
+            level: level,
+            cornerRadius: cornerRadius,
+            tint: tint,
+            morphID: morphID,
+            namespace: namespace,
+            transition: transition
+        ))
     }
 }
 

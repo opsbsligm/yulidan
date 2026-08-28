@@ -90,19 +90,7 @@ struct SidebarProjectSections: View {
             .padding(.vertical, 4)
 
             ForEach(model.projectSections) { section in
-                projectHeader(section)
-                if !section.project.collapsed {
-                    ForEach(section.sessions) { session in
-                        sessionRow(session, inProject: section.id)
-                    }
-                    if section.sessions.isEmpty {
-                        Text("（空项目：拖拽会话到此）")
-                            .font(.system(size: 11))
-                            .foregroundStyle(HarnessTheme.textTertiary)
-                            .padding(.horizontal, 26)
-                            .padding(.vertical, 4)
-                    }
-                }
+                sectionCard(section)
             }
 
             // 全局顶层（无归属 + 未归档；拖拽落点 = 全局区）
@@ -133,8 +121,11 @@ struct SidebarProjectSections: View {
                 .dropDestination(for: SessionDragPayload.self) { payloads, _ in
                     guard let first = payloads.first,
                           let record = sessions.first(where: { $0.id.rawValue == first.sessionID }) else { return false }
-                    onMoveSession(record, .global)
-                    targetedDrop = nil
+                    // P1.3：落位动画事务（与项目落点同一口径）
+                    withAnimation(.smooth(duration: 0.22)) {
+                        onMoveSession(record, .global)
+                        targetedDrop = nil
+                    }
                     return true
                 } isTargeted: { targeting in
                     targetedDrop = targeting ? "global" : (targetedDrop == "global" ? nil : targetedDrop)
@@ -165,6 +156,8 @@ struct SidebarProjectSections: View {
             }
             .padding(20)
             .frame(width: 300)
+            // P1.3：弹窗 glassEffect 补齐（P1 §1 缺口）+ materialize 出入场
+            .glassSurface(.regular, cornerRadius: 12, transition: .materialize)
         }
         // 删除项目确认（二选一）
         .sheet(item: $deleteTarget) { project in
@@ -193,6 +186,8 @@ struct SidebarProjectSections: View {
             }
             .padding(20)
             .frame(width: 340)
+            // P1.3：弹窗 glassEffect 补齐（P1 §1 缺口）+ materialize 出入场
+            .glassSurface(.regular, cornerRadius: 12, transition: .materialize)
         }
     }
 
@@ -217,7 +212,8 @@ struct SidebarProjectSections: View {
         let isTargeted = targetedDrop == project.id.rawValue.uuidString
         return HStack(spacing: 6) {
             Button {
-                onToggleProjectCollapsed(project)
+                // P1.3：展开/收起动画事务（项目卡玻璃面 frame 形变 + 行组显隐）
+                withAnimation(.smooth(duration: 0.2)) { onToggleProjectCollapsed(project) }
             } label: {
                 Image(systemName: project.collapsed ? "chevron.right" : "chevron.down")
                     .font(.system(size: 9, weight: .medium))
@@ -246,7 +242,8 @@ struct SidebarProjectSections: View {
         .background(isTargeted ? HarnessTheme.accent.opacity(0.14) : .clear)
         .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
         .contentShape(Rectangle())
-        .onTapGesture { onToggleProjectCollapsed(project) }
+        // P1.3：与 chevron 同一动画事务口径（展开/收起 frame 动画）
+        .onTapGesture { withAnimation(.smooth(duration: 0.2)) { onToggleProjectCollapsed(project) } }
         .contextMenu {
             Button {
                 renameTarget = project
@@ -268,11 +265,36 @@ struct SidebarProjectSections: View {
         .dropDestination(for: SessionDragPayload.self) { payloads, _ in
             guard let first = payloads.first,
                   let record = sessions.first(where: { $0.id.rawValue == first.sessionID }) else { return false }
-            onMoveSession(record, .project(project.id))
-            targetedDrop = nil
+            // P1.3：落位动画事务（目标卡行组变更 = 玻璃形变；系统拖拽预览为快照无法挂 live 玻璃，诚实口径）
+            withAnimation(.smooth(duration: 0.22)) {
+                onMoveSession(record, .project(project.id))
+                targetedDrop = nil
+            }
             return true
         } isTargeted: { targeting in
             targetedDrop = targeting ? project.id.rawValue.uuidString : (targetedDrop == project.id.rawValue.uuidString ? nil : targetedDrop)
         }
+    }
+
+    /// P1.3：项目分区 thin 玻璃卡（C4 式逐分区独立；玻璃锚定 view bounds →
+    /// 展开/收起与行插入/移除的 frame 动画 = 玻璃原生形变，无自绘模拟，铁律 4）
+    private func sectionCard(_ section: SidebarModel.ProjectSection) -> some View {
+        VStack(spacing: 0) {
+            projectHeader(section)
+            if !section.project.collapsed {
+                ForEach(section.sessions) { session in
+                    sessionRow(session, inProject: section.id)
+                }
+                if section.sessions.isEmpty {
+                    Text("（空项目：拖拽会话到此）")
+                        .font(.system(size: 11))
+                        .foregroundStyle(HarnessTheme.textTertiary)
+                        .padding(.horizontal, 26)
+                        .padding(.vertical, 4)
+                }
+            }
+        }
+        .padding(.vertical, 2)
+        .glassSurface(.thin, cornerRadius: 8)
     }
 }

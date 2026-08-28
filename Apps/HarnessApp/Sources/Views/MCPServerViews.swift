@@ -112,6 +112,8 @@ struct MCPServerLogSheet: View {
         }
         .padding(20)
         .frame(width: 560, height: 420)
+        // P1.3：弹窗 glassEffect 补齐（P1 §1 缺口）+ materialize 出入场
+        .glassSurface(.regular, cornerRadius: 12, transition: .materialize)
         .onAppear {
             Task { logText = await viewModel.mcpServerLog(server) }
         }

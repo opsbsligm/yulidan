@@ -77,4 +77,47 @@ struct GlassSurfaceTests {
         #expect(!GlassSurfaceContainerModifier.shouldWrap(.solid))
         #expect(!GlassSurfaceContainerModifier.shouldWrap(.legacy))
     }
+
+    // MARK: - P1.3 morph/过渡配置解析（resolveMorph 纯函数）
+
+    @Test("resolveMorph：id + namespace 齐备 → morphed（过渡缺省 .matchedGeometry，与 P1.2 一致）")
+    func resolveMorphPairDefaultTransition() {
+        guard case let .morphed(id, _) = GlassSurfaceModifier.resolveMorph(
+            morphID: "harness-sidebar-collapse", namespaceBound: true, transition: nil
+        ) else {
+            Issue.record("expected .morphed")
+            return
+        }
+        #expect(id == "harness-sidebar-collapse")
+    }
+
+    @Test("resolveMorph：显式过渡优先于缺省（弹窗 .materialize 出入场）")
+    func resolveMorphExplicitTransition() {
+        guard case .morphed = GlassSurfaceModifier.resolveMorph(
+            morphID: "x", namespaceBound: true, transition: .materialize
+        ) else {
+            Issue.record("expected .morphed")
+            return
+        }
+    }
+
+    @Test("resolveMorph：缺 id 或 namespace → 降级 transitionOnly（不产生假 morph 配对）")
+    func resolveMorphDegradeToTransition() {
+        let missingID = GlassSurfaceModifier.resolveMorph(morphID: nil, namespaceBound: true, transition: .materialize)
+        let missingNamespace = GlassSurfaceModifier.resolveMorph(morphID: "x", namespaceBound: false, transition: .materialize)
+        guard case .transitionOnly = missingID, case .transitionOnly = missingNamespace else {
+            Issue.record("expected .transitionOnly")
+            return
+        }
+    }
+
+    @Test("resolveMorph：三参全缺 → none（与既有 glassSurface 行为零差异）")
+    func resolveMorphNone() {
+        guard case .none = GlassSurfaceModifier.resolveMorph(
+            morphID: nil, namespaceBound: false, transition: nil
+        ) else {
+            Issue.record("expected .none")
+            return
+        }
+    }
 }
