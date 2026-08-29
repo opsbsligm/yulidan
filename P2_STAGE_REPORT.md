@@ -65,7 +65,7 @@
 | P1 Liquid Glass（P1.1–P1.5） | ✅ 5/5 | ✅（每轮四门禁） | 🔄 用户侧走查清单累计 13 项未核销（P1.1×6 已按「继续推进」口径核销；P1.2×7 / P1.3×6 / P1.4×6 / P1.5×1 中的重叠项按单提交粒度核销——发现问题随时截图报障即可） |
 | P2 次要优化 | ✅ 本表（含 P2.3 `17e9f22` 玻璃强度诚实闭环，2026-08-29） | ✅ 本轮复核（837 测试 0 失败 ×3 轮） | 🔄 §五 6 项 |
 
-非阻塞尾巴（不改变完成度口径）：① 付费 Apple Developer Team → SSO/iCloud entitlements 实机验收（代码零改动，设计内优雅降级）② GitHub Actions 远端（用户暂缓，ci-local 四模式本地模拟在案）③ macOS 27 beta 协作池调度停滞/幻影窗口观察项（QUALITY_REPORT §四在案）
+非阻塞尾巴（不改变完成度口径）：① 付费 Apple Developer Team → SSO/iCloud entitlements 实机验收（代码零改动，设计内优雅降级）——**2026-08-29 用户决定跳过挂起**（MVP 验收不以其为前置；ad-hoc 下 SSO 报 AS 1000 属设计内诚实文案；提供付费 Team 后可随时恢复该项验收）② GitHub Actions 远端（用户暂缓，ci-local 四模式本地模拟在案）③ macOS 27 beta 协作池调度停滞/幻影窗口观察项（QUALITY_REPORT §四在案）
 
 ## 七、提交链（P2 轮）
 
