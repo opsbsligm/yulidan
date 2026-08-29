@@ -73,6 +73,19 @@ struct GlassMorphTabBar: View {
         .glassSurfaceContainer()
     }
 
+    /// 分段面模式（纯函数，可单测）：选中 + native → 内容入玻璃（morph 面）；
+    /// 选中 + 降级 → solid 块；未选中 → 素面（无玻璃）
+    enum TileFaceMode {
+        case glassMorph
+        case solid
+        case plain
+
+        static func resolve(isSelected: Bool, isNative: Bool) -> TileFaceMode {
+            guard isSelected else { return .plain }
+            return isNative ? .glassMorph : .solid
+        }
+    }
+
     private func segment(_ seg: MorphTabSegment, glass: Glass) -> some View {
         let isSelected = seg.id == selectedID
         return Button {
@@ -81,37 +94,51 @@ struct GlassMorphTabBar: View {
                 onSelect(seg)
             }
         } label: {
-            VStack(spacing: 3) {
-                Image(systemName: seg.icon)
-                    .font(.system(size: 15, weight: isSelected ? .semibold : .regular))
-                Text(seg.title)
-                    .font(.system(size: 11, weight: isSelected ? .medium : .regular))
-                    .lineLimit(1)
-            }
-            .foregroundStyle(isSelected ? HarnessTheme.textPrimary : HarnessTheme.textSecondary)
-            .frame(maxWidth: .infinity)
-            .frame(height: 46)
-            .contentShape(Self.tileShape)
-            .background {
-                if isSelected {
-                    if isNative {
-                        // 原生 morph 选中玻璃面（悬停/按压反馈 = Glass.interactive 材质自带行为）
-                        Color.clear
-                            .glassEffect(glass, in: Self.tileShape)
-                            .glassEffectID(Self.selectionID, in: morphNS)
-                            .glassEffectTransition(.matchedGeometry)
-                    } else {
-                        // 降级（reduceTransparency）：solid 选中块，无 morph
-                        Self.tileShape.fill(HarnessTheme.sidebarHover)
-                    }
-                }
-            }
-            .accessibilityLabel(seg.title)
-            .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+            tileContent(seg, isSelected: isSelected, glass: glass)
+                .accessibilityLabel(seg.title)
+                .accessibilityAddTraits(isSelected ? [.isSelected] : [])
         }
         .buttonStyle(.plain)
         .help(seg.title)
         .modifier(MorphTabKeyModifier(key: seg.key))
+    }
+
+    /// 分段面构造（2026-08-29 实机走查修复，截图 + 像素直方图证据入册）：
+    /// 旧实现把 `Color.clear.glassEffect` 挂 `.background`（非标准构造）——macOS 27 beta 下
+    /// 玻璃层合成在 tile 内容之上，选中 tile 图标/文字被折射采样洗淡不可见
+    /// （证据：窗口截图 3x 放大空 tile + 内部像素直方图 min 亮度 118 = 内容在玻璃后）。
+    /// 改官方文档模式：glassEffect 直接施加于内容 view
+    /// （"Renders a shape anchored behind a view ... Applies the foreground effects of
+    /// Liquid Glass over a view"，docs/P1_GLASS_API_VERIFICATION.md §六逐字在案）
+    /// → 玻璃锚定内容 bounds，内容保持锐利（与 P1.1 composer / 项目卡同模式互证）。
+    /// morph 不变量不变：同 glassEffectID + 同 @Namespace + 同 Glass 变体 + 同型 tileShape
+    /// → 旧面移除 / 新面插入仍触发原生 morph 配对（官方 glassEffectID 语义在案）。
+    @ViewBuilder
+    private func tileContent(_ seg: MorphTabSegment, isSelected: Bool, glass: Glass) -> some View {
+        let base = VStack(spacing: 3) {
+            Image(systemName: seg.icon)
+                .font(.system(size: 15, weight: isSelected ? .semibold : .regular))
+            Text(seg.title)
+                .font(.system(size: 11, weight: isSelected ? .medium : .regular))
+                .lineLimit(1)
+        }
+        .foregroundStyle(isSelected ? HarnessTheme.textPrimary : HarnessTheme.textSecondary)
+        .frame(maxWidth: .infinity)
+        .frame(height: 46)
+        .contentShape(Self.tileShape)
+        switch Self.TileFaceMode.resolve(isSelected: isSelected, isNative: isNative) {
+        case .glassMorph:
+            // 原生 morph 选中玻璃面：内容直接入玻璃（官方模式；悬停/按压反馈 = Glass.interactive 材质自带）
+            base
+                .glassEffect(glass, in: Self.tileShape)
+                .glassEffectID(Self.selectionID, in: morphNS)
+                .glassEffectTransition(.matchedGeometry)
+        case .solid:
+            // 降级（reduceTransparency）：solid 选中块，无 morph
+            base.background(Self.tileShape.fill(HarnessTheme.sidebarHover))
+        case .plain:
+            base
+        }
     }
 }
 

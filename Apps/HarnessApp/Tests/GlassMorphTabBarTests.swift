@@ -35,4 +35,12 @@ struct GlassMorphTabBarTests {
             #expect(seg?.action != .newChat)
         }
     }
+
+    @Test("TileFaceMode：选中+native→玻璃morph面 / 选中+降级→solid / 未选中→素面（走查修复三态不变量）")
+    func tileFaceModeResolve() {
+        #expect(GlassMorphTabBar.TileFaceMode.resolve(isSelected: true, isNative: true) == .glassMorph)
+        #expect(GlassMorphTabBar.TileFaceMode.resolve(isSelected: true, isNative: false) == .solid)
+        #expect(GlassMorphTabBar.TileFaceMode.resolve(isSelected: false, isNative: true) == .plain)
+        #expect(GlassMorphTabBar.TileFaceMode.resolve(isSelected: false, isNative: false) == .plain)
+    }
 }
