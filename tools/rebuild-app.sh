@@ -39,14 +39,10 @@ sync_bundle() {
     <key>LSMinimumSystemVersion</key><string>26.0</string>
     <key>NSHighResolutionCapable</key><true/>
     <key>NSPrincipalClass</key><string>NSApplication</string>
-    <key>NSUbiquitousContainerIdentifiers</key>
-    <array>
-        <string>iCloud.com.deepseek.harness</string>
-    </array>
 </dict>
 </plist>
 PLIST
-  # ad-hoc 签名带 entitlements（SSO/iCloud 描述文件就绪后真机生效；缺失时运行时优雅降级）
+  # ad-hoc 签名带 entitlements（2026-08-30 起纯本地模式：仅 get-task-allow，无 team 级能力）
   codesign --force --sign - --entitlements Apps/HarnessApp/HarnessApp.ci.entitlements "$APP" >/dev/null 2>&1 || true
   # 同步戳：pre-sign sha + git HEAD + 时间（verify 用；签名会改写二进制 sha，故以 pre-sign 值对拍）
   printf 'src_sha=%s\nhead=%s\ntime=%s\n' "$a" "$(git rev-parse --short HEAD 2>/dev/null || echo unknown)" "$(date '+%Y-%m-%d %H:%M:%S')" > "$STAMP"

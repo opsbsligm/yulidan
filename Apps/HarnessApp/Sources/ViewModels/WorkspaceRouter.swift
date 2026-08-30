@@ -1,37 +1,35 @@
-import Account
 import Foundation
 import SwiftUI
+import Workspace
 
-/// 工作区路由（P0.1.5）：按 AccountService 当前模式路由 App 运行时目录集
-/// - 本地模式 → 本地根（~/Library/Application Support/Harness）
-/// - iCloud 模式 → iCloud Documents 容器根（agents/rag/plugins-meta/themes/sync 标准骨架）
-/// 双根同构、严格隔离：数据互不污染、不自动迁移（目标「两套存储严格隔离」口径）。
-/// 目录契约来自 Account.WorkspaceLayout（两套根同构，业务侧按名引用子目录）。
+/// 工作区路由（P0.1.5 起；2026-08-30 起纯本地单根：SSO/iCloud 模块整体移除）
+/// - 本地根 = ~/Library/Application Support/Harness（agents/rag/plugins-meta/themes/memory 标准骨架）
+/// 目录契约来自 Workspace.WorkspaceLayout（业务侧按名引用子目录）。
 @MainActor
 public final class WorkspaceRouter: ObservableObject {
     @Published public private(set) var current: WorkspaceRoot
 
-    private let accountService: AccountService
+    private let provider: WorkspaceRootProvider
 
-    public init(accountService: AccountService) {
-        self.accountService = accountService
-        current = accountService.currentWorkspace
+    public init(provider: WorkspaceRootProvider? = nil) {
+        self.provider = provider ?? WorkspaceRootProvider()
+        current = self.provider.resolveLocal()
         materialize()
     }
 
-    // MARK: - 运行时目录（随模式路由）
+    // MARK: - 运行时目录（本地根）
 
-    /// Agent 产出文件根（iCloud 模式 = 容器/agents）
+    /// Agent 产出文件根
     public var agentOutputs: URL {
         current.url(for: WorkspaceLayout.agentOutputs)
     }
 
-    /// RAG 向量库索引（iCloud 模式 = 容器/rag/index.json）
+    /// RAG 向量库索引
     public var ragIndexURL: URL {
         current.url(for: WorkspaceLayout.ragStore).appendingPathComponent("index.json")
     }
 
-    /// 插件元数据清单（MCP 二进制不同步，仅元数据/启用状态/配置 — P0.4.4）
+    /// 插件元数据清单（MCP 二进制不落工作区，仅元数据/启用状态/配置 — P0.4.4）
     public var pluginMetaURL: URL {
         current.url(for: WorkspaceLayout.pluginMeta).appendingPathComponent("installed.json")
     }
@@ -41,34 +39,19 @@ public final class WorkspaceRouter: ObservableObject {
         current.url(for: WorkspaceLayout.themeResources)
     }
 
-    /// 长期记忆库（契约 v2：iCloud 模式 = 容器/memory/longterm.json，双根严格隔离）
+    /// 长期记忆库（契约 v2：本地根 memory/longterm.json）
     public var memoryStoreURL: URL {
         current.url(for: WorkspaceLayout.memoryStore).appendingPathComponent("longterm.json")
     }
 
-    /// 每会话 Agent 工作目录（会话创建时落定；切模式不影响既有会话）
+    /// 每会话 Agent 工作目录（会话创建时落定）
     public func sessionCwd(_ sessionID: UUID) -> URL {
         agentOutputs.appendingPathComponent(sessionID.uuidString, isDirectory: true)
     }
 
-    public var isICloud: Bool {
-        current.kind == .icloud
-    }
+    // MARK: - 物化
 
-    // MARK: - 模式切换
-
-    /// 账号状态变化后重算路由（AppViewModel 在 objectWillChange 观察中调用）。
-    /// 返回 true = 根发生变化（调用方需重路由运行时目录）。
-    @discardableResult
-    public func refresh() -> Bool {
-        let next = accountService.currentWorkspace
-        guard next != current else { return false }
-        current = next
-        materialize()
-        return true
-    }
-
-    /// 物化标准目录骨架（幂等；失败静默 — 容器未就绪时由 AccountService 降级逻辑兜底）
+    /// 物化标准目录骨架（幂等；失败静默）
     public func materialize() {
         let fm = FileManager.default
         for directory in WorkspaceLayout.allDirectories {

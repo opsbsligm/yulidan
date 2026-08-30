@@ -26,13 +26,6 @@ let package = Package(
                     dependencies: ["ServiceContainer"],
                     path: "Packages/ServiceContainer/Tests"),
 
-        .target(name: "Account",
-                dependencies: ["ServiceContainer", "Workspace"],
-                path: "Packages/Account/Sources"),
-        .testTarget(name: "AccountTests",
-                    dependencies: ["Account", "ServiceContainer"],
-                    path: "Packages/Account/Tests"),
-
         .target(name: "Session",
                 dependencies: ["ServiceContainer", .product(name: "GRDB", package: "GRDB.swift")],
                 path: "Packages/Session/Sources"),
@@ -107,7 +100,7 @@ let package = Package(
         .executableTarget(name: "HarnessApp",
                           dependencies: ["HarnessCore", "ServiceContainer", "Session", "LLM", "Tools", "Agent",
                                          "Subagent", "MCP", "Terminal", "Sandbox", "Notifications", "PluginXPC",
-                                         "Skill", "Prompt", "RAG", "Memory", "Account"],
+                                         "Skill", "Prompt", "RAG", "Memory", "Workspace"],
                           path: "Apps/HarnessApp/Sources"),
         .testTarget(name: "HarnessAppTests",
                     dependencies: ["HarnessApp", "Agent", "Subagent", "Session", "LLM", "Tools"],

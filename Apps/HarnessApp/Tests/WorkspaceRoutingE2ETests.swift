@@ -16,7 +16,7 @@ struct WorkspaceRoutingE2ETests {
 
     @Test("全链路：会话内 Agent 相对路径写入落会话工作区 agents/<sessionID>")
     func agentTurnWritesIntoSessionWorkspace() async throws {
-        let fx = try AppWorkspaceFixture(icloudAvailable: false)
+        let fx = try AppWorkspaceFixture()
         defer { fx.cleanup() }
         let (vm, _) = makeWorkspaceVM(fx)
         let provider = WsScriptedProvider()

@@ -105,7 +105,7 @@ struct PluginListView: View {
                         }
                         .buttonStyle(.bordered)
                         .controlSize(.small)
-                        .help("导入 DSH 社区主题包（spec.json 或主题包目录）；落活动工作区 themes/（iCloud 模式随容器同步）")
+                        .help("导入 DSH 社区主题包（spec.json 或主题包目录）；落活动工作区 themes/")
                     }
                     HStack(spacing: 6) {
                         Image(systemName: "magnifyingglass").font(.system(size: 11))
@@ -177,18 +177,6 @@ struct PluginListView: View {
                             if viewModel.showMCPImportForm {
                                 mcpImportForm
                                 Divider()
-                            }
-                            if !viewModel.mcpPendingReimportNames.isEmpty {
-                                HStack(spacing: 6) {
-                                    Image(systemName: "exclamationmark.icloud").font(.system(size: 12))
-                                    Text("以下 MCP 服务器的本地二进制未同步（元数据来自其他设备），请重新导入：\(viewModel.mcpPendingReimportNames.joined(separator: "、"))")
-                                        .font(.system(size: 12))
-                                }
-                                .foregroundStyle(.orange)
-                                .padding(10)
-                                .background(HarnessTheme.surfaceHover)
-                                .cornerRadius(8)
-                                .padding(.bottom, 4)
                             }
                             ForEach(filteredMCPServers, id: \.id) { server in
                                 MCPServerRow(server: server) {

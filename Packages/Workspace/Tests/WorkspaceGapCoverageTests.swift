@@ -37,15 +37,4 @@ struct WorkspaceGapCoverageTests {
         #expect(back.collapsed == project.collapsed)
         #expect(back.sortOrder == project.sortOrder)
     }
-
-    /// WorkspaceSyncPayload.encode/decode：KVS 单 blob 编解码往返
-    @Test("WorkspaceSyncPayload encode/decode 往返一致")
-    func syncPayloadEncodeDecode() {
-        let payload = WorkspaceSyncPayload(
-            projects: [Project(name: "P1")],
-            sessionAssignments: ["k": SessionAssignment(projectId: nil, archived: false)]
-        )
-        let data = WorkspaceSyncPayload.encode(payload)
-        #expect(WorkspaceSyncPayload.decode(data) == payload)
-    }
 }

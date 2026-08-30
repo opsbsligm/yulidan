@@ -10,12 +10,12 @@ struct SettingsMenuModelTests {
     func deepLinkNavigation() {
         var nav = SettingsNavigationState()
         nav.selectTab(.general)
-        nav.selectSub(.account)
+        nav.selectSub(.notifications)
         #expect(nav.selectedTab == .general)
-        #expect(nav.currentSub == .account)
+        #expect(nav.currentSub == .notifications)
         // 异分类子页被 guard 忽略
         nav.selectSub(.providers) // parentTab = .llm
-        #expect(nav.currentSub == .account, "异分类子页应被忽略")
+        #expect(nav.currentSub == .notifications, "异分类子页应被忽略")
         // 根子页 = 清栈
         nav.selectSub(.preferences)
         #expect(nav.currentSub == .preferences)

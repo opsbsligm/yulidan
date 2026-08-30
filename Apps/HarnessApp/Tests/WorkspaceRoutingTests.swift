@@ -1,4 +1,3 @@
-import Account
 import Foundation
 @testable import HarnessApp
 import LLM
@@ -6,143 +5,36 @@ import MCP
 import Memory
 import RAG
 import Testing
+import Workspace
 
-// MARK: - P0.1.5 工作区运行时接线（本地 ⇄ iCloud 双根严格隔离）
+// MARK: - P0.1.5 工作区运行时接线（2026-08-30 起纯本地单根：SSO/iCloud 模块整体移除）
 
 //
 // 隔离纪律（与既有 App 套件一致）：
-// - 全部目录走每用例独立临时目录；不触碰真实 DB / ~/.harness / 真实 KVS
+// - 全部目录走每用例独立临时目录；不触碰真实 DB / ~/.harness
 // - AppViewModel 经 init 缝注入 workspaceRouter / sharedRAG / sessionDBURL / mcpConfigURLOverride
 // - .serialized：AppViewModel 套件并行时 @MainActor await 点交错，串行最稳
 
-// MARK: - Fakes（复刻 Account 包测试夹具的最小 App 侧版本）
-
-final class AppFakeUbiquityProbe: UbiquityProbing, @unchecked Sendable {
-    private let lock = NSLock()
-    private var _containerURL: URL?
-    var containerURL: URL? {
-        get {
-            lock.lock()
-            defer { lock.unlock() }
-            return _containerURL
-        }
-        set {
-            lock.lock()
-            defer { lock.unlock() }
-            _containerURL = newValue
-        }
-    }
-
-    init(containerURL: URL? = nil) {
-        _containerURL = containerURL
-    }
-
-    func probe(containerIdentifier _: String) -> ICloudProbe {
-        ICloudProbe(containerURL: containerURL, hasICloudAccount: true)
-    }
-}
-
-final class AppFakeKVS: UbiquitousKeyValueStoring, @unchecked Sendable {
-    private let lock = NSLock()
-    private var data: [String: Data] = [:]
-
-    func set(_ value: Data, forKey key: String) {
-        lock.lock()
-        defer { lock.unlock() }
-        data[key] = value
-    }
-
-    func data(forKey key: String) -> Data? {
-        lock.lock()
-        defer { lock.unlock() }
-        return data[key]
-    }
-
-    @discardableResult
-    func synchronize() -> Bool {
-        true
-    }
-}
-
-final class AppFakeCredentialStore: AppleCredentialStore, @unchecked Sendable {
-    private let lock = NSLock()
-    private var _stored: StoredAppleAccount?
-
-    func load() throws -> StoredAppleAccount? {
-        lock.lock()
-        defer { lock.unlock() }
-        return _stored
-    }
-
-    func save(_ account: StoredAppleAccount) throws {
-        lock.lock()
-        defer { lock.unlock() }
-        _stored = account
-    }
-
-    func delete() throws {
-        lock.lock()
-        defer { lock.unlock() }
-        _stored = nil
-    }
-}
-
-@MainActor
-final class AppFakeSigning: AppleSigning {
-    var signInCalls = 0
-
-    func signIn(existingUserID _: String?, onResult: @escaping @MainActor (Result<AppleSignInOutcome, Error>) -> Void) {
-        signInCalls += 1
-        onResult(.success(AppleSignInOutcome(userID: "ws-test-user", email: "ws@test.local", displayName: "WS Test")))
-    }
-
-    func cancel() {}
-
-    func credentialState(forUserID _: String) async -> AppleCredentialState {
-        .authorized
-    }
-}
-
-/// 每用例独立：本地根 + 假 iCloud 容器（临时目录）+ 内存 KVS/凭证
+/// 每用例独立：临时根目录（本地根）
 @MainActor
 final class AppWorkspaceFixture {
     let tempDir: URL
     let localRoot: URL
-    let icloudContainer: URL
-    let probe: AppFakeUbiquityProbe
-    let signing: AppFakeSigning
-    let service: AccountService
     /// 全局 UserDefaults 沙箱设置的隔离（防跨 suite 串扰 / 磁盘持久化残留）
     private let prevSandboxRoot: String?
 
-    init(icloudAvailable: Bool = true) throws {
+    init() throws {
         tempDir = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("ws-routing-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
         localRoot = tempDir.appendingPathComponent("LocalRoot", isDirectory: true)
-        icloudContainer = tempDir.appendingPathComponent("iCloudContainer", isDirectory: true)
-        try FileManager.default.createDirectory(at: icloudContainer, withIntermediateDirectories: true)
         // 沙箱设置全局生效且持久化：fixture 一律移除，cleanup 恢复原值（VM 测试 hermetic）
         prevSandboxRoot = UserDefaults.standard.string(forKey: "sandboxRoot")
         UserDefaults.standard.removeObject(forKey: "sandboxRoot")
-        probe = AppFakeUbiquityProbe(containerURL: icloudAvailable ? icloudContainer : nil)
-        signing = AppFakeSigning()
-        let rootProvider = WorkspaceRootProvider(localRoot: localRoot, probe: probe)
-        service = AccountService(
-            rootProvider: rootProvider,
-            probe: probe,
-            credentialStore: AppFakeCredentialStore(),
-            signingFactory: { [signing] in signing },
-            settingsURL: tempDir.appendingPathComponent("account.json"),
-            kvsStoreFactory: { AppFakeKVS() }
-        )
-        service.restore()
     }
 
-    /// 登录并进入 icloudReady（fake 即时回调 + settle）
-    func signInToICloud() async throws {
-        service.signInWithApple()
-        try await Task.sleep(for: .milliseconds(150))
+    var router: WorkspaceRouter {
+        WorkspaceRouter(provider: WorkspaceRootProvider(localRoot: localRoot))
     }
 
     func cleanup() {
@@ -160,18 +52,17 @@ private func settle(_ ms: Int = 200) async throws {
     try await Task.sleep(for: .milliseconds(ms))
 }
 
-// MARK: - 套件 1：WorkspaceRouter 纯路由
+// MARK: - 套件 1：WorkspaceRouter 纯路由（本地单根）
 
 @MainActor
 @Suite("P0.1.5 WorkspaceRouter 路由", .serialized)
 struct WorkspaceRouterTests {
-    @Test("本地模式：目录集路由本地根 + 骨架物化")
+    @Test("本地根：目录集路由 + 骨架物化")
     func localModeRoutes() throws {
-        let fx = try AppWorkspaceFixture(icloudAvailable: false)
+        let fx = try AppWorkspaceFixture()
         defer { fx.cleanup() }
-        let router = WorkspaceRouter(accountService: fx.service)
+        let router = fx.router
         #expect(router.current.kind == .local)
-        #expect(router.isICloud == false)
         #expect(router.agentOutputs == fx.localRoot.appendingPathComponent("agents", isDirectory: true))
         #expect(router.ragIndexURL == fx.localRoot.appendingPathComponent("rag/index.json"))
         #expect(router.pluginMetaURL == fx.localRoot.appendingPathComponent("plugins-meta/installed.json"))
@@ -186,50 +77,11 @@ struct WorkspaceRouterTests {
         }
     }
 
-    @Test("登录 iCloud 后 refresh：路由切容器 + 骨架物化；无变化 refresh 返回 false")
-    func switchToICloudRoutes() async throws {
-        let fx = try AppWorkspaceFixture()
-        defer { fx.cleanup() }
-        let router = WorkspaceRouter(accountService: fx.service)
-        #expect(router.current.kind == .local)
-
-        try await fx.signInToICloud()
-        #expect(fx.service.state == .icloudReady)
-        #expect(router.refresh(), "模式变化应返回 true")
-        #expect(router.current.kind == .icloud)
-        let docs = fx.icloudContainer.appendingPathComponent("Documents", isDirectory: true)
-        #expect(router.agentOutputs == docs.appendingPathComponent("agents", isDirectory: true))
-        #expect(router.ragIndexURL == docs.appendingPathComponent("rag/index.json"))
-        #expect(router.pluginMetaURL == docs.appendingPathComponent("plugins-meta/installed.json"))
-        #expect(router.themeResources == docs.appendingPathComponent("themes", isDirectory: true))
-        for dir in WorkspaceLayout.allDirectories {
-            var isDir: ObjCBool = false
-            FileManager.default.fileExists(atPath: docs.appendingPathComponent(dir).path, isDirectory: &isDir)
-            #expect(isDir.boolValue, "iCloud 根缺失子目录：\(dir)")
-        }
-
-        #expect(!router.refresh(), "无变化 refresh 应返回 false")
-    }
-
-    @Test("切回本地：路由回落本地根")
-    func switchBackToLocal() async throws {
-        let fx = try AppWorkspaceFixture()
-        defer { fx.cleanup() }
-        let router = WorkspaceRouter(accountService: fx.service)
-        try await fx.signInToICloud()
-        _ = router.refresh()
-
-        fx.service.switchToLocalMode()
-        #expect(router.refresh())
-        #expect(router.current.kind == .local)
-        #expect(router.agentOutputs == fx.localRoot.appendingPathComponent("agents", isDirectory: true))
-    }
-
     @Test("sessionCwd 位于 agentOutputs/<sessionID>")
     func sessionCwdShape() throws {
-        let fx = try AppWorkspaceFixture(icloudAvailable: false)
+        let fx = try AppWorkspaceFixture()
         defer { fx.cleanup() }
-        let router = WorkspaceRouter(accountService: fx.service)
+        let router = fx.router
         let sid = UUID()
         let cwd = router.sessionCwd(sid)
         #expect(cwd == fx.localRoot.appendingPathComponent("agents/\(sid.uuidString)", isDirectory: true))
@@ -255,7 +107,7 @@ struct PluginMetadataStoreTests {
         #expect(PluginMetadataStore.load(from: url) == manifest)
     }
 
-    @Test("缺失 / 损坏 / 版本不符 → 空清单（离线优先不污染运行时）")
+    @Test("缺失 / 损坏 / 版本不符 → 空清单（不污染运行时）")
     func corruptTolerance() throws {
         let base = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("meta-\(UUID().uuidString)", isDirectory: true)
@@ -298,7 +150,7 @@ struct PluginMetadataStoreTests {
 
 // MARK: - 套件 4：AppViewModel 工作区接线场景
 
-/// 全缝注入：临时 skill/DB/mcpConfig + 假账号路由 + 独立 RAG 实例（e2e 拆分文件复用）
+/// 全缝注入：临时 skill/DB/mcpConfig + 本地根路由 + 独立 RAG 实例（e2e 拆分文件复用）
 @MainActor
 func makeWorkspaceVM(_ fx: AppWorkspaceFixture) -> (vm: AppViewModel, mcpConfigURL: URL) {
     UserDefaults.standard.removeObject(forKey: ThemePluginManager.activeKey)
@@ -309,10 +161,9 @@ func makeWorkspaceVM(_ fx: AppWorkspaceFixture) -> (vm: AppViewModel, mcpConfigU
         skillUserDirectory: fx.tempDir.appendingPathComponent("skills"),
         sessionDBURL: fx.tempDir.appendingPathComponent("sessions.sqlite"),
         mcpConfigURLOverride: mcpConfigURL,
-        workspaceRouter: WorkspaceRouter(accountService: fx.service),
+        workspaceRouter: fx.router,
         sharedRAG: SharedRAGEngine(indexURL: ragIndex),
         sharedMemory: SharedMemoryEngine(fileURL: memStore),
-        accountService: fx.service,
         legacyMemoryURLOverride: fx.tempDir.appendingPathComponent("legacy-none/longterm.json")
     )
     return (vm, mcpConfigURL)
@@ -325,9 +176,9 @@ struct AppViewModelWorkspaceRoutingTests {
         AppViewModel.notificationServiceFactory = { NoopNotificationService() }
     }
 
-    @Test("新会话 cwd = 活动工作区/agents/<sessionID>（本地根）")
+    @Test("新会话 cwd = 工作区/agents/<sessionID>（本地根）")
     func newSessionCwdRoutesToWorkspace() throws {
-        let fx = try AppWorkspaceFixture(icloudAvailable: false)
+        let fx = try AppWorkspaceFixture()
         defer { fx.cleanup() }
         let (vm, _) = makeWorkspaceVM(fx)
         vm.createNewSession(silent: true)
@@ -341,48 +192,13 @@ struct AppViewModelWorkspaceRoutingTests {
         #expect(session.metadata.cwd == expected)
     }
 
-    @Test("切 iCloud：RAG 重路由落容器 + 新会话 cwd 入容器（旧会话不受影响）")
-    func switchToICloudReroutesRuntime() async throws {
-        let fx = try AppWorkspaceFixture()
-        defer { fx.cleanup() }
-        let (vm, _) = makeWorkspaceVM(fx)
-        vm.createNewSession(silent: true)
-        let oldSession = vm.sessions.first
-
-        // 本地根写入 RAG（模拟本地模式使用）
-        let localRag = await vm.sharedRAG.get()
-        _ = await localRag.ingestText("local root document", source: "docLocal")
-        await localRag.save()
-
-        try await fx.signInToICloud()
-        #expect(fx.service.state == .icloudReady)
-        try await settle(400) // accountObservation sink Task（refresh + handleWorkspaceRootChanged）
-
-        #expect(vm.workspaceRouter.current.kind == .icloud)
-        // 新会话 cwd 入 iCloud 容器
-        vm.createNewSession(silent: true)
-        let docs = fx.icloudContainer.appendingPathComponent("Documents", isDirectory: true)
-        #expect(vm.sessions.first?.metadata.cwd.path.hasPrefix(docs.path) == true)
-        // 旧会话 cwd 保持创建时根（不迁移）
-        #expect(oldSession?.metadata.cwd.path.hasPrefix(fx.localRoot.path) == true)
-        // RAG 已重路由：向新根写入 → 容器 rag/index.json 落盘；新根检索不到本地根旧数据
-        let newRag = await vm.sharedRAG.get()
-        // 新根 store 不得含本地根旧数据（以文档清单为准；检索相关性可能因共享词元命中，不作泄漏判据）
-        #expect(await (newRag.documentIDs()).isEmpty, "新根 store 应为空（本地根数据不迁移）")
-        _ = await newRag.ingestText("icloud root document", source: "docCloud")
-        await newRag.save()
-        #expect(FileManager.default.fileExists(atPath: docs.appendingPathComponent("rag/index.json").path))
-        let results = await newRag.retrieve(query: "local root")
-        #expect(results.allSatisfy { $0.source == "docCloud" }, "本地根数据不得泄漏进 iCloud 根")
-    }
-
-    @Test("MCP 元数据：导入写清单 → 切根对账（二进制存在恢复 / 缺失进待重导）")
-    func mcpMetadataPersistAndReconcile() async throws {
+    @Test("MCP 导入写元数据清单至本地工作区（本地单根，无跨根对账语义）")
+    func mcpMetadataPersistsToWorkspace() async throws {
         let fx = try AppWorkspaceFixture()
         defer { fx.cleanup() }
         let (vm, mcpConfigURL) = makeWorkspaceVM(fx)
 
-        // 阶段 1（本地根）：导入真实可执行二进制（/bin/echo 类脚本，连接会失败但配置落 servers.json）
+        // 导入真实可执行二进制（脚本，连接会失败但配置落 servers.json + 元数据清单落工作区）
         let fakeBin = fx.tempDir.appendingPathComponent("fake-mcp-bin")
         try Data("#!/bin/sh\nexit 1\n".utf8).write(to: fakeBin)
         let perms: [FileAttributeKey: Int] = [.posixPermissions: 0o755]
@@ -391,38 +207,17 @@ struct AppViewModelWorkspaceRoutingTests {
         try await settle(300)
         let localMeta = fx.localRoot.appendingPathComponent("plugins-meta/installed.json")
         #expect(FileManager.default.fileExists(atPath: localMeta.path), "本地根应写入元数据清单")
-        var manifest = PluginMetadataStore.load(from: localMeta)
+        let manifest = PluginMetadataStore.load(from: localMeta)
         #expect(manifest.plugins.contains { $0.name == "fake-mcp" && $0.origin == .localMCP })
-
-        // 模拟容器同步（另一设备已把清单同步到 iCloud 根）+ 追加一个二进制缺失条目
-        let docs = fx.icloudContainer.appendingPathComponent("Documents", isDirectory: true)
-        let cloudMeta = docs.appendingPathComponent("plugins-meta/installed.json")
-        try FileManager.default.createDirectory(
-            at: cloudMeta.deletingLastPathComponent(), withIntermediateDirectories: true
-        )
-        let missingEntry = PluginMetaEntry(
-            id: "missing-id", name: "missing-mcp", version: "1.0.0", origin: .localMCP,
-            enabled: true, localPath: "/nonexistent/missing-mcp-bin",
-            mcpCommand: ["/nonexistent/missing-mcp-bin"]
-        )
-        manifest.plugins.append(missingEntry)
-        try PluginMetadataStore.save(manifest, to: cloudMeta)
-
-        // 阶段 2：登录切根 → 对账
-        try await fx.signInToICloud()
-        try await settle(600)
-        #expect(vm.workspaceRouter.current.kind == .icloud)
-        // 二进制存在 → 恢复进 servers.json 并尝试连接
-        let configs = MCPDiscovery.loadConfigs(url: mcpConfigURL)
-        #expect(configs.contains { $0.name == "fake-mcp" }, "二进制存在的 MCP 应恢复进配置")
-        // 二进制缺失 → 待重新导入
-        #expect(vm.mcpPendingReimportNames.contains("missing-mcp"))
-        #expect(!vm.mcpPendingReimportNames.contains("fake-mcp"))
+        // 本地单根：reconcile 恒 no-op，待重导名单恒空
+        await vm.reconcilePluginMetadata()
+        #expect(vm.mcpPendingReimportNames.isEmpty)
+        _ = mcpConfigURL
     }
 
     @Test("文件型主题包：导入 → 安装 + 清单落盘 → 停用删除目录 + 清单清除")
     func fileThemePackageLifecycle() async throws {
-        let fx = try AppWorkspaceFixture(icloudAvailable: false)
+        let fx = try AppWorkspaceFixture()
         defer { fx.cleanup() }
         let (vm, _) = makeWorkspaceVM(fx)
         await vm.loadPluginsInfrastructure()

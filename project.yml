@@ -51,20 +51,6 @@ targets:
         OTHER_SWIFT_FLAGS:
           - -Xcc
           - -fmodule-map-file=$(SRCROOT)/Support/CSQLite/module.modulemap
-  Account:
-    type: library.static
-    platform: macOS
-    sources: [Packages/Account/Sources]
-    dependencies:
-      - target: ServiceContainer
-      - target: Workspace
-    settings:
-      base:
-        # Account 经 Workspace→Session→GRDB 间接依赖 CSQLite：
-        # Xcode 26 不会把 SPM systemLibrary 的 modulemap 传播给静态库 target，显式注入
-        OTHER_SWIFT_FLAGS:
-          - -Xcc
-          - -fmodule-map-file=$(SRCROOT)/Support/CSQLite/module.modulemap
   LLM:
     type: library.static
     platform: macOS
@@ -316,7 +302,6 @@ targets:
       - target: Skill
       - target: Terminal
       - target: Sandbox
-      - target: Account
       - target: Workspace
       - package: GRDB
         product: GRDB
@@ -373,21 +358,6 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.harness.LLMTests
-        GENERATE_INFOPLIST_FILE: YES
-  AccountTests:
-    type: bundle.unit-test
-    platform: macOS
-    sources: [Packages/Account/Tests]
-    dependencies:
-      - target: Account
-      - target: Workspace
-      - target: ServiceContainer
-      - target: Session
-      - package: GRDB
-        product: GRDB
-    settings:
-      base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.harness.AccountTests
         GENERATE_INFOPLIST_FILE: YES
   WorkspaceTests:
     type: bundle.unit-test
@@ -641,7 +611,6 @@ schemes:
         - LLMTests
         - ToolsTests
         - AgentTests
-        - AccountTests
         - WorkspaceTests
         - MCPTests
         - SkillTests
@@ -669,7 +638,6 @@ schemes:
         - LLMTests
         - ToolsTests
         - AgentTests
-        - AccountTests
         - WorkspaceTests
         - MCPTests
         - SkillTests

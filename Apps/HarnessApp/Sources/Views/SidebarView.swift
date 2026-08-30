@@ -1,4 +1,3 @@
-import Account
 import Session
 import SwiftUI
 import Workspace
@@ -45,11 +44,6 @@ struct SidebarView: View {
     var sessionsLoadState: NavLoadState = .loaded
     /// 会话列表加载失败重试
     var onRetryLoadSessions: () -> Void = {}
-    /// P2.2.2：账号服务（底栏 / rail 底部 iCloud 同步状态提示；nil = 未挂接，隐藏）
-    var accountService: AccountService?
-    /// 点按同步提示 → 设置「账号与同步」子页深链
-    var onOpenAccount: () -> Void = {}
-
     @State private var searchText = ""
     @State private var showSearch = false
     /// 新建项目弹窗
@@ -336,9 +330,7 @@ struct SidebarView: View {
             // 进入后侧边栏无「当前在设置」指示、无持久返回入口，用户点进设置后无路可退
             SidebarBottomBar(
                 selectedTab: $selectedTab,
-                onToggleCollapse: onToggleCollapse,
-                accountService: accountService,
-                onOpenAccount: onOpenAccount
+                onToggleCollapse: onToggleCollapse
             )
         }
         .frame(width: 260)
@@ -423,10 +415,6 @@ struct SidebarView: View {
             .buttonStyle(.plain)
             .help("归档管理（项目/会话）")
 
-            // P2.2.2：iCloud 同步状态图标（本地模式 = hidden 自动隐藏）
-            if let accountService {
-                SidebarSyncHintIcon(accountService: accountService, onOpenAccount: onOpenAccount)
-            }
             Button {
                 withAnimation(.smooth(duration: 0.18)) { selectedTab = .settings }
             } label: {

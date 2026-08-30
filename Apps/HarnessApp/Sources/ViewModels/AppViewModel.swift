@@ -1,7 +1,5 @@
-import Account
 import Agent
 import AppKit
-import Combine
 import Foundation
 import HarnessCore
 import LLM
@@ -132,26 +130,6 @@ struct PendingPermissionInstall: Identifiable, Equatable {
 }
 
 // MARK: - P0.4 MCP stdio 服务器（导入 / 重启 / 卸载；配置源 servers.json）
-
-/// 待裁决的 iCloud 同步冲突（P0.1.4：多设备冲突由用户选择保留版本）
-struct SyncConflictItem: Identifiable, Equatable {
-    let id: UUID
-    let key: String
-    let local: SyncedValue
-    let remote: SyncedValue
-
-    var keyDisplay: String {
-        AppViewModel.syncKeyDisplay(key)
-    }
-
-    var localPreview: String {
-        AppViewModel.syncValuePreview(local)
-    }
-
-    var remotePreview: String {
-        AppViewModel.syncValuePreview(remote)
-    }
-}
 
 struct MCPDisplayItem: Identifiable, Hashable {
     let id: String
@@ -363,15 +341,6 @@ final class AppViewModel: ObservableObject {
         }
     }
 
-    /// 设置深链目标（P2.2.2：侧栏同步提示点击 → 直达「账号与同步」子页；一次性消费）
-    @Published var pendingSettingsSub: SettingsSubTab?
-
-    /// 打开设置「账号与同步」子页（侧栏底部同步状态提示入口）
-    func openAccountSettings() {
-        pendingSettingsSub = .account
-        selectedTab = .settings
-    }
-
     @Published var selectedSession: SessionRecord?
     @Published var toastMessage: String?
 
@@ -401,18 +370,8 @@ final class AppViewModel: ObservableObject {
     /// 归档管理面板（P0.2 项目模块）
     @Published var showArchiveManager = false
 
-    // 项目（P0.2 侧边栏项目模块）
+    /// 项目（P0.2 侧边栏项目模块）
     @Published var projects: [Project] = []
-    private var workspaceEngine: WorkspaceSyncEngine?
-    private var accountObservation: AnyCancellable?
-
-    // P0.1.4 iCloud 同步冲突裁决（多设备冲突 → UI 由用户选择保留版本）
-    /// 待裁决冲突列表（设置「账号与同步」展示）
-    @Published var pendingSyncConflicts: [SyncConflictItem] = []
-    private var conflictContinuations: [UUID: CheckedContinuation<SyncedValue, Never>] = [:]
-    private var conflictFallbackTasks: [UUID: Task<Void, Never>] = [:]
-    /// 安全网：超时未裁决自动保留本地（离线优先）；单测缩短
-    var conflictAutoResolveDelay: Duration = .seconds(600)
 
     /// 模型
     @Published var llmConfig: LLMConfig
@@ -473,8 +432,6 @@ final class AppViewModel: ObservableObject {
     let subagentToolRegistry: ToolRegistry = .init()
     /// 技能注册表（内置 + ~/.harness/skills 用户目录）
     let skillRegistry: SkillRegistry = .init()
-    /// 账号与工作区（P0.1：Apple SSO + iCloud 双模式状态机；设置页「账号与同步」观察此对象）
-    let accountService: AccountService
     /// 工作区路由（P0.1.5：本地 ⇄ iCloud 运行时目录集；测试缝 init 注入）
     let workspaceRouter: WorkspaceRouter
     /// 共享 RAG 引擎实例（生产 = .shared；测试注入独立实例防并行套件互踩）
@@ -518,7 +475,7 @@ final class AppViewModel: ObservableObject {
     init(skillUserDirectory: URL? = nil, sessionDBURL: URL? = nil, mcpConfigURLOverride: URL? = nil,
          workspaceRouter: WorkspaceRouter? = nil, sharedRAG: SharedRAGEngine? = nil,
          sharedMemory: SharedMemoryEngine? = nil,
-         accountService: AccountService? = nil, subagentHistoryURLOverride: URL? = nil,
+         subagentHistoryURLOverride: URL? = nil,
          legacyMemoryURLOverride: URL? = nil) {
         self.mcpConfigURLOverride = mcpConfigURLOverride
         subagentHistoryURLOverrideInstance = subagentHistoryURLOverride
@@ -545,10 +502,8 @@ final class AppViewModel: ObservableObject {
         self.sessionDBURL = dbURL
         sessionDB = try? SessionDB(dbURL: dbURL)
         sessionTitles = Self.loadTitles()
-        // P0.1：账号与工作区（默认本地模式；SSO+iCloud 需 entitlements 就绪后自动升级）
-        self.accountService = accountService ?? AccountService()
-        self.accountService.restore()
-        self.workspaceRouter = workspaceRouter ?? WorkspaceRouter(accountService: self.accountService)
+        // 工作区路由（2026-08-30 起纯本地单根：SSO/iCloud 模块整体移除）
+        self.workspaceRouter = workspaceRouter ?? WorkspaceRouter()
         self.sharedRAG = sharedRAG ?? .shared
         self.sharedMemory = sharedMemory ?? .shared
         // 先占位（init 两阶段初始化限制），onEvent 由 registerSubagentRuntime 后置赋值
@@ -565,28 +520,8 @@ final class AppViewModel: ObservableObject {
 
         // 加载持久化会话
         Task { await self.loadSessionsFromDB() }
-        // P0.2：加载项目 + 挂接工作区同步（iCloud 模式生效；本地模式 no-op）
+        // P0.2：加载项目
         Task { await self.loadProjectsFromDB() }
-        attachWorkspaceSyncIfNeeded()
-        accountObservation = self.accountService.objectWillChange.sink { [weak self] _ in
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                // 降级/退出 iCloud：同步清掉引擎引用（防向已停用同步服务发布）
-                if !self.accountService.state.isICloudReady {
-                    workspaceEngine = nil
-                }
-                attachWorkspaceSyncIfNeeded()
-                // P0.1.5：工作区路由变化（本地 ⇄ iCloud）→ 重路由运行时目录集
-                if self.workspaceRouter.refresh() {
-                    await handleWorkspaceRootChanged()
-                }
-            }
-        }
-        // P0.1.4：冲突交 UI 裁决（VM 已销毁时回落保留本地，离线优先）
-        self.accountService.setConflictHandler { [weak self] conflict in
-            guard let self else { return conflict.local }
-            return await awaitUserResolution(conflict)
-        }
 
         // 监听模型配置变更（设置页保存后同步）
         registerConfigObserver()
@@ -991,22 +926,6 @@ final class AppViewModel: ObservableObject {
         }
     }
 
-    /// 工作区根切换（本地 ⇄ iCloud）：重路由运行时目录集
-    func handleWorkspaceRootChanged() async {
-        // ① RAG 索引重路由 + 长期记忆路径重路由（契约 v2）+ 记忆引擎重新挂接（严格隔离，不迁移数据）
-        await sharedRAG.resetIndexURL(workspaceRouter.ragIndexURL)
-        await sharedMemory.resetFileURL(workspaceRouter.memoryStoreURL)
-        let memoryEngine = await sharedMemory.get()
-        await memoryEngine.attachRAG(sharedRAG.get())
-        self.memoryEngine = memoryEngine
-        // ② 文件型主题包从新根重建（新根缺失的包 → 主题刷新时自动回落系统基准）
-        await loadFileThemePackagesFromWorkspace()
-        // ③ 插件元数据对账（本地二进制存在的 localMCP 条目恢复连接；缺失 → 需重新导入）
-        await reconcilePluginMetadata()
-        // ④ 刷新主题选项（激活主题来源消失 → 自动回落）
-        await refreshThemes()
-    }
-
     /// 启动链（契约 v2）：旧固定路径记忆一次性迁移（同步，仅本地根且目标缺失）→
     /// 重路由长期记忆到当前根 → 注册启动工具；单 Task 链保证「重路由先于首次 get()」，消除竞态。
     private func bootstrapMemoryAndTools(legacyURL: URL) {
@@ -1017,13 +936,12 @@ final class AppViewModel: ObservableObject {
         }
     }
 
-    /// 契约 v2 一次性迁移：旧固定路径长期记忆（~/.harness/memory/longterm.json）→ 当前根 memory/
-    /// 仅本地模式且目标缺失时复制（iCloud 模式不迁移——双根严格隔离；目标已存在不覆盖）；旧文件保留不删除。
+    /// 契约 v2 一次性迁移：旧固定路径长期记忆（~/.harness/memory/longterm.json）→ 本地根 memory/
+    /// 目标缺失时复制（目标已存在不覆盖）；旧文件保留不删除。
     /// 返回 true = 实际发生迁移。
     @discardableResult
     func migrateLegacyMemoryIfNeeded(legacyURL: URL = LongTermMemoryStore.defaultFileURL) -> Bool {
         let target = workspaceRouter.memoryStoreURL
-        guard !workspaceRouter.isICloud else { return false }
         let fm = FileManager.default
         guard fm.fileExists(atPath: legacyURL.path), !fm.fileExists(atPath: target.path) else { return false }
         do {
@@ -1068,38 +986,10 @@ final class AppViewModel: ObservableObject {
     /// 对账活动根的插件元数据清单：本地二进制存在的 localMCP 条目恢复连接；缺失 → mcpPendingReimportNames
     /// 仅 iCloud 根生效：清单经容器来自其他设备才需要恢复；本地模式下清单与 servers.json 同源同机、
     /// 每次变更同步落盘，无跨设备恢复语义（且避免并行测试套件共享本地根时互写）
+    /// 插件元数据对账（2026-08-30 纯本地单根：跨设备恢复语义随 SSO/iCloud 模块移除，恒 no-op；
+    /// 保留函数与调用点以维持启动链结构，mcpPendingReimportNames 恒空 → 插件页横幅不显示）
     func reconcilePluginMetadata() async {
-        guard workspaceRouter.isICloud else {
-            mcpPendingReimportNames = []
-            return
-        }
-        let manifest = PluginMetadataStore.load(from: workspaceRouter.pluginMetaURL)
-        var pending: [String] = []
-        for entry in manifest.plugins where entry.origin == .localMCP {
-            let configs = MCPDiscovery.loadConfigs(url: mcpConfigURL)
-            guard !configs.contains(where: { $0.id == entry.id || $0.name == entry.name }) else { continue }
-            guard let command = entry.mcpCommand, let binary = command.first else {
-                pending.append(entry.name)
-                continue
-            }
-            let expanded = (binary as NSString).expandingTildeInPath
-            if FileManager.default.isExecutableFile(atPath: expanded) {
-                let config = MCPServerConfig(name: entry.name, command: expanded, arguments: Array(command.dropFirst()))
-                var updated = configs
-                updated.append(config)
-                do {
-                    try MCPDiscovery.save(updated, url: mcpConfigURL)
-                    _ = await mcpManager.connectStdio(config, into: toolRegistry)
-                } catch {
-                    pending.append(entry.name)
-                }
-            } else {
-                pending.append(entry.name)
-            }
-        }
-        mcpPendingReimportNames = pending
-        await refreshMCPServers()
-        await refreshTools()
+        mcpPendingReimportNames = []
     }
 
     /// 导入文件型主题包（插件页 fileImporter 回调）
@@ -1487,7 +1377,6 @@ final class AppViewModel: ObservableObject {
         projects.append(project)
         persistProject(project)
         showToast("已创建项目「\(trimmed)」")
-        publishWorkspaceChange()
     }
 
     func renameProject(_ project: Project, to newName: String) {
@@ -1496,14 +1385,12 @@ final class AppViewModel: ObservableObject {
               let idx = projects.firstIndex(where: { $0.id == project.id }) else { return }
         projects[idx] = projects[idx].renamedTo(trimmed)
         persistProject(projects[idx])
-        publishWorkspaceChange()
     }
 
     func toggleProjectCollapsed(_ project: Project) {
         guard let idx = projects.firstIndex(where: { $0.id == project.id }) else { return }
         projects[idx] = projects[idx].withCollapsed(!projects[idx].collapsed)
         persistProject(projects[idx])
-        publishWorkspaceChange()
     }
 
     /// 项目归档/取消归档（归档项目移出主侧栏，入归档管理）
@@ -1515,7 +1402,6 @@ final class AppViewModel: ObservableObject {
         if newArchived {
             showToast("项目已归档")
         }
-        publishWorkspaceChange()
     }
 
     /// 取消归档项目：回落展示尾部（展示序重排）
@@ -1526,7 +1412,6 @@ final class AppViewModel: ObservableObject {
             .withSortOrder(ProjectOperations.nextSortOrder(after: projects))
         persistProject(projects[idx])
         showToast("已恢复项目")
-        publishWorkspaceChange()
     }
 
     /// 删除项目（二选一：全部内部会话 / 释放至全局）
@@ -1566,7 +1451,6 @@ final class AppViewModel: ObservableObject {
             try? await db?.deleteProjectRow(id: project.id.rawValue.uuidString)
         }
         showToast("已删除项目")
-        publishWorkspaceChange()
     }
 
     /// 会话归档/取消归档（侧栏右键菜单）
@@ -1581,7 +1465,6 @@ final class AppViewModel: ObservableObject {
         Task { [db = sessionDB] in
             try? await db?.save(updated)
         }
-        publishWorkspaceChange()
     }
 
     /// 取消归档会话：原项目存在且未归档 → 恢复原项目；否则回落全局
@@ -1602,7 +1485,6 @@ final class AppViewModel: ObservableObject {
             try? await db?.save(updated)
         }
         showToast(restore != nil ? "已恢复至原项目" : "已恢复至全局")
-        publishWorkspaceChange()
     }
 
     /// 拖拽放置：全局⇄项目 / 跨项目迁移（载荷纯逻辑解析 + 持久化）
@@ -1630,74 +1512,7 @@ final class AppViewModel: ObservableObject {
             } else {
                 showToast("已移至全局")
             }
-            publishWorkspaceChange()
         }
-    }
-
-    // MARK: - 工作区同步桥（iCloud 模式；本地模式 no-op）
-
-    /// 挂接工作区同步存储（幂等；账号进入 icloudReady 后由状态观察自动触发）
-    func attachWorkspaceSyncIfNeeded() {
-        guard workspaceEngine == nil, let db = sessionDB else { return }
-        workspaceEngine = accountService.attachWorkspaceStore(AppWorkspaceStore(db: db))
-    }
-
-    /// 本地项目/归属变更后发布云端载荷（本地模式静默 no-op）
-    private func publishWorkspaceChange() {
-        guard let engine = workspaceEngine else { return }
-        Task { await engine.publishLocalState() }
-    }
-
-    // MARK: - P0.1.4 iCloud 同步冲突裁决（多设备冲突 → UI 用户选择保留版本）
-
-    /// 冲突回调入口（AccountService.setConflictHandler 挂接）：挂起等待用户裁决，返回胜者载荷
-    func awaitUserResolution(_ conflict: SyncConflict) async -> SyncedValue {
-        let item = SyncConflictItem(id: UUID(), key: conflict.key, local: conflict.local, remote: conflict.remote)
-        pendingSyncConflicts.append(item)
-        showToast("iCloud 同步冲突：\(item.keyDisplay)（设置 → 账号与同步中裁决）")
-        // 安全网：超时未裁决自动保留本地（离线优先原则）
-        let fallback = Task { [weak self] in
-            try? await Task.sleep(for: self?.conflictAutoResolveDelay ?? .seconds(600))
-            guard !Task.isCancelled else { return }
-            self?.resolveSyncConflict(id: item.id, keepLocal: true, autoResolved: true)
-        }
-        conflictFallbackTasks[item.id] = fallback
-        defer {
-            conflictFallbackTasks[item.id]?.cancel()
-            conflictFallbackTasks[item.id] = nil
-        }
-        return await withCheckedContinuation { continuation in
-            conflictContinuations[item.id] = continuation
-        }
-    }
-
-    /// 用户裁决：保留本地 / 保留云端（胜者写回 KVS 并解除同步回调挂起）
-    func resolveSyncConflict(id: UUID, keepLocal: Bool, autoResolved: Bool = false) {
-        guard let continuation = conflictContinuations.removeValue(forKey: id),
-              let idx = pendingSyncConflicts.firstIndex(where: { $0.id == id }) else { return }
-        let item = pendingSyncConflicts.remove(at: idx)
-        let winner = keepLocal ? item.local : item.remote
-        if !autoResolved {
-            showToast(keepLocal ? "已保留本地版本：\(item.keyDisplay)" : "已保留云端版本：\(item.keyDisplay)")
-        }
-        continuation.resume(returning: winner)
-    }
-
-    nonisolated static func syncKeyDisplay(_ key: String) -> String {
-        switch key {
-        case AccountService.keyAccountMode: "账号模式"
-        case WorkspaceSyncPayload.kvsKey: "项目与会话数据"
-        default: key
-        }
-    }
-
-    nonisolated static func syncValuePreview(_ value: SyncedValue) -> String {
-        let payload = value.value
-        if let text = String(data: payload, encoding: .utf8) {
-            let line = text.replacingOccurrences(of: "\n", with: " ")
-            return line.count > 80 ? String(line.prefix(80)) + "…" : line
-        }
-        return "二进制数据（\(payload.count) 字节）"
     }
 
     private func persistProject(_ project: Project) {
