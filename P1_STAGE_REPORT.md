@@ -182,3 +182,30 @@
 8. 减弱透明度降级回归（P1.2 #7 / P1.3 #5，需切系统设置）
 
 **走查副作用（待清理）**：走查期间 AXPress「新对话」创建了 1 个测试会话（侧栏「新对话」行），解锁后核销时一并删除。
+> 2026-08-30 核销更新（锁屏内 DB 只读核验）：`sessions.sqlite` 中**已无 08-29 任何会话行**（该测试会话应已被用户在其短暂解锁窗口内删除，核销完成）；另发现 3 个 **08-30 19:11** 新建的空会话（0 事件，疑似用户自行测试「新对话」所建）——**未动**，待用户确认是否清理。
+
+### 10.4 锁屏静态审计（2026-08-30，Agent 驱动，代码级替代验证路径第 2 阶段）
+
+**背景**：用户指示「锁屏内能做的全做完，不因锁屏中断」。先做锁屏能力边界实证（全部原生 C API 探针，非猜测）：
+| 通道 | 锁屏可用性 | 证据 |
+|---|---|---|
+| 原生 AX（`AXUIElementCreateApplication` + `AXWindows`/`AXChildren`） | ⚠️ 仅应用级结构可达，**窗口内容树不可达**（窗口元素退化为 `AXApplication` 自嵌套链，无 AXButton/AXStaticText；系统菜单栏可达但属锁屏会话） | /tmp/axprobe、/tmp/axtool dump（1224 行全为菜单栏/自嵌套，0 个内容节点） |
+| System Events AX（JXA） | ❌ `windows=0` | osascript 探测 |
+| SCK 窗口截图（capfast） | ❌ `frame 0 failed`（窗口 backing store 锁屏下不可捕获） | /tmp/capfast 89181 |
+| CGEvent 键鼠 | ❌ 输入路由至锁屏会话，无法送达 App | 平台行为（锁屏独占输入） |
+
+**结论**：§10.3 八项中**全部含真实机交互成分**（键盘事件 / 像素级视觉判定 / 鼠标拖拽 / 系统设置切换），锁屏内不可执行；但**代码级静态审计**（「无返回途径 / 假关闭」专项，针对用户 08-26 同类投诉）可完整执行。
+
+**审计范围**：全部 6 处 `.sheet` + 4 处 `.alert` + 2 处 `.confirmationDialog` 逐一核关闭/取消途径——
+| modal | 关闭途径 | 判定 |
+|---|---|---|
+| ArchiveManagerView sheet | 「关闭」按钮 `dismiss()` + ⌘.（08-26 假按钮已修） | ✅ |
+| MCPServerLogSheet | 「关闭」按钮 `dismiss()` + ⌘. | ✅ |
+| 项目重命名 / 删除 sheet | 「取消」按钮置 nil | ✅ |
+| 新建项目 / 删除会话 / 卸载插件 alert | 系统 alert 自带取消 + Esc | ✅ |
+| 聊天删除/清空 confirmationDialog | destructive + 取消 | ✅ |
+| **SettingsCompletePage（P2.1 完整设置 sheet）** | **无任何关闭途径**（`@Environment(\.dismiss)` 声明未用、无按钮、无 ⌘.） | ❌ **缺陷，已修** |
+
+**修复**（本提交）：SettingsCompletePage 顶部补标题行 + xmark 关闭按钮（`dismiss()` + `.keyboardShortcut(.cancelAction)` 双通道，视觉样式与 SettingsView 既有「关闭设置」按钮逐字对齐，同 ArchiveManagerView 模式）；同文件顺带消除既有 `Text(LocalizedStringKey)` 自定义类型插值弃用告警（`Text(verbatim:)`，String 插值渲染逐字一致）。
+**门禁**：PR 846/178 0 失败（/tmp/ci_pr_closebtn4.log）+ main/leaks/xcode 串行结果见提交信息。
+**残余**：该 sheet 的实机「关闭→返回设置页」交互复测并入 §10.3 #5（解锁后一次走查核销）。
