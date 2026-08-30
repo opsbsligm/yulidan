@@ -209,3 +209,41 @@
 **修复**（本提交）：SettingsCompletePage 顶部补标题行 + xmark 关闭按钮（`dismiss()` + `.keyboardShortcut(.cancelAction)` 双通道，视觉样式与 SettingsView 既有「关闭设置」按钮逐字对齐，同 ArchiveManagerView 模式）；同文件顺带消除既有 `Text(LocalizedStringKey)` 自定义类型插值弃用告警（`Text(verbatim:)`，String 插值渲染逐字一致）。
 **门禁**：PR 846/178 0 失败（/tmp/ci_pr_closebtn4.log）+ main/leaks/xcode 串行结果见提交信息。
 **残余**：该 sheet 的实机「关闭→返回设置页」交互复测并入 §10.3 #5（解锁后一次走查核销）。
+
+## 十一、SSO 模块移除（2026-08-31，用户决定，目标口径变更）
+
+**用户指令**：「干掉 SSO 整个模块，要求解耦，不要导致关联模块和整体崩溃」。App 转为**纯本地单根**：SSO 登录 + iCloud 同步模式整体移除；离线本地模式全部功能保留（工作区五目录 agents/rag/plugins-meta/themes/memory、RAG、记忆、插件、主题、项目/会话、拖拽、归档、搜索、MCP）。
+
+### 11.1 移除清单
+| 层 | 内容 |
+|---|---|
+| 包 | `Packages/Account` 整包删除（9 源文件 1,946 行 + 8 测试文件）：AppleSignInService / AppleCredentialStore / MetadataSyncService / WorkspaceSyncEngine / AccountService / WorkspaceRoot（旧双根） |
+| App | `AppWorkspaceStore.swift` / `AccountSyncSection.swift` / `SidebarSyncHint.swift` 删除；`Packages/Workspace/Sources/WorkspaceSyncPayload.swift` 删除；team 级 entitlements `HarnessApp.entitlements` 删除（仅留 `HarnessApp.ci.entitlements`，唯一能力 get-task-allow） |
+| 视图 | SettingsView `.account` 子页 + 深链（`SettingsSubTab.account` / `pendingSettingsSub` / `openAccountSettings`）；侧栏同步提示接线；**SettingsCompletePage 7 卡 → 5 卡**（工作区/模型/MCP/RAG/主题）；PluginListView iCloud 文案 + 死代码横幅（mcpPendingReimportNames 恒空，跨设备语义随模块移除） |
+| 构建 | Package.swift 删 Account 双 target（HarnessApp 依赖改 Workspace）；project.yml 删 Account/AccountTests target + scheme 引用；**xcodegen 重生成 xcodeproj 并提交**（旧 pbxproj 64 处 Account 引用清零，xcode 门禁用新工程 TEST SUCCEEDED） |
+| 工具 | `tools/rebuild-app.sh` Info.plist 删 `NSUbiquitousContainerIdentifiers`（iCloud 容器 key） |
+| 新文件 | `Packages/Workspace/Sources/WorkspaceRoot.swift`：local-only `WorkspaceKind` / `WorkspaceLayout` 五目录 / `WorkspaceRootProvider(localRoot:)`（无 probe） |
+
+### 11.2 AppViewModel 手术与恢复（过程教训）
+前会话对 AppViewModel（HEAD 2,812 行）的增量修补**误删 32 个非 SSO 的会话/项目 CRUD 方法**（createNewSession / selectSession / createProject / deleteProject / deleteSession / renameProject / renameSession / moveSession / togglePinSession / unarchive* / loadSessionsFromDB / setSandboxRoot / importThemePackage 等）——由编译门禁捕获（数十处 `no dynamic member` 错误，无静默通过）。
+恢复口径：**从 HEAD 恢复整文件作底，再执行 15 处精确删除**（全部严格断言匹配；方法清单 comm 对拍，缺失集 = 恰好 6 个 SSO 相关方法：attachWorkspaceSyncIfNeeded / awaitUserResolution / handleWorkspaceRootChanged / openAccountSettings / publishWorkspaceChange / resolveSyncConflict；9 处 publishWorkspaceChange 调用行删除；reconcilePluginMetadata 恒 no-op 保留启动链结构；migrateLegacyMemoryIfNeeded 删 isICloud guard）。结果 2,812 → 2,626 行。
+**教训**：2800 行级文件的大删减，「从已知正确底版重切」比增量修补可靠；每次大删减后必须做函数清单对拍。
+同批修复：`WorkspaceRouter.init` 潜伏 bug（`provider.resolveLocal()` 未解包可空参数 → `self.provider.resolveLocal()`，编译门禁捕获）。
+
+### 11.3 残留清扫（grep 全源码验证零残留）
+`import Account`×3（SettingsView/SidebarView/SidebarSupportViews）→ 删除（Workspace 符号既有 import 覆盖）；`WorkspaceSyncTests` 套件整块（123 行，SessionAssignment 引用）；`WorkspaceRoutingE2ETests` fixture 签名（icloudAvailable 参数已删）；`SettingsMenuModelTests` 深链测试 `.account` → `.notifications`；全源码 grep `AccountService|AppleSignIn|StoredAppleAccount|Ubiquity|SyncedValue|isICloud|icloud(-i)` 零幸存引用（仅剩注释性历史注记，均为「2026-08-30 起纯本地单根」类说明文案）。
+
+### 11.4 门禁（4/4 全绿，/tmp/ci_{pr,main,leaks,xcode}_ssoremove*.log）
+| 门禁 | 结果 |
+|---|---|
+| pr | SwiftLint 0 违规 / SwiftFormat 0 文件（237 文件）/ 编译 0 警告 / **759 测试 162 suites 全绿**（移除前基线 846/178；差 87 例 = Account 包 + 同步测试随包移除） |
+| main | Release 0 警告 + 全量 759 绿 + 覆盖率：**Sources 口径 97.37%（9,748 行，256 未覆盖）**——移除前 96.34%（10,609 行，388 未覆盖）；提升原因 = Account 包低覆盖文件（AppleSignInService 24.14% 等）随包移除。最弱包：Notifications 82.89%（设计边界 UN 包装层，已定性）/ WebUI 92.12% / Workspace 94.40%（新文件 WorkspaceRoot.swift 59.38%，provider.materialize 等分支待补测） |
+| leaks | 0 leaks |
+| xcode | TEST SUCCEEDED（重生成 pbxproj，Account 引用 0） |
+
+瞬态说明：pr 首轮全量 2 处失败——① swiftpm-testing-helper `NSInternalInconsistencyException`（bundleProxyForCurrentProcess nil，runner 进程级崩溃）② `importRegistersToolsRemoveDropsThem` 真实 python3 stdio 握手超时（20s 窗）——隔离复跑均绿（MCP 套件 3/3 + 全量重跑 759/759），定性环境瞬态，与 P1「协作池调度停滞」入册项同族，CI 有界重试机制在案。
+
+### 11.5 验证与残余
+- **App 重建 + 字节级核验 + 旧实例替换**（kill 旧 PID → `open -g` 不抢焦点；核验 = 二进制中「Apple 账号状态/登出」字符串消失、「本地工作区」在位；DB 3 个用户自建空会话不变）：**锁屏内无法完成字节核验后的实机确认，下一解锁窗口执行**
+- §10.3 #5 走测口径更新：完整设置 sheet 现为 **5 卡**版（关闭途径 = 本轮保留的 xmark + ⌘.）
+- SSO 真机验收目标（Developer Team/描述文件依赖）**作废**；「账号与同步」相关走测项全部作废
