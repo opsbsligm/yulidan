@@ -244,6 +244,9 @@
 瞬态说明：pr 首轮全量 2 处失败——① swiftpm-testing-helper `NSInternalInconsistencyException`（bundleProxyForCurrentProcess nil，runner 进程级崩溃）② `importRegistersToolsRemoveDropsThem` 真实 python3 stdio 握手超时（20s 窗）——隔离复跑均绿（MCP 套件 3/3 + 全量重跑 759/759），定性环境瞬态，与 P1「协作池调度停滞」入册项同族，CI 有界重试机制在案。
 
 ### 11.5 验证与残余
-- **App 重建 + 字节级核验 + 旧实例替换**（kill 旧 PID → `open -g` 不抢焦点；核验 = 二进制中「Apple 账号状态/登出」字符串消失、「本地工作区」在位；DB 3 个用户自建空会话不变）：**锁屏内无法完成字节核验后的实机确认，下一解锁窗口执行**
+- **App 重建 + 字节级核验 + 旧实例替换**（锁屏内已完成 2026-08-31）：`tools/rebuild-app.sh` sha `77a4df8dc3b3` @ dbc84e0 → kill 旧 PID 29799 → `open -g` 不抢焦点 → 新 PID 90383 稳定运行；字节级核验 7/7 通过（二进制 22.8MB：「Apple 账号状态/登出/账号与同步/iCloud 同步冲突/登录 Apple 账号/iCloud.com.deepseek.harness」全部 0 次，「本地工作区」1 次在位）；**DB 8 行不变**（含 3 个用户自建空会话，未动）
+- 运行时数据清理：`account.json`（mode=local，无密钥，零代码引用）+ 空 `sync/` 目录删除 → 工作区根仅剩五目录 + sessions.sqlite + subagent_history.json + pluginworker plist
+- ⚠️ **Keychain 中若存有旧 Apple 凭证条目（AppleCredentialStore 写入）无代码消费方**，属系统层残留，不影响功能；如需彻底清除由用户在 钥匙串访问 App 手动删除（搜索 deepseek/harness 相关条目）
 - §10.3 #5 走测口径更新：完整设置 sheet 现为 **5 卡**版（关闭途径 = 本轮保留的 xmark + ⌘.）
 - SSO 真机验收目标（Developer Team/描述文件依赖）**作废**；「账号与同步」相关走测项全部作废
+- 解锁后待办并入 §10.3 走测：5 卡设置 sheet 实机过目 + 侧栏无同步提示确认（本地模式零噪声不变量）
