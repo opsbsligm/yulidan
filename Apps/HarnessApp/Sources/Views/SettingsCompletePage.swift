@@ -9,17 +9,44 @@ struct SettingsCompletePage: View {
 
     var body: some View {
         // 大弹窗（Sheet）：单页滚动 = 完整页面（非侧边栏导航，区别于 SettingsView）
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                accountCard
-                iCloudCard
-                modelCard
-                mcpCard
-                ragCard
-                permissionCard
-                themeCard
+        VStack(alignment: .leading, spacing: 0) {
+            // 顶部标题行 + 关闭（2026-08-30 锁屏静态审计发现：原 sheet 无任何关闭途径，
+            // 用户点进「完整设置」后无法返回——与 08-26 归档管理假按钮同类缺陷；
+            // 按 ArchiveManagerView/MCPServerLogSheet 既有模式补 dismiss + ⌘. 双通道）
+            HStack(spacing: 8) {
+                Text("完整设置").font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(HarnessTheme.textPrimary)
+                Spacer()
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(HarnessTheme.textSecondary)
+                        .frame(width: 24, height: 24)
+                        .background(Circle().fill(Color.secondary.opacity(0.08)))
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .keyboardShortcut(.cancelAction)
+                .help("关闭完整设置，返回设置页")
+                .accessibilityLabel("关闭完整设置")
             }
-            .padding(20)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 14)
+            Divider()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    accountCard
+                    iCloudCard
+                    modelCard
+                    mcpCard
+                    ragCard
+                    permissionCard
+                    themeCard
+                }
+                .padding(20)
+            }
         }
         .frame(width: 700, height: 600)
     }
@@ -61,8 +88,8 @@ struct SettingsCompletePage: View {
 
     private var iCloudCard: some View {
         card(title: "iCloud 同步指示器", detail: "工作区根目录（本地磁盘 / iCloud 容器）与同步权限", content: {
-            // 工作区标签（本地磁盘 / iCloud 容器）+ 根路径（可读）
-            Text("工作区：\(viewModel.workspaceRouter.current.kind)（\(viewModel.workspaceRouter.current.rootURL.path)）")
+            // 工作区标签（本地磁盘 / iCloud 容器）+ 根路径（可读；verbatim 走 String 插值，避免 LocalizedStringKey 弃用告警，渲染逐字一致）
+            Text(verbatim: "工作区：\(viewModel.workspaceRouter.current.kind)（\(viewModel.workspaceRouter.current.rootURL.path)）")
                 .font(.system(size: 11)).foregroundStyle(HarnessTheme.textSecondary)
         })
     }
