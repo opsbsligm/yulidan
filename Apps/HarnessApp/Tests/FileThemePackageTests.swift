@@ -91,7 +91,7 @@ struct FileThemePackageTests {
         let plugin = try ThemePackageImporter.importPackage(fileURL: source, into: root)
         #expect(plugin.themeSpec.glassTintHex == "#7C3AED")
         #expect(plugin.themeSpec.glassMaterial == "clear")
-        let reloaded = try ThemePackageImporter.loadAll(in: root)
+        let reloaded = ThemePackageImporter.loadAll(in: root)
         #expect(reloaded.count == 1)
         #expect(reloaded[0].themeSpec.glassMaterial == "clear")
     }
