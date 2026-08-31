@@ -124,6 +124,7 @@
 		5C7BB5244D33FFC691A211CA /* libSession.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C296DBEF902C64F1A11B41A1 /* libSession.a */; };
 		5E2BD40ABF205D9B01BFF0B5 /* libSession.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C296DBEF902C64F1A11B41A1 /* libSession.a */; };
 		5E62303EA9EE14874989E0FB /* MemoryTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF2186A7BE09EE932A076037 /* MemoryTools.swift */; };
+		5ECFBA6757EE8A02DA4457E0 /* WorkspaceRootTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 053E966465403379B2DC2087 /* WorkspaceRootTests.swift */; };
 		5F35E448FAD6517B83DD22AB /* LocalAdapterEngineRoutingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF2B8B864E1D7D67A3435259 /* LocalAdapterEngineRoutingTests.swift */; };
 		606F662AEEE3B767B62ACEEE /* libHarnessCore.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 036680198B0B30775372E14A /* libHarnessCore.a */; };
 		60B6FBFA7D3873EC06D3F542 /* Plugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AE5845F3C1A1B27D9475A65 /* Plugin.swift */; };
@@ -1432,6 +1433,7 @@
 		017DCA6445D6BA1A9410E722 /* NotificationsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationsSection.swift; sourceTree = "<group>"; };
 		01AA80BD388E38BEA0B00971 /* AgentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentTests.swift; sourceTree = "<group>"; };
 		036680198B0B30775372E14A /* libHarnessCore.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libHarnessCore.a; sourceTree = BUILT_PRODUCTS_DIR; };
+		053E966465403379B2DC2087 /* WorkspaceRootTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceRootTests.swift; sourceTree = "<group>"; };
 		0614A9CD104A5A1E12602FF0 /* libLLM.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libLLM.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		076CFC562885AB9041384FAD /* MemProbeMain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemProbeMain.swift; sourceTree = "<group>"; };
 		0A71E0C4CA6CD6258F881375 /* ServiceContainerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServiceContainerTests.swift; sourceTree = "<group>"; };
@@ -2132,6 +2134,7 @@
 			children = (
 				10798253FE8BED59EDCB1969 /* WorkspaceGapCoverageTests.swift */,
 				C57C9643D9985DF3BBAD68C8 /* WorkspaceR17GapTests.swift */,
+				053E966465403379B2DC2087 /* WorkspaceRootTests.swift */,
 				2CA141470455A80617F1BCAE /* WorkspaceTests.swift */,
 			);
 			path = Tests;
@@ -4479,6 +4482,7 @@
 			files = (
 				C6DF4684EB3FF3F2E616CF99 /* WorkspaceGapCoverageTests.swift in Sources */,
 				7CB7A25B5F3897ABF1F2DDFA /* WorkspaceR17GapTests.swift in Sources */,
+				5ECFBA6757EE8A02DA4457E0 /* WorkspaceRootTests.swift in Sources */,
 				79785EBBAA182B16EC4DE5FB /* WorkspaceTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
