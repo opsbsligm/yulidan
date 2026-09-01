@@ -199,6 +199,8 @@
 > **#8 剩余**：真实系统开关闭合环（辅助功能 › 显示 › 减弱透明度 开→solid 降级、关→恢复）仍需在「用户不在键盘前」的窗口实机核销；本轮已把**代码前提**修成可证明形态，bundle 已同步待重启实例生效。
 > **#6 主题 tint 即时性的代码前提（静态证明，本轮补）**：`AppViewModel.activeThemeSpec` 为 `@Published`（:399），切换时带变更守卫赋值（:2266），并经 `ContentView` 的 `.environment(\.harnessThemeSpec, viewModel.activeThemeSpec)`（:54）注入 → 主题变化必然触发视图失效，`GlassSurfaceModifier` 的 `@Environment(\.harnessThemeSpec)` 随之重解析 `resolvedGlass`（纯函数单点）→「切换主题插件即时改全局 glassEffect 无需重启」在代码层成立，实机仅剩「切 → 看强调色变化 → 还原」的肉眼核销。同类缺陷扫描：`Sources/Views` + `Sources/Styles` 已无其它「读系统态渲染」的点（`NSWorkspace.shared.*` / `effectiveAppearance` 仅剩本轮刚修复的一处）。
 
+> 2026-09-01 R1 第五轮（锁屏内静态扫描 + 实况快照，无新增代码）：① **#8 降级链旁路排查闭环——无旁路**：静态扫描见 `GlassMorphTabBar.swift:136-138` 直接调用 `.glassEffect/.glassEffectID/.glassEffectTransition`，疑似绕过降级门；逐行定性＝该调用位于 `TileFaceMode.resolve(isSelected:isNative:)` 的 `.glassMorph` 分支，`isNative` 已在 #8 修复轮接入环境键（:56-59 统一走 `GlassSurfaceModifier.currentMode(envReduceTransparency:)`）→ **减弱透明度开启时走 `.solid` 分支（sidebarHover 实色选中块），玻璃分支不可达**；全源码 grep 复核：`GlassSurface.swift` 三点之外再无未门控玻璃直调点 → **降级链视图层无旁路缺陷**。② **实况快照**：Harness 实例已不在运行（含 #8 修复前二进制的旧 PID 90593 已退出）→ #8「实机闭合环需重启实例」前提**自然消除**，下次启动即加载含修复 bundle（`b91512d11861…` @ fb33416）。
+
 ### 10.4 锁屏静态审计（2026-08-30，Agent 驱动，代码级替代验证路径第 2 阶段）
 
 **背景**：用户指示「锁屏内能做的全做完，不因锁屏中断」。先做锁屏能力边界实证（全部原生 C API 探针，非猜测）：
