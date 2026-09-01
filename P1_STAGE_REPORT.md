@@ -201,6 +201,8 @@
 
 > 2026-09-01 R1 第五轮（锁屏内静态扫描 + 实况快照，无新增代码）：① **#8 降级链旁路排查闭环——无旁路**：静态扫描见 `GlassMorphTabBar.swift:136-138` 直接调用 `.glassEffect/.glassEffectID/.glassEffectTransition`，疑似绕过降级门；逐行定性＝该调用位于 `TileFaceMode.resolve(isSelected:isNative:)` 的 `.glassMorph` 分支，`isNative` 已在 #8 修复轮接入环境键（:56-59 统一走 `GlassSurfaceModifier.currentMode(envReduceTransparency:)`）→ **减弱透明度开启时走 `.solid` 分支（sidebarHover 实色选中块），玻璃分支不可达**；全源码 grep 复核：`GlassSurface.swift` 三点之外再无未门控玻璃直调点 → **降级链视图层无旁路缺陷**。② **实况快照**：Harness 实例已不在运行（含 #8 修复前二进制的旧 PID 90593 已退出）→ #8「实机闭合环需重启实例」前提**自然消除**，下次启动即加载含修复 bundle（`b91512d11861…` @ fb33416）。
 
+> 2026-09-01 R1 第六轮（锁屏内静态发现：**#6 走测口径修正——玻璃 tint 载体不是内置深海蓝**）：静态审查 `BuiltInPlugins.swift` 证实内置深海蓝/落日渐橙 ThemeSpec **均未声明 `glassTintHex`（nil）**→ 切内置主题的即时可观察项 = 强调色/气泡色，**玻璃 tint 不变是数据事实非缺陷**（`resolvedGlass` 对 nil 走无 tint 分支，单测在案）；玻璃参数走测载体 = 社区样例包 `demos/community-theme-demo/spec.json`（声明 `glassTintHex=#0FB5A6` + `glassMaterial=regular`，其描述自 P1.4 起即标注「实机走查用」）。走测脚本 #6 升级为两段：**6a** 内置深海蓝自动切换/还原（强调色像素证据）；**6b** 提示用户 10 秒手动导入社区包 → 脚本自动侦测列表出现「Tahoe Teal」→ 切换（13_theme_teal_glass = 玻璃青绿 tint 像素证据）→ 还原基准 → 提醒停用删除恢复原状。#6 核销口径随之拆分：6a 全自动可核销；6b 玻璃层若用户不导入则按「强调色层核销 + 玻璃链路单测锁定（ThemeTests 往返 + resolvedGlass 纯函数 + FileThemePackage 校验）」口径关闭，是否要求 6b 实机由用户定夺。
+
 ### 10.4 锁屏静态审计（2026-08-30，Agent 驱动，代码级替代验证路径第 2 阶段）
 
 **背景**：用户指示「锁屏内能做的全做完，不因锁屏中断」。先做锁屏能力边界实证（全部原生 C API 探针，非猜测）：
