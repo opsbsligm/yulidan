@@ -193,6 +193,10 @@
 > **#3 顶栏标题右键**：代码级两个入口共用同一 `@ViewBuilder sessionMenuActions`（恒等），实机取到该动作集物化内容 = `置顶/添加附件/派生子 Agent/复制到剪贴板/导出为 Markdown…/重命名对话…/清空本对话/删除对话` 八项逐字一致（/tmp/wt/w2b_title_ctx.txt、walk/overflow_menu.txt）；标题 `AXStaticText` 不支持 `AXShowMenu`（-25204），故「从标题入口真实弹出」需真实右键 = 待交互窗口。
 > **实机确认本轮缺陷修复生效**（同一张截图）：侧栏三行「新对话」标题各自独立、内容会话「帮我执行一个终端命令」被选中时不再传染（修复前该三行会显示成它）。同时确认**侧栏零同步残留提示**（本地模式零噪声不变量，整屏无同步/账号提示）。
 > **走测纪律补充**：用户在场时禁用键鼠注入（CGEvent 会打到前台 App，且 `⌘.` 类按键必须前台才能送达）；仅用 AX 动作。**本轮 Harness 窗口中途从 AX/CGWindowList 消失 = 用户自行接管窗口**，随即停止全部应用侧操作，避免干扰真实工作。
+> 2026-09-01 R1 第四轮（**#8 减弱透明度：静态审查发现真实薄弱点并已按 Apple 文档修复**）：降级链 `GlassSurfaceModifier.resolveMode` 把「减弱透明度」置于最高优先级，但三个消费点（`GlassSurfaceModifier.body` / `GlassSurfaceContainerModifier.body` / `GlassMorphTabBar.isNative`）此前**只读 `NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency` 的即时值**，该读取不构成任何 SwiftUI 视图失效依赖，也未订阅系统变更通知 → **「切换系统开关后不重启 App 即降级」在代码层不可证明**（此前 §10.3 仅记为「需切系统设置」的实机项，未识别到该缺陷）。
+> 修复＝接入 Apple 文档化的可观察途径 `@Environment(\.accessibilityReduceTransparency)`（macOS 11+），三处消费点统一改走 `currentMode(envReduceTransparency:)`；合成规则收敛为纯函数 `resolveReduceTransparency(override:envReduceTransparency:workspaceFlag:)`＝`override ?? (环境键 ∨ NSWorkspace)`（override 最优先保证用例隔离；NSWorkspace 值保留给非视图/启动路径）。新增 2 用例（优先级矩阵 + `currentMode(envReduceTransparency: true) == .solid` 不依赖 override）。环境键可编译＝API 存在性由编译器实证，未脑补参数。
+> 四门禁 @本轮：pr **770/163**（Lint strict 0 / Format 0 / 编译 0 警告）+ main Release 0 警告 + Sources 覆盖 **97.55%**（9,748 行 / 239 未覆盖）+ leaks **0** + xcode **TEST SUCCEEDED**。
+> **#8 剩余**：真实系统开关闭合环（辅助功能 › 显示 › 减弱透明度 开→solid 降级、关→恢复）仍需在「用户不在键盘前」的窗口实机核销；本轮已把**代码前提**修成可证明形态，bundle 已同步待重启实例生效。
 
 ### 10.4 锁屏静态审计（2026-08-30，Agent 驱动，代码级替代验证路径第 2 阶段）
 
