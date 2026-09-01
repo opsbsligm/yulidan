@@ -188,6 +188,11 @@
 > **走测 #3 途中发现并修复真实缺陷（跨会话标题传染）**：`AppViewModel.sessionTitle(for:)` 回退分支无条件读全局 `messages`（当前选中会话的消息），导致打开有内容会话后，所有未命名会话在侧栏显示成该会话标题，且会话搜索命中被同样污染。修复＝标题解析严格会话局部化（显式标题 → 自身首条用户事件 → 仅当前选中会话可用 messages 兜底 → 「新对话」）；回归用例 `AppViewModelSessionLifecycleTests/sessionTitleIsSessionLocal` 在源码回退后确定性失败（`sessionTitle(for: b) → "标题传染测试消息"`），修复后四门禁全绿（pr 768/163、main 97.56%、leaks 0、xcode TEST SUCCEEDED）。详见 QUALITY_REPORT 2026-09-01 条目。
 > 走测取证经验补充：**锁屏过渡期 AX 内容树会返回陈化/重复标签**，AX 与像素不一致时先跑 `/tmp/lockprobe2` 定性；`/tmp/wt/ax` 已补 `AXValue` 坐标解码（`pos=/size=`），后续右键与拖拽可用真实坐标。剩余 #3–#8 待下一个解锁窗口。
 > 修复的已知边界（非本轮引入，记录备查）：`sessionTitle` 依赖「显式标题 / 会话自身 events / 当前会话 messages」，而启动加载为「仅元数据」（`rec.events.isEmpty`），因此**生成从未完成的会话**（有 user 事件但 autoTitle 未触发）在冷启动侧栏会显示「新对话」，打开后才恢复派生标题。属标题回填缺失的体验小项（需按会话批量读 DB 首事件才能根治，涉及启动性能），本轮不改，列为后续可选项。
+> 2026-09-01 R1 第三轮核销（**纯 AX 动作走测**：不注入鼠标/键盘、不抢焦点，用户当时在前台用 Safari/Electron）：
+> **#4 侧栏删除二次确认 → 基本核销**：① 行右键菜单在位（AX 取证 `归档` / `删除(id=trash)`，截图 walk2_row_ctx 与 /tmp/wt/w2b*）；② `AXPress` 菜单项「删除」→ 弹出二次确认，AX 文本 `确定删除会话？` + `取消(id=action-button-2)` / `删除(id=action-button-1)`（/tmp/wt/walk2_confirm.txt）；③ **像素级确认**（/tmp/wt/walk2_04_confirm.png）：居中玻璃卡片 + 取消/删除（删除为 destructive 红）；④ 弹窗消失后 DB 仍 11 行、目标临时会话 `75EF00B7` 仍在 = **未发生删除**。残余：本次「点取消」这一具体动作由谁触发弹窗关闭未被单独证实（我的首次 `buttonpress 取消` 被菜单栏同名「取消」抢先匹配并返回 -25205），已给工具补 `idpress`（按 AXIdentifier 精确按压）待交互窗口补最后一步。
+> **#3 顶栏标题右键**：代码级两个入口共用同一 `@ViewBuilder sessionMenuActions`（恒等），实机取到该动作集物化内容 = `置顶/添加附件/派生子 Agent/复制到剪贴板/导出为 Markdown…/重命名对话…/清空本对话/删除对话` 八项逐字一致（/tmp/wt/w2b_title_ctx.txt、walk/overflow_menu.txt）；标题 `AXStaticText` 不支持 `AXShowMenu`（-25204），故「从标题入口真实弹出」需真实右键 = 待交互窗口。
+> **实机确认本轮缺陷修复生效**（同一张截图）：侧栏三行「新对话」标题各自独立、内容会话「帮我执行一个终端命令」被选中时不再传染（修复前该三行会显示成它）。同时确认**侧栏零同步残留提示**（本地模式零噪声不变量，整屏无同步/账号提示）。
+> **走测纪律补充**：用户在场时禁用键鼠注入（CGEvent 会打到前台 App，且 `⌘.` 类按键必须前台才能送达）；仅用 AX 动作。**本轮 Harness 窗口中途从 AX/CGWindowList 消失 = 用户自行接管窗口**，随即停止全部应用侧操作，避免干扰真实工作。
 
 ### 10.4 锁屏静态审计（2026-08-30，Agent 驱动，代码级替代验证路径第 2 阶段）
 
