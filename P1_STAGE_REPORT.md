@@ -197,6 +197,7 @@
 > 修复＝接入 Apple 文档化的可观察途径 `@Environment(\.accessibilityReduceTransparency)`（macOS 11+），三处消费点统一改走 `currentMode(envReduceTransparency:)`；合成规则收敛为纯函数 `resolveReduceTransparency(override:envReduceTransparency:workspaceFlag:)`＝`override ?? (环境键 ∨ NSWorkspace)`（override 最优先保证用例隔离；NSWorkspace 值保留给非视图/启动路径）。新增 2 用例（优先级矩阵 + `currentMode(envReduceTransparency: true) == .solid` 不依赖 override）。环境键可编译＝API 存在性由编译器实证，未脑补参数。
 > 四门禁 @本轮：pr **770/163**（Lint strict 0 / Format 0 / 编译 0 警告）+ main Release 0 警告 + Sources 覆盖 **97.55%**（9,748 行 / 239 未覆盖）+ leaks **0** + xcode **TEST SUCCEEDED**。
 > **#8 剩余**：真实系统开关闭合环（辅助功能 › 显示 › 减弱透明度 开→solid 降级、关→恢复）仍需在「用户不在键盘前」的窗口实机核销；本轮已把**代码前提**修成可证明形态，bundle 已同步待重启实例生效。
+> **#6 主题 tint 即时性的代码前提（静态证明，本轮补）**：`AppViewModel.activeThemeSpec` 为 `@Published`（:399），切换时带变更守卫赋值（:2266），并经 `ContentView` 的 `.environment(\.harnessThemeSpec, viewModel.activeThemeSpec)`（:54）注入 → 主题变化必然触发视图失效，`GlassSurfaceModifier` 的 `@Environment(\.harnessThemeSpec)` 随之重解析 `resolvedGlass`（纯函数单点）→「切换主题插件即时改全局 glassEffect 无需重启」在代码层成立，实机仅剩「切 → 看强调色变化 → 还原」的肉眼核销。同类缺陷扫描：`Sources/Views` + `Sources/Styles` 已无其它「读系统态渲染」的点（`NSWorkspace.shared.*` / `effectiveAppearance` 仅剩本轮刚修复的一处）。
 
 ### 10.4 锁屏静态审计（2026-08-30，Agent 驱动，代码级替代验证路径第 2 阶段）
 
