@@ -6,6 +6,10 @@ cd "$(dirname "$0")/.."
 
 MODE="${1:-pr}"
 
+# 全量测试看门狗：挂起（runner 存活但不退出）不会触发下方「非零退出才重试」的有界重试，
+# 超过 TEST_TIMEOUT 秒由 SIGALRM 终止为 rc=142 → 正常走重试路径（经验来源：QUALITY_REPORT 2026-09-01 第六轮）
+TEST_TIMEOUT=1200
+
 step() { echo; echo "===== $1 ====="; }
 
 run_pr() {
@@ -22,7 +26,9 @@ run_pr() {
   # 有界重试：macOS 存在瞬态协作池调度停滞（线程空闲但任务不派发，~10-13s，见 QUALITY_REPORT P1）；
   # 停滞属环境故障，真实回归重试仍会失败，重试一次用于区分二者
   for attempt in 1 2; do
-    swift test --parallel && break
+    perl -e 'alarm shift @ARGV; exec @ARGV' "${TEST_TIMEOUT}" swift test --parallel && break
+    # SIGALRM 只终止被包装的 swift-test 父进程；清理可能的孤儿 runner（watchdog 场景），正常失败路径为 no-op
+    pkill -f "swift-harnessPackageTests" 2>/dev/null || true
     if [ "${attempt}" -eq 2 ]; then echo "❌ 全量测试两轮均失败"; exit 1; fi
     echo "⚠️ 首轮全量失败 — 有限重试一次（环境调度停滞容忍，非代码回归）"
   done
@@ -52,7 +58,8 @@ run_main() {
   step "MAIN Full Test Suite + Coverage"
   # 有界重试：同 PR-4（macOS 瞬态调度停滞容忍，见 QUALITY_REPORT P1）
   for attempt in 1 2; do
-    swift test --parallel --enable-code-coverage && break
+    perl -e 'alarm shift @ARGV; exec @ARGV' "${TEST_TIMEOUT}" swift test --parallel --enable-code-coverage && break
+    pkill -f "swift-harnessPackageTests" 2>/dev/null || true   # 同上：watchdog 孤儿清理，正常失败为 no-op
     if [ "${attempt}" -eq 2 ]; then echo "❌ 全量测试两轮均失败"; exit 1; fi
     echo "⚠️ 首轮全量失败 — 有限重试一次（环境调度停滞容忍，非代码回归）"
   done
