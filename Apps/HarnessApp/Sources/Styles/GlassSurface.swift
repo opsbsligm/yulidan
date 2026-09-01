@@ -36,6 +36,9 @@ struct GlassSurfaceModifier: ViewModifier {
     /// 当前激活主题（根视图注入；glassTintHex = 主题插件玻璃 tint，P1.1 起生效）
     @Environment(\.harnessThemeSpec) private var themeSpec
 
+    /// 系统「减弱透明度」（SwiftUI 文档化可观察途径；true → solid 降级即时生效，无需重启）
+    @Environment(\.accessibilityReduceTransparency) private var envReduceTransparency
+
     /// 渲染模式解析（纯函数，可单测）
     enum Mode {
         case solid // 无障碍降级：纯色
@@ -60,14 +63,27 @@ struct GlassSurfaceModifier: ViewModifier {
         set { reduceTransparencyOverride.withLock { $0 = newValue } }
     }
 
-    static func isReduceTransparency() -> Bool {
-        if let override = reduceTransparencyTestOverride {
-            return override
-        }
-        return NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency
+    /// 减弱透明度合成（纯函数，可单测）：测试 override 最优先（保证用例隔离），
+    /// 否则「SwiftUI 环境键 ∨ NSWorkspace 即时值」。环境键是 Apple 文档给出的**可观察**
+    /// 读取途径（EnvironmentValues.accessibilityReduceTransparency，macOS 11+）；
+    /// NSWorkspace 值只在 body 求值时被读到，本身不构成视图失效依赖。
+    static func resolveReduceTransparency(override: Bool?, envReduceTransparency: Bool,
+                                          workspaceFlag: Bool) -> Bool {
+        override ?? (envReduceTransparency || workspaceFlag)
     }
 
-    static func currentMode() -> Mode {
+    /// - Parameter envReduceTransparency: 视图侧传入的 `@Environment(\.accessibilityReduceTransparency)`。
+    ///   传入即建立对系统开关的观察依赖：用户在「系统设置 › 辅助功能 › 显示」切换
+    ///   「减弱透明度」时无需重启 App，视图被 SwiftUI 重新求值 → 即时降级 / 即时恢复。
+    static func isReduceTransparency(envReduceTransparency: Bool = false) -> Bool {
+        resolveReduceTransparency(
+            override: reduceTransparencyTestOverride,
+            envReduceTransparency: envReduceTransparency,
+            workspaceFlag: NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency
+        )
+    }
+
+    static func currentMode(envReduceTransparency: Bool = false) -> Mode {
         resolveMode(
             osAtLeast26: {
                 if #available(macOS 26.0, *) {
@@ -75,7 +91,7 @@ struct GlassSurfaceModifier: ViewModifier {
                 }
                 return false
             }(),
-            reduceTransparency: isReduceTransparency()
+            reduceTransparency: isReduceTransparency(envReduceTransparency: envReduceTransparency)
         )
     }
 
@@ -186,7 +202,7 @@ struct GlassSurfaceModifier: ViewModifier {
     }
 
     func body(content: Content) -> some View {
-        switch Self.currentMode() {
+        switch Self.currentMode(envReduceTransparency: envReduceTransparency) {
         case .solid:
             // 无障碍降级：纯色表面（保留 0.5pt 描边维持边界感）
             content
@@ -250,13 +266,16 @@ struct GlassSurfaceContainerModifier: ViewModifier {
     /// 融合提前量（官方语义：spacing 越大越早开始融合）；nil = 系统默认
     var spacing: CGFloat?
 
+    /// 系统「减弱透明度」：与 GlassSurfaceModifier 同源，保证容器与表面的降级判定一致且即时
+    @Environment(\.accessibilityReduceTransparency) private var envReduceTransparency
+
     /// 是否真正包裹容器（纯函数，可单测）：仅 native 模式包裹
     static func shouldWrap(_ mode: GlassSurfaceModifier.Mode) -> Bool {
         mode == .native
     }
 
     func body(content: Content) -> some View {
-        if Self.shouldWrap(GlassSurfaceModifier.currentMode()), #available(macOS 26.0, *) {
+        if Self.shouldWrap(GlassSurfaceModifier.currentMode(envReduceTransparency: envReduceTransparency)), #available(macOS 26.0, *) {
             GlassEffectContainer(spacing: spacing) {
                 content
             }

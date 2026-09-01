@@ -52,8 +52,11 @@ struct GlassMorphTabBar: View {
     /// 分段面 shape（morph/union 官方约束：同变体 + 同型 shape）
     private static let tileShape = RoundedRectangle(cornerRadius: 10, style: .continuous)
 
+    /// 系统「减弱透明度」环境键（与 GlassSurface 同源；true → 非 native，solid 选中块且无 morph）
+    @Environment(\.accessibilityReduceTransparency) private var envReduceTransparency
+
     private var isNative: Bool {
-        GlassSurfaceModifier.currentMode() == .native
+        GlassSurfaceModifier.currentMode(envReduceTransparency: envReduceTransparency) == .native
     }
 
     var body: some View {

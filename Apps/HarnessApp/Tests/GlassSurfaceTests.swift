@@ -163,4 +163,36 @@ struct GlassSurfaceTests {
         #expect(GlassSurfaceModifier.materialLabel(glassMaterial: "clear") == "透明（.clear）")
         #expect(GlassSurfaceModifier.materialLabel(glassMaterial: "bogus") == "标准（.regular）")
     }
+
+    // MARK: R1 §10.3 #8 —— 系统「减弱透明度」即时降级（环境键接入后的可观察依赖）
+
+    @Test("resolveReduceTransparency 优先级：override > 环境键 ∨ NSWorkspace（纯函数矩阵）")
+    func resolveReduceTransparencyPriority() {
+        // 测试 override 最优先 → 用例隔离：override=false 时不得被环境键/系统值翻回 true
+        #expect(GlassSurfaceModifier.resolveReduceTransparency(
+            override: false, envReduceTransparency: true, workspaceFlag: true
+        ) == false)
+        #expect(GlassSurfaceModifier.resolveReduceTransparency(
+            override: true, envReduceTransparency: false, workspaceFlag: false
+        ) == true)
+        // 无 override：仅环境键为 true 即判定减弱（= 系统开关即时生效的入口依据）
+        #expect(GlassSurfaceModifier.resolveReduceTransparency(
+            override: nil, envReduceTransparency: true, workspaceFlag: false
+        ) == true)
+        // 无 override 且环境键 false：回落 NSWorkspace 即时值（启动期/非视图路径仍可读）
+        #expect(GlassSurfaceModifier.resolveReduceTransparency(
+            override: nil, envReduceTransparency: false, workspaceFlag: true
+        ) == true)
+        #expect(GlassSurfaceModifier.resolveReduceTransparency(
+            override: nil, envReduceTransparency: false, workspaceFlag: false
+        ) == false)
+    }
+
+    @Test("currentMode(envReduceTransparency: true) 直接落 solid（不依赖测试 override）")
+    func currentModeHonorsEnvironmentKey() {
+        // 前置：不设置 reduceTransparencyTestOverride，证明环境键单独即可决定降级链入口，
+        // 即视图侧 @Environment(\.accessibilityReduceTransparency) 生效后无需重启 App
+        #expect(GlassSurfaceModifier.reduceTransparencyTestOverride == nil)
+        #expect(GlassSurfaceModifier.currentMode(envReduceTransparency: true) == .solid)
+    }
 }
