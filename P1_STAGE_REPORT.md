@@ -187,6 +187,7 @@
 > 2026-09-01 R1 第二轮核销（解锁窗口 12:56–13:02 内实测）：**#2 折叠 rail 回归通过**——解锁态 AXPress `sidebar.left` 折叠后主窗保持 1470×860（不缩窗，前轮「158×152」＝锁屏过渡伪影得证）、rail 六图标与底部归档/设置/用户可见、内容区铺满；再按一次布局与选中态完全恢复；`sidebarCollapsed` 1→0 归位（/tmp/wt/r2c_mid.png、r2c_settled.png、r2d_expanded.png）。折叠动画为 `withAnimation(.smooth 0.18)` 交叉淡变，morph 判定沿用前轮结论。
 > **走测 #3 途中发现并修复真实缺陷（跨会话标题传染）**：`AppViewModel.sessionTitle(for:)` 回退分支无条件读全局 `messages`（当前选中会话的消息），导致打开有内容会话后，所有未命名会话在侧栏显示成该会话标题，且会话搜索命中被同样污染。修复＝标题解析严格会话局部化（显式标题 → 自身首条用户事件 → 仅当前选中会话可用 messages 兜底 → 「新对话」）；回归用例 `AppViewModelSessionLifecycleTests/sessionTitleIsSessionLocal` 在源码回退后确定性失败（`sessionTitle(for: b) → "标题传染测试消息"`），修复后四门禁全绿（pr 768/163、main 97.56%、leaks 0、xcode TEST SUCCEEDED）。详见 QUALITY_REPORT 2026-09-01 条目。
 > 走测取证经验补充：**锁屏过渡期 AX 内容树会返回陈化/重复标签**，AX 与像素不一致时先跑 `/tmp/lockprobe2` 定性；`/tmp/wt/ax` 已补 `AXValue` 坐标解码（`pos=/size=`），后续右键与拖拽可用真实坐标。剩余 #3–#8 待下一个解锁窗口。
+> 修复的已知边界（非本轮引入，记录备查）：`sessionTitle` 依赖「显式标题 / 会话自身 events / 当前会话 messages」，而启动加载为「仅元数据」（`rec.events.isEmpty`），因此**生成从未完成的会话**（有 user 事件但 autoTitle 未触发）在冷启动侧栏会显示「新对话」，打开后才恢复派生标题。属标题回填缺失的体验小项（需按会话批量读 DB 首事件才能根治，涉及启动性能），本轮不改，列为后续可选项。
 
 ### 10.4 锁屏静态审计（2026-08-30，Agent 驱动，代码级替代验证路径第 2 阶段）
 
