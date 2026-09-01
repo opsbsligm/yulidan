@@ -239,7 +239,7 @@
 | 无置顶会话（F7 盘点 B6，Codex pinned 对齐差距） | `c32a856`（pinned 字段向后兼容 + 置顶段 + 持久化往返 3 项测试） |
 | SidebarView.swift 超文件长度门禁（610>600，B3/B5/B6 累积） | `c32a856`（拆分 SessionListItem.swift：SessionListItem/RelativeTime） |
 | 无置顶会话（F7 盘点 B6，Codex pinned 对齐差距） | `c32a856`（pinned 字段向后兼容 + 置顶段 + 持久化往返 3 项测试） |
-| 用户消息气泡样式与 Codex 不符（F7 盘点 B8） | `b5486ec`（无气泡纯文本，视觉验收待实机） |
+| 用户消息气泡样式与 Codex 不符（F7 盘点 B8） | `b5486ec`（无气泡纯文本，视觉验收待实机）| 关闭口径（2026-09-01 账目对齐）：P0 08-30 用户整体实机验收通过**隐含覆盖**（单项显式打勾无记录，如用户认为未验可重新打开） |
 | 会话分组逻辑不可单测（groups 私有计算属性） | `17a0fd8`（SessionGroups 纯函数提取 + 2 项单测） |
 | 双构建（SwiftPM/Xcode）bundle id 不一致 + 部署目标漂移（Xcode 侧 minos 15） | `6696bf1`（project.yml + rebuild-app.sh 统一 com.deepseek.harness + 部署目标 26，双清单同步 + xcodegen 再生） |
 | Xcode ad-hoc 签名（-）拒绝 team 级 entitlements（applesignin/icloud 需 provisioning profile） | `6696bf1`（双 entitlements 文件方案：完整版 HarnessApp.entitlements 待 Team 启用 / CI 精简版仅 get-task-allow） |
