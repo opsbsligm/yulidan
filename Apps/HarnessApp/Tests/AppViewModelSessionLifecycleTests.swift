@@ -355,4 +355,62 @@ struct AppViewModelSessionLifecycleTests {
         vm.renameSession("   ")
         #expect(vm.sessionTitle(for: s) == autoTitle)
     }
+
+    // MARK: 场景 6：标题会话局部性（缺陷回归：打开有内容会话后，其他未命名会话标题被传染）
+
+    @Test("标题解析会话局部：打开有内容会话不污染其他空会话标题与搜索命中")
+    func sessionTitleIsSessionLocal() async throws {
+        let dbURL = tempDBURL()
+        defer { try? FileManager.default.removeItem(at: dbURL) }
+        let skillDir = tempSkillDir()
+        defer { try? FileManager.default.removeItem(at: skillDir) }
+
+        let filledID = SessionID()
+        let emptyID = SessionID()
+        guard let db = try? SessionDB(dbURL: dbURL) else {
+            Issue.record("测试 DB 打开失败"); return
+        }
+        var recA = SessionRecord(id: filledID, metadata: SessionMetadata(cwd: URL(fileURLWithPath: "/tmp")))
+        recA.append(.userMessage(UserMessage(content: [.text("标题传染测试消息")])))
+        recA.append(.assistantMessage(AssistantMessage(turn: 1, step: 0,
+                                                       content: [.text("标题传染测试回复")],
+                                                       provider: "local", model: "test-model")))
+        try await db.save(recA)
+        let recB = SessionRecord(id: emptyID, metadata: SessionMetadata(cwd: URL(fileURLWithPath: "/tmp")))
+        try await db.save(recB)
+
+        let vm = AppViewModel(skillUserDirectory: skillDir, sessionDBURL: dbURL)
+        guard await waitForInitialLoad(vm, filledID), await waitForInitialLoad(vm, emptyID) else {
+            Issue.record("启动加载未完成"); return
+        }
+        guard let a = vm.sessions.first(where: { $0.id == filledID }),
+              let b = vm.sessions.first(where: { $0.id == emptyID }) else {
+            Issue.record("会话不在列表"); return
+        }
+        // 打开空会话：未命名会话回落「新对话」
+        #expect(vm.sessionTitle(for: b) == "新对话")
+
+        // 打开有内容会话 A（未改名 → sessionTitles 无显式标题，靠消息派生）
+        vm.selectSession(a)
+        let d1 = Date().addingTimeInterval(10)
+        while Date() < d1, vm.messages.count != 2 {
+            try? await Task.sleep(for: .milliseconds(50))
+        }
+        #expect(vm.messages.count == 2)
+
+        // A 用自身消息派生；B 必须仍为「新对话」
+        // 修复前缺陷：sessionTitle 无条件读全局 messages（属当前选中会话态），B 显示成「标题传染测试消息」
+        #expect(vm.sessionTitle(for: a) == "标题传染测试消息")
+        #expect(vm.sessionTitle(for: b) == "新对话")
+
+        // 搜索命中同样不得被传染（标题匹配路径复用 sessionTitle）
+        vm.handleSessionSearch("标题传染测试")
+        let d2 = Date().addingTimeInterval(6)
+        while Date() < d2, vm.searchResults == nil {
+            try? await Task.sleep(for: .milliseconds(50))
+        }
+        let hits = vm.searchResults ?? []
+        #expect(hits.contains { $0.id == filledID })
+        #expect(!hits.contains { $0.id == emptyID })
+    }
 }

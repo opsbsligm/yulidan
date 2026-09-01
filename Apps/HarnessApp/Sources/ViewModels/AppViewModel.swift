@@ -1257,17 +1257,28 @@ final class AppViewModel: ObservableObject {
         }
     }
 
+    /// 展示标题解析（严格会话局部，禁止跨会话传染）
+    /// 1. 显式标题（改名 / autoTitle 派生，存 UserDefaults `sessionTitles`）
+    /// 2. 该会话自身首条用户事件（侧栏记录为「仅元数据」加载，events 常为空）
+    /// 3. 兜底：仅当查询对象就是**当前打开的会话**时，才用已加载的 `messages` 派生
+    /// 4. 回落「新对话」
+    ///
+    /// ⚠️ 第 3 步必须限定会话身份：`messages` 是「当前选中会话」的消息数组，早期实现对任意
+    /// 会话都会读它，导致所有未命名会话在打开某个有内容的会话后集体显示成它的标题
+    /// （2026-09-01 实机 AX 取证：打开 E7D52757 后侧栏「全局」3 行同时显示
+    /// 「帮我执行一个终端命令」，会话搜索命中同样被污染）。
     func sessionTitle(for session: SessionRecord) -> String {
         if let t = sessionTitles[session.id.rawValue] {
             return t
-        }
-        if let first = messages.first(where: { $0.role == .user }) {
-            return String(first.content.prefix(20))
         }
         for event in session.events {
             if case let .userMessage(m) = event, case let .text(t)? = m.content.first {
                 return String(t.prefix(20))
             }
+        }
+        if session.id == selectedSession?.id,
+           let first = messages.first(where: { $0.role == .user }) {
+            return String(first.content.prefix(20))
         }
         return "新对话"
     }
