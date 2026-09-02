@@ -48,6 +48,17 @@ public actor ToolRegistry {
         tools.removeAll()
     }
 
+    /// 原子全量替换：一次性换入完整工具集。
+    /// 语义 = 循环 register（同名后者覆盖），但不存在 clear→register 之间的读取空窗，
+    /// 并发读方（Agent 对话中的 tool(named:)）任一时刻只会看到旧集合或新集合。
+    public func replaceAll(_ newTools: [any Tool]) {
+        var next: [String: any Tool] = [:]
+        for tool in newTools {
+            next[tool.name] = tool
+        }
+        tools = next
+    }
+
     /// 全部工具名（MCP list_changed 重装配时清理旧工具用）
     public func names() -> [String] {
         tools.keys.sorted()

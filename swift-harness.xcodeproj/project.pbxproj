@@ -223,6 +223,7 @@
 		A905D9D3BA0CDE3C91F5A446 /* ArgumentParser in Frameworks */ = {isa = PBXBuildFile; productRef = 87FA68ADAA237BBE01B0BEFC /* ArgumentParser */; };
 		AAC7F8D9BA1707488F23871E /* ToolsGapCoverageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1DC40CC89CCAB316A64B240 /* ToolsGapCoverageTests.swift */; };
 		AB4219C634353FC07780E95A /* DSHMain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8156D78095D32FBB3B0F0D80 /* DSHMain.swift */; };
+		ABC4B0218591F2AFFA16BE64 /* ToolRegistryReplaceAllTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10EF8034EB141DD69AB0105 /* ToolRegistryReplaceAllTests.swift */; };
 		ACC460AAB68738E8AAF30783 /* libTools.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 79E5F6006DEBDEA15451740D /* libTools.a */; };
 		AD10AA7202FD94BC0452706F /* libWorkspace.a in Frameworks */ = {isa = PBXBuildFile; fileRef = BCCCD92A88B6DD3BE960F1C3 /* libWorkspace.a */; };
 		AD49D6D46B708A2E8DE7C16C /* LLMConfigStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10962FE97CEEC733E362BB85 /* LLMConfigStore.swift */; };
@@ -1575,6 +1576,7 @@
 		9F2A3FDA461D16983AFFA64C /* CLIWiring.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CLIWiring.swift; sourceTree = "<group>"; };
 		A050A3414E866E4873F2F82E /* PluginMarketplaceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginMarketplaceTests.swift; sourceTree = "<group>"; };
 		A0E8BAE9FC022767BD3D6545 /* LLMProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMProvider.swift; sourceTree = "<group>"; };
+		A10EF8034EB141DD69AB0105 /* ToolRegistryReplaceAllTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolRegistryReplaceAllTests.swift; sourceTree = "<group>"; };
 		A16376C428C555932B0A2A7B /* PromptTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptTests.swift; sourceTree = "<group>"; };
 		A1901EABB2990D1E73A8EE64 /* Skill.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Skill.swift; sourceTree = "<group>"; };
 		A1DC40CC89CCAB316A64B240 /* ToolsGapCoverageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolsGapCoverageTests.swift; sourceTree = "<group>"; };
@@ -2721,6 +2723,7 @@
 			children = (
 				839999BCF1E31D8ED9662436 /* BuiltinToolsTests.swift */,
 				81B34943C8716FF9ED7382C9 /* ToolExecutorTests.swift */,
+				A10EF8034EB141DD69AB0105 /* ToolRegistryReplaceAllTests.swift */,
 				A1DC40CC89CCAB316A64B240 /* ToolsGapCoverageTests.swift */,
 				6E1AE802610F8139687251CF /* ToolsR17GapTests.swift */,
 				FBE138B25D8BC41635F2EB50 /* ToolsTests.swift */,
@@ -4493,6 +4496,7 @@
 			files = (
 				47F0C4ACB87C8B3D7E331AF5 /* BuiltinToolsTests.swift in Sources */,
 				A703E492996673BC6961C89E /* ToolExecutorTests.swift in Sources */,
+				ABC4B0218591F2AFFA16BE64 /* ToolRegistryReplaceAllTests.swift in Sources */,
 				AAC7F8D9BA1707488F23871E /* ToolsGapCoverageTests.swift in Sources */,
 				B149F625190ADB0C4E1BB8B6 /* ToolsR17GapTests.swift in Sources */,
 				DBDFA2B38BB06E8861A10672 /* ToolsTests.swift in Sources */,

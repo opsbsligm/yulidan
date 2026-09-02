@@ -790,9 +790,12 @@ final class AppViewModel: ObservableObject {
         }
         do {
             // 业务逻辑走 SkillStore.importSkill（覆盖前旧版本登记历史 + 版本递增，与 CLI 路径一致）
-            let (imported, _, _) = try SkillStore.importSkill(text: text, source: fileURL.path, to: skillUserDirectory)
+            let (imported, target, _) = try SkillStore.importSkill(text: text, source: fileURL.path, to: skillUserDirectory)
+            // 注册 source 对齐落盘位置：与磁盘加载语义一致，避免注册表指向已消失的导入源临时文件
+            var registered = imported
+            registered.source = target.path
             Task {
-                await skillRegistry.register(imported)
+                await skillRegistry.register(registered)
                 await self.refreshSkills()
                 self.showToast("已导入技能：\(imported.name)")
             }
@@ -1039,13 +1042,11 @@ final class AppViewModel: ObservableObject {
             UserDefaults.standard.removeObject(forKey: "sandboxRoot")
         }
         Task {
-            await self.toolRegistry.clear()
-            for tool in BuiltinTools.makeAll(sandbox: root.map { PathSandbox(allowedRoots: [$0]) }) {
-                await self.toolRegistry.register(tool)
-            }
-            for tool in await self.mcpManager.makeTools() {
-                await self.toolRegistry.register(tool)
-            }
+            // 先收集完整集合再原子替换：消除 clear→逐条重注册窗口期内
+            // tool(named:) 返回 nil 的竞态（并发对话会真实丢工具）
+            var rebuilt: [any Tool] = BuiltinTools.makeAll(sandbox: root.map { PathSandbox(allowedRoots: [$0]) })
+            await rebuilt.append(contentsOf: self.mcpManager.makeTools())
+            await self.toolRegistry.replaceAll(rebuilt)
             await self.refreshTools()
         }
     }
