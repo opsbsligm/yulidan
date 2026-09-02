@@ -8,9 +8,7 @@ func flush(_ e: CGEvent?) { e?.post(tap: .cghidEventTap) }
 func key(_ keyChar: String, cmd: Bool) {
     let map: [Character: CGKeyCode] = ["n": 45, "1": 18, "2": 19, "3": 20, "4": 21, "5": 23, ".": 47, "s": 1, ",": 43]
     var code: CGKeyCode
-    if keyChar == "return" { code = 36 } else if keyChar == "tab" { code = 48 }
-    else if let c = map[keyChar.first!] { code = c }
-    else { print("unmapped key \(keyChar)"); exit(2) }
+    if keyChar == "return" { code = 36 } else if keyChar == "tab" { code = 48 } else if let c = map[keyChar.first!] { code = c } else { print("unmapped key \(keyChar)"); exit(2) }
     let flags: CGEventFlags = cmd ? .maskCommand : []
     let down = CGEvent(keyboardEventSource: nil, virtualKey: code, keyDown: true)!
     let up = CGEvent(keyboardEventSource: nil, virtualKey: code, keyDown: false)!
