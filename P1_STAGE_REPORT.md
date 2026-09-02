@@ -293,3 +293,12 @@
 - §10.3 #5 走测口径更新：完整设置 sheet 现为 **5 卡**版（关闭途径 = 本轮保留的 xmark + ⌘.）
 - SSO 真机验收目标（Developer Team/描述文件依赖）**作废**；「账号与同步」相关走测项全部作废
 - 解锁后待办并入 §10.3 走测：5 卡设置 sheet 实机过目 + 侧栏无同步提示确认（本地模式零噪声不变量）
+
+> 2026-09-02 R1 第十一轮（**锁屏根因修正 + 离屏替代方案**，用户指令「锁屏导致无法继续的问题想其他方案」）：
+> ① **根因修正**：锁屏态实测——exec 全权会话下 AX 菜单树可读（1608 行），但 `open -b` reopen 后**主窗口不构建**（AXWindow=0、CGWindowList 无窗）→ 真机 UI 交互（右键菜单/主题 Picker/拖拽）锁屏下整体不可能；22:42 空 dump 系 launchd 零权而非锁屏。此前「r1loop2 等解锁」从核销阻塞项降级为**解锁后像素补证**通道。
+> ② **替代方案落地（离屏优先）**：功能内核改 ImageRenderer/逻辑单测锁定（锁屏可跑），视觉类（#3 像素、#6a 真机 Picker、#6b 面板操作、#7 真机手势联动）统一转解锁后补证、不阻塞口径；#8 需人拨系统设置，维持【待确认】。
+> ③ **pr 门禁揪出并修复 2 个 P0 真缺陷**（`2313084`）：**a)** `setSandboxRoot` clear→逐条 register 存在读取空窗，并发 `tool(named:)` 返回 nil（沙箱切换测试 r3=nil 实锤，生产并发对话会真实丢工具）→ 新增 `ToolRegistry.replaceAll` actor 内原子替换 + `ToolRegistryReplaceAllTests` 3 用例（覆盖/清空/并发无空窗 names() 原子快照判定）本地全绿；**b)** `importSkillFile` 注册记录 source 指向 /var/folders 导入源（与磁盘加载语义不一致）→ 注册前对齐 target 落盘路径（不动 SkillStore 库语义，CLI/库测试零影响）。
+> ④ **#7 规则离屏锁定**（`d3eb168`）：项目头 0.14 / 全局区 0.06 两级落点高亮提为 `SidebarProjectSections.dropTargetFill` 静态纯函数（生产两处共用），`SidebarDropHighlightRenderTests` 白底探针像素断言（非悬停纯白 + 两级偏离序 + 0.14/0.06≈2.33 线性比例容差 1.6–2.5）**锁屏首绿 @0.05s** → #7 状态 ⏳→**◐**（规则单测锁定 + 真机手势联动待补）。
+> ⑤ **#6b 升级 ◐**：`FileThemePackageTests` 既覆盖社区包导入内核（spec.json 导入/目录包/二次校验/glassTintHex 往返/blur-highlight 边界/sanitizeID），NSOpenPanel 仅文件选择透传 `importThemePackage(fileURL:)`（该函数即上述单测入口）→ 真机面板点击归解锁后像素补证。
+> ⑥ **门禁链卡死元凶根除**：cir9rest 等待条件 `pgrep -f "ci-local.sh pr"` 被**自身进程命令行字面命中**（无文件 launchd job 的整段脚本 = zsh 进程 argv，含该 pattern）→ 恒真 → leaks/main/xcode 永不串跑（此前多轮「链已挂」实为死等）。修复：bootout+submit 等待式改 regex 转义自证版 `tools/ci-local\.sh pr`（自身命令行含反斜杠字面 → 与转义点号 pattern 不匹配；真实 `/bin/bash tools/ci-local.sh pr` 精确命中），自匹配实测清零。**教训入册：launchd 无文件 job 的 pgrep -f 等待式必须用自身命令行不含的转义 pattern。**
+> ⑦ 门禁：pr 基于 `d3eb168` 重跑中（含本轮 2 commit 回归面），三门链串跑；组数字待收敛补录：____。
