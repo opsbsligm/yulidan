@@ -69,6 +69,22 @@ struct SidebarSessionRow: View {
 // MARK: - 项目分区 + 全局顶层（P0.2：展开收起 / 右键菜单 / 拖拽迁移 / 悬停高亮）
 
 struct SidebarProjectSections: View {
+    /// 拖拽落点高亮规则（R1 §10.3 #7）：项目头 0.14 / 全局区 0.06 两级 accent 填充。
+    /// 提取为静态纯函数供离屏像素单测锁定（SidebarDropHighlightRenderTests），
+    /// 生产两处落点共用同一规则，避免测试副本漂移。
+    enum DropZone: Sendable {
+        case projectHeader
+        case globalList
+    }
+
+    static func dropTargetFill(_ zone: DropZone, targeted: Bool) -> Color {
+        guard targeted else { return .clear }
+        switch zone {
+        case .projectHeader: return HarnessTheme.accent.opacity(0.14)
+        case .globalList: return HarnessTheme.accent.opacity(0.06)
+        }
+    }
+
     let model: SidebarModel
     let sessions: [SessionRecord]
     let selectedSession: SessionRecord?
@@ -132,7 +148,7 @@ struct SidebarProjectSections: View {
                     ForEach(model.globalSessions) { session in
                         sessionRow(session, inProject: nil)
                     }
-                    .background(isGlobalTargeted ? HarnessTheme.accent.opacity(0.06) : .clear)
+                    .background(Self.dropTargetFill(.globalList, targeted: isGlobalTargeted))
                     if model.globalSessions.isEmpty {
                         Text("（空：项目内会话可拖回此处）")
                             .font(.system(size: 11))
@@ -264,7 +280,7 @@ struct SidebarProjectSections: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
-        .background(isTargeted ? HarnessTheme.accent.opacity(0.14) : .clear)
+        .background(Self.dropTargetFill(.projectHeader, targeted: isTargeted))
         .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
         .contentShape(Rectangle())
         // P1.3：与 chevron 同一动画事务口径（展开/收起 frame 动画）
