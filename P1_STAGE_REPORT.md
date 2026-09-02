@@ -205,6 +205,13 @@
 
 > 2026-09-02 R1 第七轮（**解锁触发式全自动走测方案**，用户指令「锁屏问题想其他方案」）：等人工在场模式改为**武装自动**——三轮现场侦察后落地：① 实例窗口漂移根因实锤（长时后台进程窗口被关 → reopen 恢复窗口落在左侧扩展屏 全局 x=-1663 → v2.1 绝对坐标过滤器失效；修复＝v3 相对 WINX 坐标 + #7 行匹配改 d= 属性——AX 内容树其实可达，此前「全菜单」系 grep 只看 t= 属性误判）；② **#6b 全自动导入**：新工具 `evtype`（CGEventSource 文本注入，Apple 文档 API）+ 文件面板「键入 / 唤起路径输入」公开行为 + ev 补 return 键；路径=源码实证插件页「导入主题包…」按钮（PluginListView:104）；③ **#8 全自动开关**：defaults 直写被 macOS 拒绝（域保护，实测），改系统设置深链 + AX 拨「减弱透明度」开关，`defaults read` 双值验证后才截图，拨回后二次验证，失败即停不乱拨；④ 执行载体：`launchctl submit -l r1walk4`（launchd 托管，跨 exec 会话存活），等解锁 7200s，解锁即自动连续跑 #3→#8，产物 /tmp/wt/walk3/ 待下次上线按图逐项核销。DB 基线变动如实记录：半废弃首轮 ⌘N +1（`13 行`，新增走测临时会话入 R2 待拍板清单）。
 
+> 2026-09-02 R1 第八轮（**锁屏自动化三路实验证伪 + ImageRenderer 突破落地 + #5 半核销 + r1walk4→v4.2**，用户「其他方案」指令延续）：
+> ① **锁屏内 UI 自动化三路实验证伪（全部实验证据，非推断）**：(a) 测试进程以外部 `AXUIElementCreateApplication(getpid())` 自查询返回 **-25208（kAXErrorAPIDisabled，TCC 无障碍未信任，swift test helper 无法进程内自授权）**；(b) 进程内 `NSAccessibility` perform 路径对 `NSHostingView` 返回 children=0（SwiftUI AX 树**惰性实例化**，仅外部受信 AT 客户端查询才构建，进程内不可触发，AXDiag 实验 dump 实证）；(c) 锁屏态本实例 AX dump 1608 行全为菜单栏（内容树被系统断供，复证 §10.4 表）。→ **真机 UI 事件走查（press/拖拽/sheet 动画）在锁屏内技术上不可能，「等解锁 + launchd 驻留」架构为唯一正确解**，维持 r1walk4 驻留。
+> ② **新能力落地：`ImageRenderer` 离屏渲染锁屏完全可用**（SwiftUI 官方 API、进程内、无窗口服务器会话依赖，锁屏实测 0.9s 出图+0.066s 过测）：新增 `ThemeLiveRenderTests` —— **§10.3 #6「主题切换即时生效、无需重启」功能内核转进程内像素级测试覆盖**：`vm.applyTheme(id:"sunset")` 后不重启不刷新，满铺 accent 探针位图主通道蓝系↔橙系翻转 + 采样断言 + 还原后与初始基准逐点一致。色空间教训入册：ImageRenderer 输出为设备色空间且 `Color.blue`=动态 systemBlue（深色外观 G≈0.62），**绝对色值断言不稳定 → 通道主导序断言**（蓝 B 主导 ↔ 橙 R 主导 + G>B 暖特征；hex→Color 数值正确性由既有 hex 解析单测锁定）。#6 真机走查降级为「玻璃折射/真机色准」抽样项。
+> ③ **#5 半核销（walk3 半废弃轮产物复核）**：`06_settings_overview`（偏好页+「打开完整设置」入口+外层 xmark 可见）与 `07_settings_full`（**完整设置 sheet 5 卡齐全**：本地工作区/模型配置/MCP 服务配置/RAG 记忆参数/主题切换入口 + sheet 内 xmark 可见）= **有效像素证据**（该轮拍摄于锁屏前瞬间，窗口渲染正常——此前「全菜单作废」判断对 #5 系过判）。**08/09/10 作废根因实锤**：`idpress xmark` 与外层「关闭设置」⊗ 同 id 二义，误触外层致整个设置页关闭（sheet 关闭链路因此未证，且 09/10 文件字节全等佐证 reopen 未发生）。修复：r1walk4→**v4.2** sheet 关闭改按唯一 accessibilityLabel「关闭完整设置」press（源码 SettingsCompletePage.swift 唯一对应）。另 `row_ctx.txt`（同轮）含侧栏会话行右键完整动作集（AXMenuItem：置顶/重命名对话…/删除对话）——#3/#4 部分证据在案，闭环仍须实机「删除→确认弹窗→取消」。
+> ④ **§10.4 能力表勘误**：19:50 锁屏态实测 `/usr/sbin/screencapture -x -o -l<WID>` **窗口级截图锁屏下可用**（捕获到完整实时 UI 3840×1974，含会话列表实时时间戳）——旧表「窗口 backing store 锁屏下不可捕获」基于 capfast（CGWindowListCreateImage）探针，`screencapture -l` 走不同实现，修正为「screencapture -l 可用 / capfast 不可用」。增量价值：锁屏下可预采像素底图。
+> ⑤ 载体状态：launchd 任务重投为 `r1walk42`（脚本 v4.2，等解锁 7200s）；新测试提交 + xcodeproj 重生成（目录级 sources 扩容纳入 xcode 门禁）。
+
 ### 10.4 锁屏静态审计（2026-08-30，Agent 驱动，代码级替代验证路径第 2 阶段）
 
 **背景**：用户指示「锁屏内能做的全做完，不因锁屏中断」。先做锁屏能力边界实证（全部原生 C API 探针，非猜测）：
