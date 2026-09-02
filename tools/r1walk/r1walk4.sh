@@ -13,7 +13,8 @@ log(){ print -r -- "[$(date '+%H:%M:%S')] $*" }
 skey(){ # skey <keycode> [esc|ret] —— ret=36 esc=53 period=47
   osascript -e "tell application \"System Events\" to key code $1" >/dev/null 2>&1
 }
-unlocked(){ [ "$(/tmp/lockprobe2 2>/dev/null | awk -F': ' '{print $2}')" = "-1" ] }
+LP=$(ls /Users/liguangming/harness-wt/lockprobe2 /tmp/lockprobe2 2>/dev/null | head -1)  # v4.7 重启幸存：/tmp 副本重启即灭，优先持久副本
+unlocked(){ [ "$($LP 2>/dev/null | awk -F': ' '{print $2}')" = "-1" ] }
 shot(){ # v4.3：screencapture 在 launchd/nohup 上下文 TCC 丢权 → 失败自动降级 AX 树取证
   screencapture -x -o -l$WID $OUT/$1.png 2>/dev/null
   if [ ! -s $OUT/$1.png ]; then rm -f $OUT/$1.png 2>/dev/null; ./ax $PID dump 20 > $OUT/ax_$1.txt 2>&1; log "shot降级: $1 → ax_$1.txt"; fi
