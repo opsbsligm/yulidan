@@ -1,5 +1,6 @@
 #!/bin/zsh
-# R1 §10.3 收尾走测 v2（等解锁 → #3 右键 / #4 idpress 取消 / #5 双关闭 / #6 主题切换还原 / #7 原位 noChange 拖拽悬停帧 / #8 减弱透明度等切取证）
+# R1 §10.3 收尾走测 v4.7（等解锁 → #3 右键 / #4 idpress 取消 / #5 双关闭 / #6 主题闭环「先导后切」 / #7 原位 noChange 拖拽悬停帧 / #8 减弱透明度自动开关）
+# v4.7 根因修复：themes 目录空+无 servers.json → 任何内置切换项都不存在，旧 6a「深海蓝」前提从未成立 → 废弃硬编码段；#6 统一改为社区包 Tahoe Teal 闭环（先导 6b → 设置面板取证 → 6a 实渲染 → 自动卸载还原）。另：解锁后 caffeinate 临时防自动锁中断 + .done_v43 防重跑守卫。
 # 原则：不写用户数据（#4 只走取消；#7 起终点同一行内 = moveSession noChange 有单测锁定；#8 只读 defaults，系统开关由用户手切）
 # 用法：终端里跑 `zsh /Users/liguangming/harness-wt/r1walk2.sh [等解锁秒=900]`（用户在场有 20s 放弃窗口；Agent 代跑无 tty 自动继续）
 set -u
@@ -19,6 +20,7 @@ shot(){ # v4.3：screencapture 在 launchd/nohup 上下文 TCC 丢权 → 失败
 }
 rt(){ read -k1 -t "${1:-20}" "REPLY>[#1C 20秒内任意键 = 中止走测（你在用键盘）] " || return 0; print -r -- "用户中止"; exit 9; }
 
+[[ -f $OUT/.done_v43 && "${FORCE:-0}" != "1" ]] && { log "已有 .done_v43（上轮已完成），跳过重跑；确需重跑先删标记或 FORCE=1"; exit 0; }
 log "等待解锁（上限 ${WAIT_MAX}s）…"
 t0=$(date +%s)
 while ! unlocked; do
@@ -27,6 +29,9 @@ while ! unlocked; do
 done
 rt 20
 log "已解锁"
+# v4.7 锁屏预案①：走测窗口内临时防休眠/防屏保自动锁（caffeinate 是标准断言 API，不改任何系统设置，
+# -w $$ 脚本退出即自动释放；不阻止用户手动 ⌃⌘Q 锁屏——若被锁，走测按既有兜底留证退出）
+caffeinate -disu -w $$ >/dev/null 2>&1 &
 PID=$(pgrep -f "HarnessApp.app/Contents/MacOS/HarnessApp" | head -1)
 [ -z "$PID" ] && { log "App 未运行"; exit 4; }
 WID=$(./wl | grep 'owner=Harness' | awk '$0 ~ /w=1[0-9]{3}/ {sub(/^WID=/,"",$1); print $1; exit}')
@@ -91,38 +96,38 @@ skey 53; sleep 0.8; shot 10_closed_esc
 
 fi
 
-# ---------- #6 主题 tint：切「深海蓝」→ 截图 → 还原「基准主题」→ 截图 ----------
-./ax $PID press "设置" >/dev/null 2>&1; sleep 0.8
-./ax $PID dump 20 > $OUT/settings_theme.txt 2>&1
-BASE_LABEL=$(grep -o "[^']基准[^']*主题[^',]*" $OUT/settings_theme.txt | head -1)
-# —— 6a 内置深海蓝：只验强调色/气泡色（该主题未声明 glassTintHex，玻璃 tint 不变属数据事实非缺陷）——
-if grep -q "深海蓝" $OUT/settings_theme.txt && [ -n "$BASE_LABEL" ]; then
-  log "#6a 基准项实标签 = 「$BASE_LABEL」"
-  ./ax $PID press "深海蓝" >/dev/null 2>&1; sleep 1.2; shot 11_theme_deepblue
-  ./ax $PID press "$BASE_LABEL" >/dev/null 2>&1; sleep 1.2; shot 12_theme_restored
-  log "#6a 已切深海蓝并还原（11/12 像素差 = 强调色即时生效；玻璃不变为预期）"
-else log "#6a 前提不满足（深海蓝或基准项缺失），仅留 settings_theme.txt 取证"; fi
-# —— 6b 全自动：⌘3 插件页 → 导入主题包… → 文件面板路径注入 → 回插件页确认 ——
-log "#6b 全自动导入社区主题包（Tahoe Teal）"
+# ---------- #6 主题插件闭环 v4.7「先导后切」----------
+# 根因修复（补记⑪）：themes 目录空 + 无 servers.json → 当前无任何第三方主题插件 → 设置面板不存在
+# 「深海蓝」等内置切换项（旧 6a 前提从未成立，解锁轮必空转）→ 废弃该硬编码段。
+# 新闭环（全部走真实 MCP 主题插件路径）：导入社区包(6b) → 设置面板出现即取证 → 切换/还原实渲染(6a) → 自动卸载还原用户状态。
+log "#6 闭环开始：导入(6b) → 设置面板取证 → 切换/还原(6a 实渲染) → 自动卸载还原用户状态"
 ./ax $PID cancelmenu >/dev/null 2>&1; ./ev esc >/dev/null 2>&1; sleep 0.4
+# —— 6b 前置导入：插件页 → 导入主题包… → 文件面板键入绝对路径 → Return×2 ——
 ./ax $PID press "插件" >/dev/null 2>&1; sleep 1.2                  # v4.3 按钮 press 替代 ⌘3
-./ax $PID press "导入主题包" >/dev/null 2>&1; sleep 2.0          # NSOpenPanel
+./ax $PID press "导入主题包" >/dev/null 2>&1; sleep 2.0            # NSOpenPanel
 # 文件面板键入 "/" 开头文本自动唤起路径输入（macOS 公开行为）→ 输入绝对路径 → 两次 Return
-osascript -e 'tell application "System Events" to keystroke "/Users/liguangming/code/swift-harness/demos/community-theme-demo/spec.json"' >/dev/null 2>&1&1
+osascript -e 'tell application "System Events" to keystroke "/Users/liguangming/code/swift-harness/demos/community-theme-demo/spec.json"' >/dev/null 2>&1
 sleep 0.8; skey 36 >/dev/null 2>&1; sleep 1.4
 skey 36 >/dev/null 2>&1; sleep 1.8                 # 打开 → toast「主题包已导入」
 shot 12a_after_import
 ./ax $PID dump 20 > $OUT/import_confirm.txt 2>&1
 grep -q "Tahoe Teal" $OUT/import_confirm.txt && log "#6b 导入成功（插件列表已出现 Tahoe Teal）" || log "#6b 列表未确认 Tahoe Teal，留 12a/import_confirm 取证判定"
+# —— 设置面板取证：完整设置主题区应出现 Tahoe Teal（主题插件→设置项即时出现） ——
 ./ax $PID press "设置" >/dev/null 2>&1; sleep 1.0
 ./ax $PID press "打开完整设置" >/dev/null 2>&1; sleep 1.2
 ./ax $PID dump 20 > $OUT/settings_theme.txt 2>&1
-if grep -q "Tahoe Teal" $OUT/settings_theme.txt; then
-  ./ax $PID press "Tahoe Teal" >/dev/null 2>&1; sleep 1.5; shot 13_theme_teal_glass
-  ./ax $PID press "$BASE_LABEL" >/dev/null 2>&1; sleep 1.2; shot 14_theme_glass_restored
-  log "#6b 已切 Tahoe Teal（13 = 玻璃青绿 tint 像素证据）并还原（14）"
-  # —— 自动收尾（walk 原则=不写用户数据）：回插件页 → 选中 Tahoe Teal → 卸载 → alert 内 destructive「卸载」(树尾=last) ——
-  ./ev esc >/dev/null 2>&1; sleep 0.6                                 # 关完整设置 sheet（口径=Esc，补记②；⌘. 会重蹈 22:01 残留 sheet 污染）
+BASE_LABEL=$(grep -o "[^']基准[^']*主题[^',]*" $OUT/settings_theme.txt | head -1)
+# —— 6a 实渲染验证：社区包=全套玻璃参数包（accentHex+glassTintHex+glassMaterial，见 spec.json）
+#     切 Tahoe Teal → shot 11 → 还原基准 → shot 12（11/12 像素差 = 强调色+玻璃 tint 即时生效证据） ——
+if grep -q "Tahoe Teal" $OUT/settings_theme.txt && [ -n "$BASE_LABEL" ]; then
+  log "#6a 基准项实标签 = 「$BASE_LABEL」"
+  ./ax $PID press "Tahoe Teal" >/dev/null 2>&1; sleep 1.5; shot 11_theme_teal_live
+  ./ax $PID press "$BASE_LABEL" >/dev/null 2>&1; sleep 1.2; shot 12_theme_restored
+  log "#6a 已切 Tahoe Teal 并还原（11/12 = 即时生效+还原像素证据；玻璃参数变化为预期）"
+fi
+# —— 自动卸载收尾（walk 原则=不写用户数据；只要导入成功过就必须卸载还原） ——
+if grep -q "Tahoe Teal" $OUT/settings_theme.txt || grep -q "Tahoe Teal" $OUT/import_confirm.txt; then
+  ./ev esc >/dev/null 2>&1; sleep 0.6                                 # 关完整设置 sheet（口径=Esc，补记②）
   ./ax $PID press "插件" >/dev/null 2>&1; sleep 1.2
   ./ax $PID press "Tahoe Teal" >/dev/null 2>&1; sleep 1.0
   ./ax $PID press "卸载" >/dev/null 2>&1; sleep 0.9
