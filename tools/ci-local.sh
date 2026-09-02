@@ -6,6 +6,14 @@ cd "$(dirname "$0")/.."
 
 MODE="${1:-pr}"
 
+# 原子完成标记（P1_STAGE_REPORT 补记⑧ 长期方案落地）：
+# 任一起动即清理旧标记；失败/异常由 EXIT trap 清除；仅全部通过才写（mktemp+mv 原子）。
+# 消费方（哨兵/编排脚本）以 /tmp/ci.done.<mode> 的存在+内容判定「该门禁段完成」，
+# 不读轮转中的 live 日志（双链竞态教训：日志会被下一段重定向覆写，grep 判定天然撕裂）。
+DONE_MARKER="/tmp/ci.done.${MODE}"
+rm -f "$DONE_MARKER" "${DONE_MARKER}.tmp"
+trap 'rm -f "$DONE_MARKER" "${DONE_MARKER}.tmp"' EXIT
+
 # 全量测试看门狗：挂起（runner 存活但不退出）不会触发下方「非零退出才重试」的有界重试，
 # 超过 TEST_TIMEOUT 秒由 SIGALRM 终止为 rc=142 → 正常走重试路径（经验来源：QUALITY_REPORT 2026-09-01 第六轮）
 TEST_TIMEOUT=1200
@@ -87,3 +95,7 @@ case "$MODE" in
 esac
 echo
 echo "✅ 本地 CI 模拟（${MODE}）全部通过"
+
+# 成功收尾：原子落完成标记后解除失败清理 trap（标记内容含时间与模式，供跨轮次对账）
+printf '%s mode=%s rc=0\n' "$(date '+%F %T')" "${MODE}" > "${DONE_MARKER}.tmp" && mv -f "${DONE_MARKER}.tmp" "$DONE_MARKER"
+trap - EXIT
