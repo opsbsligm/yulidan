@@ -1,6 +1,7 @@
 // 窗口枚举：owner name + window id + bounds + layer
 import CoreGraphics
 import Foundation
+
 let opts: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
 guard let infoList = CGWindowListCopyWindowInfo(opts, CGWindowID(0)) as? [[String: Any]] else { exit(1) }
 for info in infoList {
