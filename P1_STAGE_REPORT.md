@@ -212,6 +212,15 @@
 > ④ **§10.4 能力表勘误**：19:50 锁屏态实测 `/usr/sbin/screencapture -x -o -l<WID>` **窗口级截图锁屏下可用**（捕获到完整实时 UI 3840×1974，含会话列表实时时间戳）——旧表「窗口 backing store 锁屏下不可捕获」基于 capfast（CGWindowListCreateImage）探针，`screencapture -l` 走不同实现，修正为「screencapture -l 可用 / capfast 不可用」。增量价值：锁屏下可预采像素底图。
 > ⑤ 载体状态：launchd 任务重投为 `r1walk42`（脚本 v4.2，等解锁 7200s）；新测试提交 + xcodeproj 重生成（目录级 sources 扩容纳入 xcode 门禁）。
 
+> 2026-09-02 R1 第八轮补记①（**解锁窗口内 exec 前台走测 + 手工补验：#4/#5 完整核销、TCC 归因重大发现、v4.3**）：
+> **环境归因实锤（解释第七轮全部悬案）**：`launchctl submit`/`nohup` 后台上下文中 **screencapture（TCC 录屏授权归属变化）静默失败、ev key（CGEvent cghidEventTap）对目标 App 不送达**；AX 工具（press/dump/showmenu）与 System Events `key code`（osascript）通道**两上下文均可用**。21:47 轮「零截图」与 22:01 轮「#6a/6b/8 全灭」根因即此——非窗口漂移、非脚本逻辑。对策（v4.3）：① 键盘注入统一 System Events `key code`（⌘.=47/Esc=53/Return=36/⌘,=43/⌘⇧G 组合）；② `shot()` 失败自动降级 `ax_<步骤>.txt` 树取证；③ 走测可在 exec 前台会话（TCC 全权）或 launchd 上下文（AX 证据）两种模式跑。
+> **#4 完整核销**（手工，解锁 22:0x）：侧栏行 `showmenu「新对话」`→ 行菜单 `t='删除'(id=trash)` AXPress → **AXSheet(d='alert')「确定删除会话？」+ 取消(action-button-2) + 删除(action-button-1，红色 destructive)**（AX 树 + 像素双证 /tmp/wt/v4_confirm.png）→ alert 关闭后 **DB 19 不变**（取消语义正确；脚本 22:01 轮「无删除菜单项」系 dump 18 级深度未含弹出菜单行的误跳，grep 模式本身与行菜单匹配）。
+> **#5 完整核销**（v4.2 前台轮 + 手工补 Esc）：07=5 卡 sheet（**AXSheet role 在案**）→ 08=xmark（唯一 label press）关闭**回落设置页**（v4.2 label 修复生效，r1walk2 轮外层误触问题解决）→ 09=重开 sheet 再现 → **10=Esc 关闭**（System Events key code 53 → AXSheet 1→0）。**口径修正**：SwiftUI `.keyboardShortcut(.cancelAction)` 的系统键 = **Escape**（Apple 文档语义 cancelOperation），此前文档/脚本写「⌘. 关闭」系错误假设——代码注册本身正确；⌘. 非 sheet 通用键（实测 10_closed_cmddot 未关）。
+> **#3 部分**：overflow_menu.txt 溢出菜单全动作集含「删除对话」(trash.slash) 在案；顶栏标题右键 png 待 r1walk43（v4.3）轮补。
+> **#6a/#6b/#7/#8**：22:01 轮因 ev key 不送达全灭（其中 #7 悬停帧被 #5 遗留 sheet 污染）→ v4.3 修键盘通道后全部转 r1walk43 驻留轮（等解锁 7200s，两种上下文均可跑）。
+> **DB 漂移如实**：13 → 19（+6，全部为走测 ⌘N 空会话副产物；CGEvent ⌘N 在 21:47/21:53/22:00 轮部分送达所致）——全部入 R2 用户拍板清单，不擅删。
+> **窗口碎片再现与恢复**：22:1x Esc 实验后主窗被压 158×162（macOS 27 beta 幻影已知现象），`open -b com.deepseek.harness` reopen 恢复 1470×923（恢复手段固化）。
+
 ### 10.4 锁屏静态审计（2026-08-30，Agent 驱动，代码级替代验证路径第 2 阶段）
 
 **背景**：用户指示「锁屏内能做的全做完，不因锁屏中断」。先做锁屏能力边界实证（全部原生 C API 探针，非猜测）：
