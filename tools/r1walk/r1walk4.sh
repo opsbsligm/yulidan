@@ -58,7 +58,7 @@ TX=$(print -r -- "$TITLE" | sed -nE 's/.*pos=([0-9]+),([0-9]+).*/\1/p'); TY=$(pr
 TW=$(print -r -- "$TITLE" | sed -nE 's/.*size=([0-9]+)x([0-9]+).*/\1/p'); TH=$(print -r -- "$TITLE" | sed -nE 's/.*size=([0-9]+)x([0-9]+).*/\2/p')
 if [ -n "$TX" ] && [ -n "$TY" ]; then
   CX=$(( TX + TW/2 )); CY=$(( TY + TH/2 )); log "#3 标题中心 = ($CX,$CY)"
-  ./ev rclick $CX $CY >/dev/null 2>&1; sleep 0.9; shot 01_title_rclick; grep -c AXMenu $OUT/t00.txt >/dev/null
+  ./ev rclick $CX $CY >/dev/null 2>&1; sleep 0.9; shot 01_title_rclick
   ./ax $PID dump 18 > $OUT/title_ctx_menu.txt 2>&1
   if [ "$(grep -c "AXMenuItem" $OUT/title_ctx_menu.txt)" = "0" ]; then
     log "#3 rclick 未开菜单 → AXShowMenu(top) 兜底（顶栏标题=Y 最小候选）"
@@ -83,7 +83,7 @@ if grep -q "AXMenuItem.*t='删除'" $OUT/row_ctx.txt; then
   log "#4 idpress 取消后 DB = $(dbc)（应 = $BASE +1 = 未删除）"
 else log "#4 无「删除」菜单项，跳过"; ./ev esc >/dev/null 2>&1; fi
 
-# ---------- #5 设置 sheet：xmark 关 + 重开 + ⌘. 关 ----------
+# ---------- #5 设置 sheet：xmark 关 + 重开 + Esc 关（补记②口径，⌘. 系历史注释已修正） ----------
 ./ax $PID press "设置" >/dev/null 2>&1; sleep 1.0; shot 06_settings_overview
 ./ax $PID press "打开完整设置" >/dev/null 2>&1; sleep 1.0; shot 07_settings_full
 ./ax $PID dump 18 > $OUT/settings_full.txt 2>&1
@@ -193,6 +193,6 @@ else
   log "#8 系统设置进程未出现，跳过自动开关"
 fi
 
-log "DB 终值 = $(dbc)（相对基线 +1 = 仅走测临时会话）；产物在 $OUT"
+log "DB 终值 = $(dbc)（基线 $BASE；SKIP_N=1 应相等，否则 = $((${BASE:-0}+1)) 为走测临时会话）；产物在 $OUT"
 
 touch $OUT/.done_v43 && log "WALK-DONE 标记已写"
