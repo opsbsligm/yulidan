@@ -170,6 +170,9 @@ if [ -n "$SPID" ]; then
     ./ax $SPID press "减弱透明度" >/dev/null 2>&1; sleep 3
     V1=$(defaults read com.apple.universalaccess reduceTransparency 2>/dev/null || echo 0)
     if [ "$V1" = "1" ]; then
+      # v4.7.1 安全加固：确认拨开后登记兜底还原 trap——脚本异常退出也不留用户系统在「减弱透明度=开」
+      _TB_DONE=0
+      trap 'if [ "$_TB_DONE" != 1 ]; then S=$(pgrep -x "System Settings" | head -1); [ -n "$S" ] && /Users/liguangming/harness-wt/ax $S press "减弱透明度" >/dev/null 2>&1; fi' EXIT
       ./ev activate $PID >/dev/null 2>&1; sleep 1
       shot 21_transparency_on
       ./ax $PID dump 16 > $OUT/transparency_on_tree.txt 2>&1
@@ -178,6 +181,7 @@ if [ -n "$SPID" ]; then
       ./ev activate $PID >/dev/null 2>&1; sleep 0.8
       shot 22_transparency_off
       V2=$(defaults read com.apple.universalaccess reduceTransparency 2>/dev/null || echo 0)
+      if [ "$V2" = "0" ]; then _TB_DONE=1; trap - EXIT; fi   # 正常拨回成功→解除兜底（防二次拨回反而拨开；zsh 解除语法=trap 空格- ）
       log "#8 自动开关完成（on=$V1 off=$V2；20/21/22 三帧 = 开→solid、关→恢复证据）"
     else
       log "#8 拨动后未读到 1（可能命中非开关控件），留 syssettings.txt 判定，不重试不乱拨"
