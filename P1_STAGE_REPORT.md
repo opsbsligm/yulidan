@@ -320,9 +320,16 @@
 | #6a tint 即时切换 | ◐ | `ThemeLiveRenderTests`（蓝→橙主导序翻转+还原逐点复原，锁屏 0.07s） | 真机 Picker 切换帧 11/12 |
 | #6b 社区包导入 | ◐ | `FileThemePackageTests` 全套内核（spec/目录/校验/glass/边界/sanitizeID）+ 库级 e2e 门禁在跑 | 真机面板导入 Tahoe Teal 帧 + 停用删除收尾 |
 | #7 拖拽落位反馈 | ◐ | `SidebarDropHighlightRenderTests`（两级 0.14/0.06 规则+比例锁定）+ `onMoveSession` noChange 单测 | 真机悬停帧 13/14（旧帧污染史见第八轮，重拍） |
-| #8 减弱透明度降级 | ⏳ 自动轮 | — | heartbeat r1 解锁自动：系统设置拨开关→取证→拨回双验证（第七轮授权在案，失败即停；触发载体见补记⑪） |
+| #8 减弱透明度降级 | ◐ | `GlassSurfaceTests` 降级链（override=true 恒 solid / env 键直落 solid / resolveReduceTransparency 优先级矩阵 / 容器仅 native 包裹）在册 02:26 xcresult 867 项＋当日 pr 783 复跑 ✅（补记㉔①） | 真机拨系统开关帧＝二选一（你顺手 1 分钟 / 认可 A 层满足该子句）。旧「heartbeat 自动轮」口径**作废**：C 层动作禁挂任何自动化载体（补记㉔①） |
 
 > 口径：✅=终版核销；◐=功能内核已锁（离屏/源码级），真机视觉帧为补证（不阻塞缺陷判定）；⏳=待解锁自动轮。R2 实况清单见 DB 盘点条目（空 18/保留 2）。
+
+> **D-1 静默裁决证据索引（09-03 工具轮预置，把裁决成本降到一次勾选）**：
+> - **#3**：A 层=「同一 `sessionMenuActions` 变量被 `.contextMenu`(L78) 与 `Menu`(L96) 复用」是**编译期结构恒等**（两菜单动作集不可能不同）+ 溢出 10 项逐字实测 `walk3/overflow_menu.txt`；缺口仅「标题右键弹出的那帧画面」。可选 B 层：`ax showmenu` 一次（仅你择时）。→ 建议：**结构恒等+A 层在册即核销**。
+> - **#6a/#6b**：A 层=`ThemeLiveRenderTests`（蓝→橙主导序翻转+还原逐点复原，锁屏 0.07s）+ `FileThemePackageTests` 全套（spec/校验/glass/边界/sanitizeID）+ 02:26 xcresult 867 项在册。缺口=真机 Picker 切换帧 11/12 与面板导入帧。→ 建议：认可「离屏像素证据=该子句满足」——本组判据是**色序主导翻转**（渲染管线同源），与「ImageRenderer 不渲玻璃」的适用边界已如实区分（该证伪只涉玻璃面自身质感）。
+> - **#7**：A 层=`SidebarDropHighlightRenderTests`（两级 0.14/0.06 高亮+比例锁定）+ `onMoveSession` noChange 单测；旧真机帧有污染史（第八轮）。→ 建议：手感类判据**保留给你手动拖一次最有价值**，或直接 A 层核销。
+> - **#8**：见总表勘误行（旧 heartbeat 载体口径作废）。→ 建议：拨「降低透明度」那一下你顺手做（顺带覆盖 27beta 新文案实测），或直接 A 层核销。
+> 裁决模板：「D-1：#3 结构核销；#6/#7 A 层核销；#8 我顺手拨」／「全 A 层核销」／「#X 我要真机帧（另约）」。
 
 > 2026-09-03 R1 第十一轮补记⑩（**解锁轮质量三修 + 编排重启幸存 @2aa5cf3**）：① **v4.6 修 #6b 自违原则缺陷**——自动导入 Tahoe Teal 后仅留「手动收尾」提示（违反 walk「不写用户数据」）→ 增自动卸载段（插件页→选中→卸载→alert 内 destructive「卸载」用新增 `press … last` 树尾定位 + dump 双确认，弹窗未出现不乱点、失败如实告警）；② **⌘.→Esc 口径修正**——#6b 尾部 `ev key cmd .` 与补记②实锤（cancelAction=Esc）冲突，即 22:01 轮「#7 悬停帧被残留 sheet 污染」根因之一，统一 Esc 分层关闭；③ **编排迁稳定路径 ~/harness-wt**——/tmp/wt 整链（脚本+二进制+产物）重启即灭属重大缺口，plist 已 re-arm 单实例，工具链源码归档 `tools/r1walk/`（README 含授权口径），产物完成即 `walk3_final_<ts>` 快照冻结（教训②机制化）。
 

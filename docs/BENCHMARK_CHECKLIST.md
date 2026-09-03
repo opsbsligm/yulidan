@@ -375,3 +375,27 @@ composer 三段并排，**消息永不从任何玻璃面下滑经过**；顶栏 
 ### A12 附产（顺带登记）
 `SidebarProjectSections.swift:339` 会话行 `.glassSurface(.thin)` → **运行时玻璃面数随会话列表行数线性增长**，
 G2 的运行时面数护栏必须把此调用点列入统计口径（静态计数 12 处掩盖了这一点）。
+
+## §16 轴2 取证工作单（G1b 我方侧预备，09-03）
+
+**取证通道现状（本轮实测登记）**：Codex 桌面端主窗口在册（`axdump 12432`：AXWindow 1250×793 @191,78），
+但不在当前屏 CG on-screen 列表（他 Space/隐藏态），`screencapture -l` 仅剩 137×139 幻影行——
+静默截窗通道受 27beta 环境限制（同补记㉔②条款）。取证因此二选一：
+**R1 你丢截图**（任一窗口，聊天粘贴即可，我落盘 `~/harness-wt/evidence/codex/`）；
+**R2 择时**：你把本对话窗口切到主屏亮着的瞬间，我做一次 `screencapture -l` 只读截窗（不动焦点键鼠）。
+
+**观察窗清单**（截图到达即填「Codex 侧观察」列 → 差距四件套当轮产出）：
+| # | 观察窗 | 我方实现锚点 | 若截图显示差距 → 候选原生表达（条件式，取证前不作断言） | 性价比预估 |
+|---|---|---|---|---|
+| W1 | 主窗全貌（侧栏+会话+composer） | ContentView / SidebarView / ChatAreaView / ChatInputArea | 布局比例/间距→SwiftUI 原生参数调整 | 高（定全局基调） |
+| W2 | 折叠 rail 态 | SidebarView.collapsedBody | 顶部避让带（=F6 同题合并）| 高（与 F6 合并裁决） |
+| W3 | 设置（入口+全页） | SettingsView / SettingsCompletePage（D-7/8/9 材料） | 左 sidebar+pane（IA 提案已备） | 中（D-7/8/9 待拍） |
+| W4 | 标题右键/溢出菜单 | ChatAreaView.sessionMenuActions | 动作集增删（A 层结构恒等保证两入口同步改） | 低 |
+| W5 | 新任务/欢迎页 | WelcomeAreaView | hero/chips 结构 | 中 |
+| W6 | 会话悬停/生成中态 | SessionListItem / generatingSessionId | 指示器形态 | 中 |
+| W7 | 项目/归档管理 | SidebarProjectSections / ArchiveManagerView | 归档面层级 | 低 |
+| W8 | 主题/外观设置呈现 | Theme.swift + 主题插件链（D-11 关联） | tint 作用域展示位 | 中（挂 D-11） |
+
+规则重申：取证前本文任何行**不得**写「Codex 有 X」为事实（铁律 5）；截图到达后逐行四件套
+（截图路径+我方行号+原生适配表达+性价比评级）入本节续表。旧 F7 对标断言已按铁律 5 降级，
+见 `docs/UI_CODEX_ALIGNMENT.md` v8 重判节。
