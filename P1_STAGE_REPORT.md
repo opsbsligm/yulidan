@@ -497,3 +497,19 @@
 > AX 取证需先修；且 `bin/ax` 自 30f23c8 起仅二进制入仓、**无源码**——修复=重写并补源入仓，列 G3 取证前置小项）；当前 CGWindowList 无 Harness 窗（隐藏/他 Space）→ 本轮零窗口截图、零打扰。
 > ⑥ **A12 附产**：`SidebarProjectSections.swift:339` 会话行 `.glassSurface(.thin)` 面数随行数线性增长，
 > 运行时面数护栏口径必须含此点（静态计数 12 掩盖此项）。本轮 docs-only（门禁豁免沿用），无代码改动。
+
+> 2026-09-03 静默工具轮补记㉚（**A 层取证链补强：axdump 只读 AX 导出工具入仓 + PERFORMANCE 玻璃护栏立规**）：
+> ① `tools/r1walk/axdump.swift`（源码+二进制入仓）修复 ㉙ 登记的 `bin/ax dump` 窗口子树截断缺陷：
+> 走 `kAXWindowsAttribute` 默认只导窗口子树、全局 4000 节点预算、**零动作/零 setAttribute/零 TCC 弹窗**
+> （仅 `AXIsProcessTrusted()` 静默探测——绝不弹「辅助功能」授权框打扰用户）；实测 Finder 窗口子树
+> + pos/size 完整输出，Harness 隐藏态如实返回 windows=0（exit 3，不假绿）。`bin/ax` 保持原样
+> （历史注入式走测工具，永久仅用户手动）。G3「用户操作+Agent 只读取证」前置项就此闭环。
+> ② **编译期门禁兼容模式入档**：CF 类型 `as?` 被 swiftc 判「恒真」直接报 error、`as!` 违反
+> force_cast 门禁 → 合规写法 = `CFGetTypeID` 验证后 `unsafeDowncast`（本仓后续 AX/CF 工具照此办理）。
+> ③ **PERFORMANCE.md 立 App 层玻璃护栏规**（首次）：通道分级——RSS/CPU=`ps` 静默采样 ✅、
+> leaks=门禁在册 ✅、玻璃面数=静态注册表（含 sessionRow 线性项）✅、**帧率无静默通道 ❌**
+> （如实移交 G3 人工走查，不留空承诺）；RSS 平台期规则提案（≥10 分钟间隔 3 采样漂移 ≤±10%，
+> 单点不构成平台期结论——首表如实标注单点）。首采样 44.8MB@16:29（隐藏态旧实例 @7a853d6 时代启动，
+> 磁盘 bundle 已被门禁重建至 ec9ff1ee…，口径入表）。
+> ④ 本轮写域仅 `tools/` + `docs/` + 报告（**SwiftPM 包零触碰**）：门禁理由=包编译/测试不受影响 +
+> 全仓 lint 0 / format 0 实测 + 工具编译 rc=0；镜像已推。
