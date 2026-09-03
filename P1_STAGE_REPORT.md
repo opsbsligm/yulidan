@@ -664,3 +664,8 @@
 > 非 Agent 启动）**未动**——如实登记；
 > ④ **口径再精确化**：SwiftPM debug 有 `HarnessApp.app` bundle（实证可正常长跑），
 > release 无 bundle 维持——「裸 exec SIGTRAP」限定无 bundle 裸 exec，与既有判定自洽。docs-only 豁免。
+
+> 2026-09-03 主表跟进轮补记㊶（微型维护）：① QUALITY 主表 CI 模拟行跟进最近全量门禁
+> @59cc24b（97.53%/241 漂移带 238–244）；② 用户侧实例 58301 复核 **windows=0**（隐藏态，
+> 无可截窗口）——G3 目检快照包需用户开窗后才能预采，登记为 G3 顺手机会（用户开窗
+> 10 分钟同时解锁 RSS 可见态组 + 截图包 + 帧率观察三项）。docs-only 豁免。
