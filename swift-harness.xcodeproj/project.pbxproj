@@ -302,6 +302,7 @@
 		E186BC18517AB285F1D63269 /* libSandbox.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 0F2B59DE785559CB6C4F91C2 /* libSandbox.a */; };
 		E22506440DEDEED0E8363820 /* PromptTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = B126D3AD9017FC67447752EA /* PromptTemplate.swift */; };
 		E2D2674EA9F4EA25D6880855 /* ServiceProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = E47B563F5F351D1F5C986DAE /* ServiceProtocol.swift */; };
+		E3135E9D639DAE80B0C60A11 /* MCPCommunityLiveTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6830F389E28D96A126D8FDC /* MCPCommunityLiveTests.swift */; };
 		E3BBADB903CD4E2602171683 /* libSandbox.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 0F2B59DE785559CB6C4F91C2 /* libSandbox.a */; };
 		E47175DAB7BDE353DCCB1EAF /* libLLM.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 0614A9CD104A5A1E12602FF0 /* libLLM.a */; };
 		E6DA370B2C140C5D4EBB666C /* MemProbeMain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 076CFC562885AB9041384FAD /* MemProbeMain.swift */; };
@@ -1636,6 +1637,7 @@
 		D46B2CC71DD6A3AA1FCF4DE1 /* WebUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = WebUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		D4C0BE51FA420CA382D29F5D /* TemplateRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TemplateRenderer.swift; sourceTree = "<group>"; };
 		D5C219BE85797C6FBE017C5B /* NotificationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationTests.swift; sourceTree = "<group>"; };
+		D6830F389E28D96A126D8FDC /* MCPCommunityLiveTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPCommunityLiveTests.swift; sourceTree = "<group>"; };
 		D6BC39D968C1FF4BCBD8E50F /* LocalBuiltInMarketplaceSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalBuiltInMarketplaceSource.swift; sourceTree = "<group>"; };
 		D8AA26B66A338018C95FB309 /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
 		DA8657A4497FB53714AD133F /* MemoryEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryEngineTests.swift; sourceTree = "<group>"; };
@@ -2575,6 +2577,7 @@
 		DF1DC764404A2CD12E84BEF1 /* Tests */ = {
 			isa = PBXGroup;
 			children = (
+				D6830F389E28D96A126D8FDC /* MCPCommunityLiveTests.swift */,
 				5993134C6556F8DFB359BB52 /* MCPGapCoverageTests.swift */,
 				8FC4EFA19E0779A4626E286D /* MCPProtocolExtensionTests.swift */,
 				E32B63BA4E52F8DDB5D0A8F5 /* MCPR17GapCoverageTests.swift */,
@@ -4361,6 +4364,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E3135E9D639DAE80B0C60A11 /* MCPCommunityLiveTests.swift in Sources */,
 				01A017D8E9C03DB3D0096CCD /* MCPGapCoverageTests.swift in Sources */,
 				153AF64649FA50B6ED299C59 /* MCPProtocolExtensionTests.swift in Sources */,
 				62AE6C88FA9ABEC78AC38926 /* MCPR17GapCoverageTests.swift in Sources */,

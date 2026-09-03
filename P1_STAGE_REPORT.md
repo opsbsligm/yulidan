@@ -528,4 +528,9 @@
 > ⑤ 企业 MITM 网络 npm 实操：cafile 需从系统 keychain 导出（curl 通而 npm 不通的根因）；
 > dsh-crew 上游 peer 版本不同步需 `--legacy-peer-deps`——两点都是 D-5 层2 论证的实况材料；
 > ⑥ 探针安全姿态：零 tools/call（社区代码只加载不指挥）、环境白名单、HOME 沙箱、超时必 kill。
-> 本轮包内改动仅新增 opt-in 测试文件；四门禁 kickstart @2ac547e，结果下条补记或对账。
+
+> **门禁对账 @9776a63 全绿**：pr（783 tests/168 suites，rc=0，含 opt-in 测试默认 skip 态）＋
+> leaks（`0 leaks for 0 total leaked bytes`）＋ xcode（`** TEST SUCCEEDED **`）＋
+> main（rc=0；Sources 口径 9,755 行/未覆盖 243=**97.51%**，vs 台账 97.57% 差 6 行＝已入档
+> profraw 合并漂移带内，且较上轮 244 少 1 行，无回归）。临时载体 `com.harness.ci11.rest`
+> 用毕 bootout+移出 LaunchAgents（红线复验：仅剩 ci 系两项）。
