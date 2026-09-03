@@ -216,3 +216,92 @@ A11 一并改写注释，消除误导。
 静态计数在册：容器 4 个、`.glassSurface` 调用点 12 个、Tab 栏玻璃面 1 个（选中态）。
 同屏面数需运行时统计（可用测试缝/静态可达性分析，无需走测）→ G2 后续轮做，
 护栏口径 = "Limit the use of Liquid Glass effects onscreen at the same time" + PERFORMANCE.md。
+
+## §11 轴1 再补强：WWDC25 逐字稿原文（09-03 第三轮，文档通道）
+
+> 通道：视频页 HTML 内嵌 `<span data-start="…">` 逐字稿可 curl 直取（219 全文 18,030 字、
+> 323 全文 16,361 字，本机留存 `/tmp/ww219_transcript.txt`、`/tmp/ww323_transcript.txt`，
+> 版权所限仅摘录短句入册，不整篇入库）。
+
+### 1.11 WWDC25 Session 219《Meet Liquid Glass》——设计意图（对 D-1 直接相关）
+- "**Instead of fading**, Liquid Glass objects materialize in and out by gradually modulating the
+  light bending and lensing, ensuring a graceful transition that preserves the optical integrity
+  of the material." → **官方明确以「不淡变」为设计底线**；我们的「交叉淡变」不是风格差异，
+  是官方点名避免的形态 → F1 必要性升级为合规项。
+- "As you go between states in an app, Liquid Glass dynamically **morphs between the controls** in
+  each context. This maintains the concept of having a **singular floating plane** that the controls
+  live on."
+- "The **sidebar and tab bar**, together, form a cohesive … **single navigational element** that
+  fluidly scales as the canvas of the app grows."
+- 材质随尺寸变化："When glass **flexes and morphs to larger sizes** – like when presenting a menu
+  from a toolbar button – its material characteristics change to simulate a **thicker, more
+  substantial material**. It casts deeper, richer shadows, has more pronounced lensing…"
+- **无障碍语义（⚠️ 与我方实现有差异）**："**Reduced Transparency**, makes Liquid Glass **frostier
+  and obscures more of the content** behind it. **Increased contrast**, makes elements predominantly
+  black or white and **highlights them with a contrasting border**."
+  → 系统语义 = 玻璃「更霜」；我方 `GlassSurface` 在 reduceTransparency 下走 **solid 纯色**。
+  不是 bug（可读性更强、已实机验收），但**与系统语义不同轨** → 登记 A14，交你裁决。
+- 静止态交叠："In **steady states**, such as when an app first launches, **avoid intersections
+  between content and Liquid Glass**. Instead, reposition or scale the content to maintain
+  separation."（→ 审计项 A17）
+- tint 语义（⚠️ 直接触及我们主题插件的定位）："You can also use custom colors. But **use them
+  selectively**. When items or elements serve a **distinct functional purpose**, you can tint them…"
+  / "If you want to imbue color into your app, **do it in the content layer instead**."
+- 滚动边缘："As content begins to scroll underneath a glass element, the effect **gently dissolves
+  the content into the background**, lifting the glass visually…"（→ A16）
+
+### 1.12 WWDC25 Session 323《Build a SwiftUI app with the new design》——实现口径
+- "Add these transitions to your own glass container by using the **glassEffectID** modifier…
+  I associate the namespace with **each** of the glassEffect elements … **and with my toolbar
+  button**." → 官方实践是**每面各自一个 ID**（与我们 tab 栏「共享单一 selectionID」构造不同，
+  见 §12 F3 讨论；两者各有官方出处，需以视觉结果裁决）。
+- "for custom controls or for containers with interactive elements, **add the interactive modifier**…
+  Glass reacts to user interaction by **scaling, bouncing, and shimmering**"（F2 互证 ✓）
+- "To combine multiple glass elements, use the **GlassEffectContainer**. **This grouping is essential
+  for visual correctness.**"
+- "If you've used the `presentationBackground` modifier to apply a custom background to your sheets,
+  **consider removing that and let the new material shine**."（→ 我们 sheet 若自铺背景即同类反模式）
+- 玻璃之上有内容可折射的前提（侧栏案例）："They now have a Liquid Glass sidebar that **floats above
+  your content** … with the pink blossoms **refracting against the sidebar**." ＋
+  "With the new **`backgroundExtensionEffect`** modifier, views can extend outside the safe area…"
+
+### 1.13 本机 SDK 存在性核验（铁律 1：先核 SDK 再下结论）
+`SwiftUI.framework` arm64e-apple-macos.swiftinterface（Xcode 内 macOS 26.5 SDK）grep 计数：
+| WWDC25 提到的 API | 本 SDK | 结论 |
+|---|---|---|
+| `backgroundExtensionEffect` | **命中 2** | 可用（内容延伸到安全区外 → 玻璃有东西可折射） |
+| `scrollEdgeEffectStyle` | **命中 1** | 可用（滚动边缘效果） |
+| `containerConcentric` / `ConcentricRectangle` | **命中 0** | **本 SDK 无** → 圆角同心（corner concentricity）暂不可落地，❌不得宣称支持 |
+
+## §12 新审计项（A13–A19，本轮全部来自官方原文＋本机代码事实）
+
+| # | 项 | 状态 | 证据 / 影响 |
+|---|---|---|---|
+| **A13 装饰性全局 tint** | ⚠️ **冲突（需裁决）** | 官方：tint 用于**功能性强调**、"use them selectively"、色彩应放内容层。我方 P1.4 把主题 `glassTintHex` 铺到**所有**玻璃面（纯装饰性全局染色）→ 与官方口径冲突，且影响"主题插件"卖点定义（主题该染什么） |
+| **A14 减弱透明度语义** | ⚠️ 不同轨（需裁决） | 系统 = frostier glass（仍折射）；我方 = solid 纯色（可读性更强、已实机验收）。二选一：保 solid / 或新增「frosted」中间态 |
+| **A15 玻璃折射源缺失** | ❌ **根因级（比 morph 更根本）** | 代码事实链：`HarnessApp.swift:136` `window.backgroundColor = NSColor.windowBackgroundColor`（**不透明窗底**）＋ `ContentView.swift:11` `HStack(spacing:0)`（侧栏与内容**并排**，非浮于其上）＋ `HarnessTheme.swift:8` surface=不透明窗口色 → 侧栏玻璃**身后既无内容也无桌面**，按 §1.12「sidebar floats above your content / refracting against the sidebar」的材质前提，**必然呈现扁平灰片**。讽刺点：legacy 降级分支用 `VisualEffectMaterial(blendingMode: .behindWindow)` 真采桌面，**采样能力反而强于原生态路径**（`GlassSurface.swift:224/229`） |
+| **A16 滚动边缘效果** | ⏳ 待审 | 侧栏会话列表/消息滚动进入玻璃下方时是否有 dissolve 效果；`scrollEdgeEffectStyle` 本 SDK 可用（§1.13），我们未使用 |
+| **A17 静止态内容交叠** | ⏳ 待审 | 官方要求启动静止态避免内容与玻璃交叠（§1.11）；需审 composer/顶栏与消息流初始位置 |
+| **A18 sheet 自铺背景反模式** | ⏳ 待审 | 官方建议移除 `presentationBackground` 类自铺背景；需审设置 sheet/概览 sheet 是否自填底色（`SettingsView.swift:158-160` 附近有 prominent 面） |
+| **A19 圆角同心** | ❌ 不支持 | 本 SDK 无 `containerConcentric`（§1.13）→ 只能手设各层圆角，存在视觉不同心风险；❌不得宣称已支持最佳实践 |
+
+## §13 新增提案（F3/F4，等你拍板后实施）
+
+- **F3｜tab 栏玻璃形态二选一**：
+  (a) **现状＋F1**：单一选中面在 6 格间 morph（"流动的选中块"），未选中面素净；
+  (b) **官方 segmented 形态**：6 面常驻 + `glassEffectUnion` 合成**单一形状**（§1.5 "even when your
+  content is at rest"＋§1.11 "singular floating plane"），选中态用 tint/前景强调 → 更像系统分段控件。
+  两者都有官方出处，**只有真机目检能裁决**（无静默像素通道，§0）。
+- **F4｜让玻璃有东西可折射（A15 修法，二选一或并用）**：
+  (a) **窗口透明底**：`window.isOpaque=false` + `backgroundColor=.clear`（AppKit 层，改动小、可回退）
+  → 侧栏玻璃采**桌面**，恢复 macOS 侧栏传统；可读性由 regular 变体的 blur/luminosity 调整负责（§1.9 原文）。
+  ⚠️ 风险：窗口内文字对比度与"内容区是否也变透"需目检；`NSWindow` 行为改动属可见状态变化，验收需你 1 分钟。
+  (b) **内容延伸到玻璃之下**：用本 SDK 已有的 `backgroundExtensionEffect`（§1.13 实证存在）把内容/背景
+  铺到侧栏后方 → 折射源来自 App 自身内容（Apple 侧栏案例正是此法）。改动面大于 (a)。
+  **我的建议**：先做 (a)（小、可回退、直接决定玻璃是否"活"），(b) 视 (a) 的目检结果再定。
+
+## §14 【待确认】新增两项
+
+- **D-10**：F4 折射源修法 → (a) 窗口透明底 / (b) backgroundExtensionEffect / (c) 暂不动（接受扁平）。
+  不选 (c) 的话，玻璃质感提升的上限基本由此决定 —— 这是本轮最重要的单项。
+- **D-11**：A13 主题 tint 定位 → 全局装饰染色（现状，卖点直观）/ 仅功能件染色（官方口径）/ 二者兼容（主题可声明 tint 作用域，默认仅功能件）。
