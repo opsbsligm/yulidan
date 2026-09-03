@@ -72,4 +72,39 @@ final class MCPCommunityAppFlowTests: XCTestCase {
         XCTAssertTrue(vm.mcpServers.isEmpty)
         XCTAssertTrue(MCPDiscovery.loadConfigs(url: mcpURL).isEmpty)
     }
+
+    /// 升级回路实测：同名导入（= 更新）指向新版包路径 → 重连后 serverInfo 从 rc.6 翻到 rc.7。
+    /// 上游 `dsh plugin` 的 "update activates" 语义（安装态 reconcile）在我方的等价路径：
+    /// 命令指向磁盘路径 → 包更新（npm 装到新版路径）→ 同名再导入即激活新代码。
+    /// serverInfo 内嵌版本号提供不可伪造的「真的换了新二进制」判别（rc.6/rc.7 探针实测区分在册）。
+    func testCommunityServerUpgradeActivatesViaSameNameImport() async throws {
+        let env = ProcessInfo.processInfo.environment
+        try XCTSkipUnless(env["HARNESS_G4_LIVE"] == "1",
+                          "opt-in：export HARNESS_G4_LIVE=1（需 rc.6/rc.7 双版本解包，见 CENSUS 升级复现）")
+        let rc6 = env["HARNESS_G4_DSH_CREW_RC6_DIR"] ?? "/tmp/g4pkgs3/dsh-crew-rc6-x/package"
+        let rc7 = env["HARNESS_G4_DSH_CREW_DIR"] ?? "/tmp/g4pkgs2/dsh-crew/package"
+        let p6 = (rc6 as NSString).appendingPathComponent("src/server.mjs")
+        let p7 = (rc7 as NSString).appendingPathComponent("src/server.mjs")
+        for path in [p6, p7] where !FileManager.default.fileExists(atPath: path) {
+            throw XCTSkip("社区包版本缺失：\(path)")
+        }
+        let node = env["HARNESS_G4_NODE"] ?? "/opt/homebrew/bin/node"
+        let sandboxHome = env["HARNESS_G4_SANDBOX_HOME"] ?? "/tmp/g4home"
+
+        let (vm, _) = await Self.makeVM()
+        // ① 旧版装载：serverInfo 必须是 rc.6（前置断言，防两路径同包假绿）
+        await vm.importMCPServer(name: "dsh-crew-upgrade", command: node,
+                                 arguments: p6, environment: "HOME=\(sandboxHome)")
+        let old = try XCTUnwrap(vm.mcpServers.first)
+        XCTAssertTrue(old.isAvailable && old.serverInfo?.contains("0.1.0-rc.6") == true,
+                      "前置：rc.6 装载应可用且 serverInfo 含 rc.6，实得 \(String(describing: old.serverInfo))")
+        // ② 同名导入 = 更新 → 重连激活新代码路径：serverInfo 翻到 rc.7（同名 id 不变在 AppViewModelMCPServerTests 在册）
+        await vm.importMCPServer(name: "dsh-crew-upgrade", command: node,
+                                 arguments: p7, environment: "HOME=\(sandboxHome)")
+        let upgraded = try XCTUnwrap(vm.mcpServers.first)
+        XCTAssertEqual(vm.mcpServers.count, 1, "同名更新不得产生第二条目")
+        XCTAssertTrue(upgraded.isAvailable && upgraded.serverInfo?.contains("0.1.0-rc.7") == true,
+                      "升级回路：serverInfo 应翻至 rc.7（新包激活铁证），实得 \(String(describing: upgraded.serverInfo))")
+        XCTAssertGreaterThanOrEqual(upgraded.toolCount ?? 0, 6)
+    }
 }
