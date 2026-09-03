@@ -682,3 +682,11 @@
 > 2026-09-03 手册口径补丁补记㊸（微型）：G3_MVP_WALKTHROUGH 取证模板补 **A12 运行时面数
 > 统计口径**（sessionRow `.thin` 线性项单列、不混判静态 12 调用点、数量级偏差才记缺陷）——
 > BENCHMARK §15-A12 附产口径此前未同步至走查手册，防 G3 轮错判。docs-only 豁免。
+
+> 2026-09-03 拍板材料加固轮补记㊹（D-10 官方原文双项·A 层静默）：① (a) 透明窗底案——
+> 官方无「透窗采样桌面」明文，推断锚定 legacy behindWindow 在册能力 + 风险标注「成败
+> 仅 G3 A-d 目检裁决」；② (b) backgroundExtensionEffect 三重实证——SDK 注解逐字
+> `@available(macOS 26.0,*)` 精确化 §1.13 + 文档页 data JSON 全文首次入档（镜像副本仅
+> 落「available safe area」边/官方用例=NavigationSplitView detail 列/单例与性能警示/自动
+> clip）→ **结构性前提在册**：我方 HStack 并排布局无 leading 安全区，(b) 需布局改造，
+> 改动面>a；建议 (a) 先行不变。docs-only 豁免。

@@ -320,6 +320,24 @@ A11 一并改写注释，消除误导。
 
 - **D-10**：F4 折射源修法 → (a) 窗口透明底 / (b) backgroundExtensionEffect / (c) 暂不动（接受扁平）。
   不选 (c) 的话，玻璃质感提升的上限基本由此决定 —— 这是本轮最重要的单项。
+- **D-10 拍板材料加固（09-03 补记㊹·官方原文双项，A 层静默）**：
+  - **(a) 窗口透明底**：官方**无**「glassEffect 透过透明窗底采样桌面」明文——该因果属机制推断；
+    推断的可信锚 = 我方 legacy 分支 `VisualEffectView.material=.hudWindow / blendingMode=.behindWindow`
+    （`GlassSurface.swift:224/229` 在册）+ NSVisualEffect blendingMode 官方语义「采窗后桌面」。
+    ⚠️ 风险标注：实施小可回退，但**成败判定只能 G3 A-d 目检**（无静默像素通道，§4 口径）。
+  - **(b) backgroundExtensionEffect（本轮新取三重实证）**：
+    ① 本机 SDK 注解逐字（arm64e swiftinterface）`@available(…, macOS 26.0, *)`（§1.13 存在性→精确化）；
+    ② 官方文档页 data JSON **全文首次入档**："The view will be duplicated into mirrored copies which
+    will be placed around the view **on any edge with available safe area**… a blur effect will be
+    applied on top… Use this modifier when you want to extend the view beyond its bounds so the copies
+    can function as backgrounds for other elements on top. The most common use case is… the **detail
+    column of a navigation split view** so it can **extend under the sidebar**… **Apply this modifier
+    with discretion**… often used with **only a single instance** of background content with consideration
+    of **visual clarity and performance**… will **clip the view** to prevent copies from overlapping…"
+    ③ **结构性前提在册**：生效需目标边「available safe area」；我方现状布局 `ContentView.swift:11`
+    `HStack(spacing:0)` 并排、无 leading 安全区，官方用例是 NavigationSplitView 体系 → 选 (b) 需
+    布局改造+安全区实测，改动面显著大于 (a)；且官方明示性能/单例约束（A12 口径联动）。
+  - **建议不变**：(a) 先行（小、可回退），(a) 目检不达预期再评估 (b)；(c) 为放弃质感上限项。
 - **D-11**：A13 主题 tint 定位 → 全局装饰染色（现状，卖点直观）/ 仅功能件染色（官方口径）/ 二者兼容（主题可声明 tint 作用域，默认仅功能件）。
 
 - **D-12**：F5（设置完整页撤自铺底）+ F6（折叠 rail 避让带 + overlay 错位）执行批次。
