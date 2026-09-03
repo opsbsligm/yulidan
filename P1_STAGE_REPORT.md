@@ -560,3 +560,17 @@
 > leaks（`0 leaks for 0 total leaked bytes`）＋ xcode（`** TEST SUCCEEDED **`）＋ main（rc=0；
 > Sources 口径 9,755 行/未覆盖 238=**97.56%**，vs 上轮 243 少 5 行＝漂移带内，无回归）。
 > 临时载体 `com.harness.ci11.rest` 用毕 bootout+移回 quarantine（红线复验：仅剩 ci 系两项）。
+
+> 2026-09-03 G2 性能护栏轮补记㉝（**RSS 平台期由「未正式判定」升级为「正式成立」**）：
+> ① 隐藏态组三点 @3d66ba0 构建（sha 73058939…）：134.7/131.6/133.8 MB，间隔 12.5/10.6 min
+> （规则≥10min ✓），最大漂移 +2.4%（≤±10% ✓），pcpu 恒 0——**平台期成立、无泄漏征象**；
+> ② 载体口径修正登记：main 为 SwiftPM release **无 .app 形态**、裸可执行建 NSWindow 实测
+> SIGTRAP（环境坑在册）→ 平台期权威载体 = xcode 门禁 Debug bundle；Release 性能背书走
+> leaks+产物一致性，不为 Release 造非门禁构建口径；
+> ③ `open -g -j`（open(1 标准旗标：不置前台+隐藏）零打扰启动实证：前台进程未变（System Events
+> 只读核对）、DB 零新增（26/24 不变，App 启动不建会话）、隐藏态 axdump windows=1（离屏窗，
+> 与旧表 windows=0 口径差异如实标注）；采样器 `tools/perf/rss-sample.sh` 入仓；
+> ④ BENCHMARK §10-A12 状态刷新：静态护栏（注册表测试，㉜）+ RSS 平台期双绿；同屏面数运行时
+> 快照归 G3 axdump 手册；可见态组 RSS = 改变可见窗口状态 → 择时项；
+> ⑤ 当前存在一个后台隐藏采样实例（pid 见 PERFORMANCE 表，Dock 不可见）；终止方式
+> `kill <pid>`，或用户下次打开 App 后自然合并口径。
