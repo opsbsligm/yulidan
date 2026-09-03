@@ -574,3 +574,21 @@
 > 快照归 G3 axdump 手册；可见态组 RSS = 改变可见窗口状态 → 择时项；
 > ⑤ 当前存在一个后台隐藏采样实例（pid 见 PERFORMANCE 表，Dock 不可见）；终止方式
 > `kill <pid>`，或用户下次打开 App 后自然合并口径。
+
+> 2026-09-03 G4-App 全链路轮补记㉞（**「拿来即用」层1.5：AppViewModel 真实链路实测入册**）：
+> ① `MCPCommunityAppFlowTests`（@790e047）：dsh-crew 走用户同款全链路——导入（同一
+> servers.json 格式）→ connectStdio → 展示层（6+ 工具/serverInfo/注册表）→ 卸载双清；
+> opt-in 两态实测（默认 skipped / `HARNESS_G4_LIVE=1` passed 0.096s）；CENSUS 矩阵+复现命令增补；
+> ② **swift-testing skip 实证结论**：本机工具链 `swiftc` 独立 typecheck 找不到 Testing module、
+> SDK/toolchain 常规路径无 swiftinterface 可查 → 按「不脑补 API」原则改走**仓内已验证先例**
+> （MCPCommunityLiveTests 的 XCTest+XCTSkip 同构），不为一个新文件赌未实证 API；
+> ③ XCTest `class setUp` 撞 swiftlint static_over_final_class（API 要求 vs 规则冲突）→ 幂等
+> 实例 setUp 消解，全仓 lint 复绿；
+> ④ **日志新旧混淆风险登记**：门禁 kickstart 后轮询 `/tmp/ci_*.log` 可能读到**上轮残留**
+> （旧 ALLDONE/rc 行未及被覆盖）——本轮以 leaks 输出 pid（19676 vs 上轮 70853）+ lint 文件数
+> （251）+ 套件出现次数三重指纹核销为本轮真实输出；后续轮沿用「pid/计数指纹」对账法。
+
+> **门禁对账 @790e047 全绿**：pr（787 swift-testing + XCTest 全量含 AppFlow 默认 skip 态，
+> rc=0，lint/format 251 files 0）＋ leaks（`0 leaks`，本轮 pid 指纹在册）＋ xcode
+> （`** TEST SUCCEEDED **`）＋ main（rc=0；9,755 行/未覆盖 239=**97.55%**，vs 上轮 238 差
+> 1 行＝漂移带内）。临时载体用毕 bootout+移回 quarantine（红线复验：仅剩 ci 系两项）。

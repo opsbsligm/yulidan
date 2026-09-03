@@ -119,6 +119,8 @@ tool-cordis README（@47f9438）原文：「该沙箱隔离全局变量，但**�
 | 2 | 官方参考 `@modelcontextprotocol/server-filesystem` | `npx -y …server-filesystem /tmp/g4sandbox` | `secure-filesystem-server/0.2.0` | 14 | ✅ 6.6s（含 npx 下载） | 探针 |
 | 3 | 官方一致性 `@modelcontextprotocol/server-everything` | `npx -y …` | `mcp-servers/everything/2.0.0` | 13 | ✅ 4.6s | 探针 |
 
+**层1.5 升级（09-03，@790e047）**：dsh-crew 证据通道再加**App 真实链路**——`MCPCommunityAppFlowTests`（HarnessApp 测试目标，XCTest opt-in 两态实测：默认 skipped / flag 开 passed 0.096s）走**用户粘贴命令的同一代码路径**：`importMCPServer`（同一 servers.json 序列化格式落盘）→ `mcpManager.connectStdio`（运行时连接）→ `MCPDisplayItem`（isAvailable ✓ / toolCount≥6 ✓ / serverInfo=dsh-crew ✓ / 工具注册表含 dsh_run_worker ✓）→ `removeMCPServer`（配置+子进程双清 ✓）。「拿来即用」从「宿主客户端能连」升级为「App 导入框粘一行命令即装即卸」的代码级证明。
+
 安全姿态（全部样本一致）：只 initialize+tools/list，**零 tools/call**；子进程环境最小化（PATH/HOME 白名单，HOME→`/tmp/g4home` 沙箱）；超时必 kill；`--ignore-scripts` 阻断 postinstall。
 
 ### 环境实操事实（企业 MITM 网络，复现必备）
@@ -134,4 +136,6 @@ PROBE_HOME=/tmp/g4home PROBE_PATH=/opt/homebrew/bin:/usr/bin:/bin \
   tools/g4/bin-mcpprobe <超时秒> <标签> -- <命令> [参数...]
 # 我方宿主客户端实测（opt-in，门禁默认跳过）
 HARNESS_G4_LIVE=1 swift test --filter MCPCommunityLiveTests
+# App 全链路实测（用户同款 importMCPServer→connectStdio→展示层→卸载，opt-in）
+HARNESS_G4_LIVE=1 swift test --filter MCPCommunityAppFlowTests
 ```
