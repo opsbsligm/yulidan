@@ -143,7 +143,7 @@ name==目录名约定 ✓、description/正文齐 ✓。技能文件夹放进 `~
 ### 层1 兼容矩阵（≥3 实跑样例达成）
 | # | 服务器 | 命令 | serverInfo | 工具数 | 握手 | 证据通道 |
 |---|---|---|---|---|---|---|
-| 1 | **DSH 社区包** `@zseven-w/dsh-crew` | `node src/server.mjs`（解包+`npm i --omit=dev --ignore-scripts --legacy-peer-deps`） | `dsh-crew/0.1.0-rc.7` | 6（dsh_run_worker 等） | ✅ 726ms | **双通道**：独立探针 `tools/g4/mcpprobe` + **我方宿主 `StdioMCPClient` opt-in 测试**（`MCPCommunityLiveTests`，0.273s passed） |
+| 1 | **DSH 社区包** `@zseven-w/dsh-crew` | `node src/server.mjs`（解包+`npm i --omit=dev --ignore-scripts --legacy-peer-deps`） | `dsh-crew/0.1.0-rc.7` | 6（dsh_run_worker 等） | ✅ 726ms | **双通道**：独立探针 `tools/g4/mcpprobe.swift`（可执行 `tools/g4/bin-mcpprobe`） + **我方宿主 `StdioMCPClient` opt-in 测试**（`MCPCommunityLiveTests`，0.273s passed） |
 | 2 | 官方参考 `@modelcontextprotocol/server-filesystem` | `npx -y …server-filesystem /tmp/g4sandbox` | `secure-filesystem-server/0.2.0` | 14 | ✅ 6.6s（含 npx 下载） | 探针 |
 | 3 | 官方一致性 `@modelcontextprotocol/server-everything` | `npx -y …` | `mcp-servers/everything/2.0.0` | 13 | ✅ 4.6s | 探针 |
 
