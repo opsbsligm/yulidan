@@ -697,3 +697,11 @@
 > **假缺号警报**，三步自纠并加字符级 sanity 断言（ch(n)=="㊱" 逐验）后方采信——
 > 号段/编号类审计工具必须自带 sanity 断言，防审计工具自身造伪账。账本无损，
 > 无文件修补。docs-only 豁免（纯读取轮，仅本条入册）。
+
+> 2026-09-03 门禁清偿轮补记㊻（全量四门禁 @193d567 全绿）：用户缺席 ~80min 且负载回落，
+> 按项目惯例 LaunchAgent 后台通道清偿 11 连 docs-only 豁免链：pr rc=0（lint 252/0、format 0、
+> build 0 警告、swift-testing 787/169）+ leaks 0（pid 19593 指纹链续）+ xcode TEST SUCCEEDED +
+> main rc=0 覆盖率 Sources **97.56%**（9755/238 带内低位）。载体纪律：rest plist cp→bootstrap→
+> ALLDONE→bootout→mv 回 quarantine，LaunchAgents 终态回归仅 pr+watch。**新实测：双门禁并行
+> 总墙钟 ~7.7min（pr 22:39:15 起、ALLDONE 22:46:5x），后台零前台占用**——豁免链无需再攒，
+> 用户缺席>60min 即可低成本随清。docs 更新：QUALITY 主表 CI 行刷新 @193d567。
