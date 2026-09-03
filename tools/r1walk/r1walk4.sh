@@ -1,5 +1,5 @@
 #!/bin/zsh
-# R1 §10.3 收尾走测 v4.7（等解锁 → #3 右键 / #4 idpress 取消 / #5 双关闭 / #6 主题闭环「先导后切」 / #7 原位 noChange 拖拽悬停帧 / #8 减弱透明度自动开关）
+# R1 §10.3 收尾走测 v4.7（等解锁 → #3 右键 / #4 idpress 取消 / #5 双关闭 / #6 主题闭环「先导后切」 / #7 原位 noChange 拖拽悬停帧 / #8 降低透明度自动开关）
 # v4.7 根因修复：themes 目录空+无 servers.json → 任何内置切换项都不存在，旧 6a「深海蓝」前提从未成立 → 废弃硬编码段；#6 统一改为社区包 Tahoe Teal 闭环（先导 6b → 设置面板取证 → 6a 实渲染 → 自动卸载还原）。另：解锁后 caffeinate 临时防自动锁中断 + .done_v43 防重跑守卫。
 # 原则：不写用户数据（#4 只走取消；#7 起终点同一行内 = moveSession noChange 有单测锁定；#8 只读 defaults，系统开关由用户手切）
 # 用法：终端里跑 `zsh /Users/liguangming/harness-wt/r1walk2.sh [等解锁秒=900]`（用户在场有 20s 放弃窗口；Agent 代跑无 tty 自动继续）
@@ -35,10 +35,14 @@ log "已解锁"
 caffeinate -disu -w $$ >/dev/null 2>&1 &
 PID=$(pgrep -f "HarnessApp.app/Contents/MacOS/HarnessApp" | head -1)
 [ -z "$PID" ] && { log "App 未运行"; exit 4; }
-WID=$(./wl | grep 'owner=Harness' | awk '$0 ~ /w=1[0-9]{3}/ {sub(/^WID=/,"",$1); print $1; exit}')
+# v4.7.3: 主窗识别改 name=Harness（真实窗名），缩略图幻影行 name= 空自动排除；w>1000 仅作无 name 行时的兜底
+WID=$(./wl | grep 'owner=Harness' | grep 'name=Harness' | awk '{sub(/^WID=/,"",$1); print $1; exit}')
+[ -z "$WID" ] && WID=$(./wl | grep 'owner=Harness' | awk '$0 ~ /w=1[0-9]{3}/ {sub(/^WID=/,"",$1); print $1; exit}')
 [ -z "$WID" ] && { log "未找到主窗（w>1000）——可能锁屏过渡伪影，重跑本脚本"; exit 5; }
 log "PID=$PID WID=$WID"
-WINX=$(./wl | grep 'owner=Harness' | awk '$0 ~ /w=1[0-9]{3}/ {for(i=1;i<=NF;i++) if($i ~ /^x=/){sub(/^x=/,"",$i); print $i; exit}}')
+# v4.7.3: WINX 以 AX 窗口 pos 为权威源（幻影缩略图边界只污染 wl，不污染 AX）；wl 仅作兜底
+WINX=$(./ax $PID dump 4 2>/dev/null | grep -m1 'AXWindow' | sed -nE 's/.*pos=(-?[0-9]+),.*/\1/p')
+[ -z "$WINX" ] && WINX=$(./wl | grep 'owner=Harness' | grep 'name=Harness' | awk '{for(i=1;i<=NF;i++) if($i ~ /^x=/){sub(/^x=/,"",$i); print $i; exit}}')
 [ -z "$WINX" ] && WINX=0
 log "窗口左缘 WINX=$WINX（顶栏/侧栏过滤改用相对坐标）"
 DB=~/Library/Application\ Support/Harness/sessions.sqlite
@@ -159,25 +163,25 @@ if [ -n "$RX" ]; then
   log "#7 拖拽悬停帧 = 13_drag_hover.png（落点回原行 = noChange，无归属变更）"
 else log "#7 未取到会话行坐标，跳过"; fi
 
-# ---------- #8 全自动：系统设置深链 → AX 拨「减弱透明度」开 → Harness 取证 → 拨回 → 取证 ----------
+# ---------- #8 全自动：系统设置深链 → AX 拨「降低透明度」开 → Harness 取证 → 拨回 → 取证 ----------
 shot 20_transparency_before
 open "x-apple.systempreferences:com.apple.Accessibility-Settings.extension?Display" >/dev/null 2>&1
 sleep 6
 SPID=$(pgrep -x "System Settings" | head -1)
 if [ -n "$SPID" ]; then
   ./ax $SPID dump 30 > $OUT/syssettings.txt 2>&1
-  if grep -q "减弱透明度" $OUT/syssettings.txt; then
-    ./ax $SPID press "减弱透明度" >/dev/null 2>&1; sleep 3
+  if grep -q "降低透明度" $OUT/syssettings.txt; then
+    ./ax $SPID press "降低透明度" >/dev/null 2>&1; sleep 3
     V1=$(defaults read com.apple.universalaccess reduceTransparency 2>/dev/null || echo 0)
     if [ "$V1" = "1" ]; then
-      # v4.7.1 安全加固：确认拨开后登记兜底还原 trap——脚本异常退出也不留用户系统在「减弱透明度=开」
+      # v4.7.1 安全加固：确认拨开后登记兜底还原 trap——脚本异常退出也不留用户系统在「降低透明度=开」
       _TB_DONE=0
-      trap 'if [ "$_TB_DONE" != 1 ]; then S=$(pgrep -x "System Settings" | head -1); [ -n "$S" ] && /Users/liguangming/harness-wt/ax $S press "减弱透明度" >/dev/null 2>&1; fi' EXIT
+      trap 'if [ "$_TB_DONE" != 1 ]; then S=$(pgrep -x "System Settings" | head -1); [ -n "$S" ] && /Users/liguangming/harness-wt/ax $S press "降低透明度" >/dev/null 2>&1; fi' EXIT
       ./ev activate $PID >/dev/null 2>&1; sleep 1
       shot 21_transparency_on
       ./ax $PID dump 16 > $OUT/transparency_on_tree.txt 2>&1
       SPID=$(pgrep -x "System Settings" | head -1)
-      ./ax $SPID press "减弱透明度" >/dev/null 2>&1; sleep 3          # 拨回
+      ./ax $SPID press "降低透明度" >/dev/null 2>&1; sleep 3          # 拨回
       ./ev activate $PID >/dev/null 2>&1; sleep 0.8
       shot 22_transparency_off
       V2=$(defaults read com.apple.universalaccess reduceTransparency 2>/dev/null || echo 0)
@@ -187,7 +191,7 @@ if [ -n "$SPID" ]; then
       log "#8 拨动后未读到 1（可能命中非开关控件），留 syssettings.txt 判定，不重试不乱拨"
     fi
   else
-    log "#8 系统设置页无「减弱透明度」（深链或加载问题），留 syssettings.txt 取证"
+    log "#8 系统设置页无「降低透明度」（深链或加载问题），留 syssettings.txt 取证"
   fi
 else
   log "#8 系统设置进程未出现，跳过自动开关"

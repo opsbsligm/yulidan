@@ -1,4 +1,5 @@
-# R1 走测工具链（验收流程资产，v4.7）
+# R1 走测工具链（验收流程资产，v4.7.3）
+- **v4.7.3（09-03 补记㉔）**：① 27 beta 文案「减弱透明度」→「降低透明度」同步；② WID 认 name=Harness 行 + WINX 以 AX pos 为权威（幻影缩略图只污染 wl）；③ **用户在线禁令：C 层注入（ev activate/key/drag + System Events）永不自动触发，仅限用户离键盘时手动运行**——静默优先：A 层 ImageRenderer/测试缝证据已在册，B 层 ax press/showmenu 无键鼠占用但可弹窗、需用户择时。
 - `r1loop2.sh`：解锁等待循环（历史载体，v4.7 起退役，见下「锁屏预案」）
 - `r1walk4.sh`：R1 §10.3 收尾走测 v4.7——**#6 主题闭环改「先导后切」**（themes 目录空→旧 6a「深海蓝」前提不成立已废弃；统一走社区包 Tahoe Teal：导入→设置取证→切换/还原实渲染→自动卸载还原）；解锁后 `caffeinate -disu -w $$` 走测窗口临时防自动锁中断（不改系统设置，退出即释放）；`.done_v43` 防重跑守卫（FORCE=1 可越）。**v4.7.1**：#8 拨「减弱透明度」后登记 EXIT trap 兜底还原（正常拨回 V2=0 才 `_TB_DONE=1; trap - EXIT` 双保险解除；zsh 解除语法必须 `trap -` 带空格，连写 `trap-` 实测非法）。
 - `ax.swift/ev.swift/wl.swift/evtype.swift`：AX 驱动与事件工具源码（ax 支持 top|bottom|last 选择器：同名消歧/modal alert 树尾定位）
