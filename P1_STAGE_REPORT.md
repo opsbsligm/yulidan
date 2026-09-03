@@ -592,3 +592,17 @@
 > rc=0，lint/format 251 files 0）＋ leaks（`0 leaks`，本轮 pid 指纹在册）＋ xcode
 > （`** TEST SUCCEEDED **`）＋ main（rc=0；9,755 行/未覆盖 239=**97.55%**，vs 上轮 238 差
 > 1 行＝漂移带内）。临时载体用毕 bootout+移回 quarantine（红线复验：仅剩 ci 系两项）。
+
+> 2026-09-03 G4 技能形态轮补记㉟（**「拿来即用」双形态闭环：工具插件（MCP）+ 指令插件（SKILL.md）**）：
+> ① `SkillUpstreamCompatTests`（@4a0aa74）：上游 @47f9438 `.agents/skills/` **11/11** 真实技能
+> 经我方 `SkillStore.parse` 零改写装载（name==目录名/description/正文断言齐），opt-in
+> `HARNESS_G4_UPSTREAM=1` 两态实测；上游装载语义参照 `packages/skill/skill-filesystem`
+> （YAML frontmatter 扫描）——两仓库格式同源实证；
+> ② folded scalar 边界：上游实测 0 例 + 我方优雅降级用例固化（不崩、name 存在即装载），
+> 未来社区出现 folded 再立修——边界不粉饰；
+> ③ CENSUS 新增技能形态矩阵节 + 复现命令。
+
+> **门禁对账 @4a0aa74 全绿**：pr（787 swift-testing + XCTest 全量（新 SkillUpstreamCompat 两用例
+> 默认 skip 态实跑在册，252 files lint/format 0），rc=0）＋ leaks（`0 leaks`，本轮 pid 35153
+> 指纹 vs 上轮 19676——三重指纹法第二轮沿用）＋ xcode（`** TEST SUCCEEDED **`）＋ main
+> （rc=0；9,755/未覆盖 238=**97.56%**，漂移带内）。临时载体用毕退役（红线复验仅剩 ci 系两项）。

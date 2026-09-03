@@ -112,6 +112,20 @@ tool-cordis README（@47f9438）原文：「该沙箱隔离全局变量，但**�
 → 「MCP 依赖」≠「可被 MCP 宿主装载」：普查 1% 的 MCP 率里又筛掉 3/4，**社区直装面实际比 1% 更小**。
 诚实口径不变且更强：层1（标准 MCP）可达且已实测；层2（Cordis 生态）仍需 D-5 裁决。
 
+
+### 技能（指令插件）形态兼容矩阵（09-03 新增，@4a0aa74）
+DSH 生态的插件不止 MCP stdio server——**SKILL.md 指令技能**是另一主形态（上游
+`packages/skill/skill-filesystem` 装载语义：目录扫描 + YAML frontmatter，name/description）。
+我方 `SkillStore.parse` 对上游 **@47f9438 `.agents/skills/` 全部 11 个真实技能**
+（dsh-code-review / dsh-prose-standard / record-browser-gif 等）零改写解析通过
+（`SkillUpstreamCompatTests`，opt-in `HARNESS_G4_UPSTREAM=1`，两态实测 0.003s passed）：
+name==目录名约定 ✓、description/正文齐 ✓。技能文件夹放进 `~/.harness/skills/` 即用。
+**边界如实登记**：YAML folded scalar（`description: >`）上游 @47f9438 实测 **0 例**；
+我方单行解析对 folded 的降级行为（description 取标记符、name 存在即装载不崩）已固化为
+`testFoldedScalarBehaviorIsGraceful`——当前社区面不受影响，若未来社区出现 folded 样本再立修。
+复现：`HARNESS_G4_UPSTREAM=1 swift test --filter SkillUpstreamCompatTests`
+（可 `HARNESS_G4_DSH_UPSTREAM_DIR` 覆盖上游路径）。
+
 ### 层1 兼容矩阵（≥3 实跑样例达成）
 | # | 服务器 | 命令 | serverInfo | 工具数 | 握手 | 证据通道 |
 |---|---|---|---|---|---|---|
