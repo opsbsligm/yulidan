@@ -494,6 +494,6 @@
 > swiftinterface 中，必须并查 `Headers/*.h`**（本轮 grep swiftinterface 得假阴性 0 命中，头文件
 > 实证 10.10+ 存在）→ 存在性 = swiftinterface（Swift 原生 API，§1.13 结论不受影响）∪ Headers（ObjC 声明）。
 > ⑤ **取证通道现状**：`bin/ax dump` 实测仅出菜单栏 77 行（窗口子树未输出，工具限制入册，后续实时
-> AX 取证需先修）；当前 CGWindowList 无 Harness 窗（隐藏/他 Space）→ 本轮零窗口截图、零打扰。
+> AX 取证需先修；且 `bin/ax` 自 30f23c8 起仅二进制入仓、**无源码**——修复=重写并补源入仓，列 G3 取证前置小项）；当前 CGWindowList 无 Harness 窗（隐藏/他 Space）→ 本轮零窗口截图、零打扰。
 > ⑥ **A12 附产**：`SidebarProjectSections.swift:339` 会话行 `.glassSurface(.thin)` 面数随行数线性增长，
 > 运行时面数护栏口径必须含此点（静态计数 12 掩盖此项）。本轮 docs-only（门禁豁免沿用），无代码改动。
