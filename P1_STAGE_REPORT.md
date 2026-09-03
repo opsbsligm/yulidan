@@ -513,3 +513,19 @@
 > 磁盘 bundle 已被门禁重建至 ec9ff1ee…，口径入表）。
 > ④ 本轮写域仅 `tools/` + `docs/` + 报告（**SwiftPM 包零触碰**）：门禁理由=包编译/测试不受影响 +
 > 全仓 lint 0 / format 0 实测 + 工具编译 rc=0；镜像已推。
+
+> 2026-09-03 G4c 层1 实测轮补记㉛（**「拿来即用」层1 由承诺升级为实测：3 样本全绿 + 宿主客户端实包测试**）：
+> ① **验身反转再收窄**：4 个带 MCP 依赖的社区包里真 stdio server 仅 `@zseven-w/dsh-crew`
+> （其余为 SDK client×2、hook/适配器×1）——「MCP 依赖」≠「可被 MCP 宿主装载」，直装面比 1% 更小；
+> ② 层1 矩阵 3/3：dsh-crew（6 工具，**双通道**：`tools/g4/mcpprobe` 独立探针 + 我方
+> `StdioMCPClient` opt-in 测试 `MCPCommunityLiveTests` 0.273s 实装载）+ server-filesystem(14)
+> + server-everything(13)（官方一致性参考）；矩阵+复现命令入 CENSUS 新节；
+> ③ **opt-in 门禁设计**：`HARNESS_G4_LIVE=1`+包在位才执行，默认 XCTSkip——门禁确定性不引入网络
+> 依赖（实测：默认态 skip、开 flag 即真跑，两态均留证）；
+> ④ **死锁教训入档**（探针首版）：`nextLine` 在持锁分支直接 return → 泄锁 → 主线程与
+> fd_monitoring 双卡死；`sample <pid>` 只读定位（静默合规）；修复=分支内显式解锁。
+> ⚠️ 该 bug 形态（return-while-holding-lock）后续并发代码评审必查项；
+> ⑤ 企业 MITM 网络 npm 实操：cafile 需从系统 keychain 导出（curl 通而 npm 不通的根因）；
+> dsh-crew 上游 peer 版本不同步需 `--legacy-peer-deps`——两点都是 D-5 层2 论证的实况材料；
+> ⑥ 探针安全姿态：零 tools/call（社区代码只加载不指挥）、环境白名单、HOME 沙箱、超时必 kill。
+> 本轮包内改动仅新增 opt-in 测试文件；四门禁 kickstart @2ac547e，结果下条补记或对账。

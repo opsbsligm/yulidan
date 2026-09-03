@@ -97,3 +97,41 @@ tool-cordis README（@47f9438）原文：「该沙箱隔离全局变量，但**�
 - 复现脚本要点：唯一化 by npm → stars>50 ∪ random.sample(seed=42, 140) → `curl -s -m 10
   https://registry.npmjs.org/<pkg 斜杠转 %2f>` → latest manifest 分类（本机 python urllib 走 HTTPS
   会 CERTIFICATE_VERIFY_FAILED，**必须用 curl**；已踩坑记录）
+
+
+## G4c 层1 实包实测矩阵（2026-09-03 补记㉛，全静默 A 层）
+
+### 验身：4 个带 MCP 依赖的包，真 stdio server 仅 1 个
+| 包 | latest | 验身结论 | 证据 |
+|---|---|---|---|
+| `@zseven-w/dsh-crew` | 0.1.0-rc.7 | ✅ **真 stdio MCP server**（CC/Codex 侧 shim：`src/server.mjs` 顶层 `server.connect(new StdioServerTransport())`，注册 6 工具） | tarball 解包 grep + 实测握手 |
+| `dsh-skill-mcp-manager` | 1.1.2 | ❌ SDK **client** 用法（`lib/index.js` 仅 client 命中）+ Cordis 插件壳（cordis.patch.yml） | 同上 |
+| `dsh-web-search-zai` | 0.2.0 | ❌ SDK **client** 用法（`src/mcp.ts` 作 client 调上游配额 MCP） | 同上 |
+| `@vectorize-io/hindsight-coding-agents` | 0.5.1 | ❌ 24 个 bin 全是 **hook/适配器**（`pi.registerTool` 注册进其他 Agent 宿主，非 stdio server） | 同上 |
+
+→ 「MCP 依赖」≠「可被 MCP 宿主装载」：普查 1% 的 MCP 率里又筛掉 3/4，**社区直装面实际比 1% 更小**。
+诚实口径不变且更强：层1（标准 MCP）可达且已实测；层2（Cordis 生态）仍需 D-5 裁决。
+
+### 层1 兼容矩阵（≥3 实跑样例达成）
+| # | 服务器 | 命令 | serverInfo | 工具数 | 握手 | 证据通道 |
+|---|---|---|---|---|---|---|
+| 1 | **DSH 社区包** `@zseven-w/dsh-crew` | `node src/server.mjs`（解包+`npm i --omit=dev --ignore-scripts --legacy-peer-deps`） | `dsh-crew/0.1.0-rc.7` | 6（dsh_run_worker 等） | ✅ 726ms | **双通道**：独立探针 `tools/g4/mcpprobe` + **我方宿主 `StdioMCPClient` opt-in 测试**（`MCPCommunityLiveTests`，0.273s passed） |
+| 2 | 官方参考 `@modelcontextprotocol/server-filesystem` | `npx -y …server-filesystem /tmp/g4sandbox` | `secure-filesystem-server/0.2.0` | 14 | ✅ 6.6s（含 npx 下载） | 探针 |
+| 3 | 官方一致性 `@modelcontextprotocol/server-everything` | `npx -y …` | `mcp-servers/everything/2.0.0` | 13 | ✅ 4.6s | 探针 |
+
+安全姿态（全部样本一致）：只 initialize+tools/list，**零 tools/call**；子进程环境最小化（PATH/HOME 白名单，HOME→`/tmp/g4home` 沙箱）；超时必 kill；`--ignore-scripts` 阻断 postinstall。
+
+### 环境实操事实（企业 MITM 网络，复现必备）
+- **npm/node TLS**：`UNABLE_GET_ISSUER_CERT`/`UNABLE_TO_GET_ISSUER_CERT_LOCALLY`——curl 可用而 npm 不可用（系统 keychain 有 MITM 根证书，node 不读）→ 复现：`security find-certificate -a -p` 导 System+SystemRoot 两 keychain 成 ca.pem（164 证书），npm `--cafile=` / 探针 `npm_config_cafile` 透传。
+- **`@deepseek-ai` 系 peer 不同步**：dsh-crew 的 devDeps 内 `dsh-system-prompt@rc.8` 要 `dsh-llm@^rc.8`，其余钉 `rc.6` → ERESOLVE 死锁，需 `--legacy-peer-deps`（上游生态脆弱性数据点，供 D-5 层2 论证引用）。
+- 老 python 教训复用：本机 homebrew python HTTPS 同样需绕证书——curl 一律优先。
+
+### 复现命令（G3 走查同款可复用）
+```bash
+# 探针（独立 JSON-RPC 实现，不依赖构建产物）
+PROBE_HOME=/tmp/g4home PROBE_PATH=/opt/homebrew/bin:/usr/bin:/bin \
+  npm_config_cafile=/tmp/g4home/ca.pem \
+  tools/g4/bin-mcpprobe <超时秒> <标签> -- <命令> [参数...]
+# 我方宿主客户端实测（opt-in，门禁默认跳过）
+HARNESS_G4_LIVE=1 swift test --filter MCPCommunityLiveTests
+```
