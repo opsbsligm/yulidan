@@ -480,3 +480,29 @@ cf0e230  docs(quality): 刷新质量报告 — 前端阶段1/2 基线
 3. 持续迭代候选（均不阻塞）：① ~~in-flight LLM 调用 cancel 联动中断~~（**本轮已闭环**：turn Task 化 + 联动取消，645/645）② KVS 冲突裁决 UI（含 workspace 冲突）③ 项目拖拽排序 UI 暴露 ④ 覆盖率工具链口径统一（官方工具链修复 profdata -f bug 后恢复）⑤ ~~启动前 bundle 版本核验流程化~~（**08-26 已核销**：`tools/rebuild-app.sh` 升级——sync 模式 cp 后 pre-sign sha 断言 + 同步戳（src_sha/git HEAD/时间），verify 模式对拍构建产物 sha + nm 符号探测（`verify [符号]`），兼容旧 `relaunch` 用法；20:51 端到端实测 @f77a1ee（ThinkingLevel×209 在位））
 
 > 2026-09-03 四门禁收口 @980ef24..9644ae0（第十二轮续）：PR rc=0 marker @02:23:32 / leaks `0 leaks for 0 bytes` @02:19:31 / main Release **0 警告** + 775 tests 166 suites 全量绿 @02:21:31 / xcode **TEST SUCCEEDED** xcresult result=Passed @02:26:30——四件套全部 @当前HEAD 独立实测，零沿用（此前 L475 的 @d3eb168 收口记录为历史快照保留）。附：走测触发体系定稿双冗余值守（goal 轮为主 + heartbeat 空闲补充，见 P1_STAGE_REPORT 补记⑰⑱）；v4.7 脚本头部逻辑锁屏干跑全路径通过（rc=3 预期超时，零产物污染）。
+
+> 2026-09-03 G2 首轮（morph 根因修复轮，`8fd52fe`→`7349154`→`2d78042`）四门禁收口：**全部独立实测 rc=0**——
+> pr（lint strict 0 违规 / swiftformat 0 需格式化 / build **0 警告** / **783 tests 168 suites 全绿**）
+> ＋ leaks（`0 leaks for 0 total leaked bytes`）＋ xcode（`** TEST SUCCEEDED **`）＋ main（Release 全量 + 覆盖率）。
+> 日志：`/tmp/ci_r9_pr.log`（rc=0）、`/tmp/ci_g2_rest.log`（三段 rc 齐）。载体 = LaunchAgent
+> （本轮再次实证 `nohup … &` 挂起的门禁随 exec 会话回收被 SIGKILL，详见 P1_STAGE_REPORT 补记㉘④）。
+>
+> 覆盖率台账：**本轮 MAIN 表 Sources 口径 9,755 行 / 未覆盖 244 = 97.50%**，较在册 97.57%（9,755/237）
+> 差 **+7 未覆盖行**。定性 = **已知 profraw 合并漂移**（QUALITY_REPORT L165 观察项：门禁表数字±2~7 行漂移、
+> 内容行以干净单跑为准），**非回归**——理由：本轮改动全部在 `Apps/HarnessApp`（UI 层）与 docs/tests，
+> 该表仅统计 `Packages/`，本轮无任何 Packages 变更；唯一 >10% 未覆盖源文件仍是既有
+> `NotificationService.swift`(13/76)，与本轮无关。台账维持 97.57% 口径不变（待下轮干净单跑刷新）。
+>
+> 本轮质量事实增量（新观察项登记）：
+> ① **`ImageRenderer` 不渲染 `glassEffect`（24000 像素 0 差异，`tools/qa/glass-fidelity-probe.swift` 可复现）**
+> → 玻璃类效果的"离屏像素判据"永久不可用，v8 目标 G2 原条款已按实测纠偏（BENCHMARK_CHECKLIST §0/§4）；
+> ② **macOS 27 SDK 移除 `CGWindowListCreateImage`** → 进程内抓窗像素只剩 ScreenCaptureKit（需 TCC，弃用），
+> 玻璃真机取证固定为 `screencapture -o -x -l<wid>` 只读截已有窗口；
+> ③ **launchd 残留注入载体清除**（`com.harness.r1loop.plist` RunAtLoad → r1walk4.sh C 层动作，
+> 恰在解锁时触发）——已 bootout + 移入 `harness-wt/quarantine-manual-only/`；新增每轮红线检查
+> `ls ~/Library/LaunchAgents/ | grep -i harness`；
+> ④ 文档取证通道新发现：Apple 文档正文可经 `tutorials/data/**.json` 与
+> `tutorials/data/design/human-interface-guidelines/<page>.json` 直取（HTML 是 SPA 壳），
+> 早前"HGI/WWDC 原文拉不到"的阻塞解除；
+> ⑤ **方法论教训**：只读 API 摘要页会导出**相反**的根因结论（本仓库一天内两次自我纠偏：
+> A1 补面推断被指南页证否）→ 固化"任何 API 结论必须读该 API 所属专题指南全文，冲突以指南页为准"。
