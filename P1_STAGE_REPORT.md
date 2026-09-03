@@ -541,3 +541,22 @@
 > main（rc=0；Sources 口径 9,755 行/未覆盖 243=**97.51%**，vs 台账 97.57% 差 6 行＝已入档
 > profraw 合并漂移带内，且较上轮 244 少 1 行，无回归）。临时载体 `com.harness.ci11.rest`
 > 用毕 bootout+移出 LaunchAgents（红线复验：仅剩 ci 系两项）。
+
+> 2026-09-03 A12 护栏轮补记㉜（**玻璃面注册表护栏入册 + G3 走查手册预置**）：
+> ① **A12 测试 @3d66ba0**（4 项，A 层静默：仅读源文件）：注册表①`.glassSurface(` 12 处 /
+> ②`.glassSurfaceContainer(` 4 处逐文件双向比对（缺登记/计数漂移/未入册新增皆红）；
+> 白名单③原生 glassEffect 族 API（glassEffect/glassEffectID/glassEffectTransition）
+> 仅 GlassSurface.swift+morph 特例 GlassMorphTabBar.swift——铁律「玻璃仅系统原生 API 且经
+> 统一封装」首次机械化；④注释剔除口径（行内/整行注释不计、`://` URL 不误伤）；
+> ② **反向验证在册**：临时注入未入册 `.glassSurface(` 调用点 → Suite 红（1 issue）→ 还原 → 绿，
+> 证明非空转守卫（本项目「护栏必须能拦」口径）；
+> ③ **G3 走查手册预置** `docs/G3_MVP_WALKTHROUGH.md`：走查=用户手动+Agent 只读取证（axdump/
+> 只读截窗模板在册）；池 A 视觉项 a–h（挂 D-1/D-10/D-11/D-12）、池 B R1 余项二选一裁决表、
+> 池 C 对标+兼容（轴2 取证二选一/D-5 实装载）、§4 终拍板检查点表、§5 DoD 摘要；
+> ④ **小教训入档（测试风格速查）**：swift-testing 结构体内实例方法调 static 成员必须显式
+> `Self.` 前缀（XCTest 类方法习惯不通用）；`XCTUnwrap` 在 swift-testing 不存在 → `try #require(...)`。
+
+> **门禁对账 @3d66ba0 全绿**：pr（**787 tests/169 suites**，rc=0，较上轮 +4 项＝A12 新套件）＋
+> leaks（`0 leaks for 0 total leaked bytes`）＋ xcode（`** TEST SUCCEEDED **`）＋ main（rc=0；
+> Sources 口径 9,755 行/未覆盖 238=**97.56%**，vs 上轮 243 少 5 行＝漂移带内，无回归）。
+> 临时载体 `com.harness.ci11.rest` 用毕 bootout+移回 quarantine（红线复验：仅剩 ci 系两项）。
