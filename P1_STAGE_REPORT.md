@@ -630,3 +630,12 @@
 > ③ **跨文档锚点全查**：11 个被引文件/工具全部在位（一次 MISSING 为本轮核查路径笔误，
 > CENSUS 探针表述顺手精确化 `mcpprobe.swift`/`bin-mcpprobe`）；被引测试套件名与仓内文件逐一对上。
 > docs-only 轮，豁免沿用。
+
+> 2026-09-03 语义对照轮补记㊳（**铁律 7 行为语义补口：插件管理操作语义与上游同构**）：
+> ① 上游 `apps/cli/src/plugin.ts`（@47f9438）逐字提取：`dsh plugin`=pnpm 转发器+**安装态
+> reconcile**（"Reconciling by installed state, not by dependency diff"）；与我方
+> import/retry/remove 七维对照表入 CENSUS——安装即激活/卸载双清（我方更强）/坏包降级提示/
+> 无独立启停（双方同型）均对齐；**升级回路 = retry**（命令指向磁盘路径，npm update 后一键
+> 重启即加载新版——语义论证级，"未实测新版切换"如实标注）；
+> ② RSS 长龄续点 s4=100.0MB@67min（vs s3 +0.2%）——100MB 平台纹丝不动，趋势线加固。
+> docs-only 轮，豁免沿用。

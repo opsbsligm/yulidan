@@ -140,6 +140,27 @@ name==目录名约定 ✓、description/正文齐 ✓。技能文件夹放进 `~
 复现：`HARNESS_G4_UPSTREAM=1 swift test --filter SkillUpstreamCompatTests`
 （可 `HARNESS_G4_DSH_UPSTREAM_DIR` 覆盖上游路径）。
 
+
+### 插件管理**行为语义**对照（铁律 7 补口：09-03，上游源码 `apps/cli/src/plugin.ts` @47f9438 逐字）
+
+上游 `dsh plugin` = **pnpm 转发器 + 安装态 reconcile**（module 头注释原文："reconcile the
+`dsh.profile.bundles` layer list against the installed state … Reconciling by installed state,
+not by dependency diff, means `update` activates a package that gained its `dsh.bundle`
+declaration in a newer version"）。逐语义对照我方（`importMCPServer`/`retryMCPServer`/`removeMCPServer`）：
+
+| 语义维度 | 上游 dsh CLI | 我方 App | 判定 |
+|---|---|---|---|
+| 安装即激活 | `pnpm add` 后声明 `dsh.bundle` 的包自动进层栈 | 导入表单 → servers.json 落盘 + **即时连接**（importMCPServer L2166 链路在册） | 同构（载体不同：npm 依赖树 vs JSON 配置） |
+| 更新自动生效 | 安装态 reconcile：新版本带声明即自动进层 | **命令指向磁盘路径 → `retryMCPServer` 重启即加载更新后的包**（npm update + App 一键重启 = 升级回路，语义论证级，未实测新版切换） | 语义等价（我方=显式 retry 触发） |
+| 卸载 | `pnpm remove` → reconcile 出层 | `removeMCPServer` 配置+子进程**双清**（AppFlow 测试在册） | 对齐且我方更强（显式进程清理） |
+| 非插件包混入 | 装为普通库 + 一次性 warning（不崩不拒） | 连接失败 → `toolsLoadWarning` 提示 + 列表 available=false（AppViewModelMCPServerTests 在册） | 同型（优雅降级+提示） |
+| enable/disable | 无独立命令（依赖在场性决定） | 无独立开关（连接态即启停，失败可 retry） | 对齐（双方均不加独立开关） |
+| 模板自带层 | dsh-base 等非依赖，reconcile 永不触碰 | 内置插件（BuiltInPluginCatalog）与用户 servers.json 分离 | 对齐 |
+| 主题发现 | ——（上游主题=Web 插件另成体系，见四形态表④） | 连接后 `get_theme_spec` 自动探测（refreshThemes） | 我方按 MCP 协议的自然扩展，无上游对应物 |
+
+**结论**：插件管理**操作语义与上游同构**（安装即激活/移除即卸载/坏包降级提示/无独立启停开关），
+「拿来即用」在行为层同样成立；升级回路=retry（语义论证，标"未实测新版切换"，如 G3 需要可择时实测）。
+
 ### 层1 兼容矩阵（≥3 实跑样例达成）
 | # | 服务器 | 命令 | serverInfo | 工具数 | 握手 | 证据通道 |
 |---|---|---|---|---|---|---|
