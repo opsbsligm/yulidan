@@ -606,3 +606,17 @@
 > 默认 skip 态实跑在册，252 files lint/format 0），rc=0）＋ leaks（`0 leaks`，本轮 pid 35153
 > 指纹 vs 上轮 19676——三重指纹法第二轮沿用）＋ xcode（`** TEST SUCCEEDED **`）＋ main
 > （rc=0；9,755/未覆盖 238=**97.56%**，漂移带内）。临时载体用毕退役（红线复验仅剩 ci 系两项）。
+
+> 2026-09-03 形态收口轮补记㊱（**社区插件四形态总表收口 + 决策总账 D-INDEX 建立**）：
+> ① **npm 实查新发现两形态**（只读普查）：形态③ **服务 seam 补丁**
+> （`@deepseek-ai/dsh-{sandbox,compaction,shell,spill,jobs,goal,web,attachment}` = TS 进程内
+> ctx.* API，Swift 宿主**结构性 N/A**）；形态④ **主题/GUI 插件**（npm `dsh-theme-*` 10+ 包：
+> kit 0.1.2/guillaumemeyer 0.1.1/center/tuner/mineradio/machine/eternalnight…——
+> `/tmp/g4pkgs3` npm pack 实拆：`cordis.patch.yml` 挂载 + `dsh.client` 浏览器半 = **Cordis Web UI
+> 注入**，按 v8 §四既定裁决不做；**数据半可吸收**（色板 hex 可转写我方主题格式）——
+> 「社区主题拿来即用」诚实边界 = **数据可吃、插件体不可**，D-5 核算材料至此最全）；
+> ② CENSUS 四形态总表入册（每形态挂证据与定性）；
+> ③ **DECISION_INDEX.md 决策总账**建立：DoD 首条唯一检查点（12 项含半结 D-2/合并项 D-3/
+> 可选 Keychain），G3 手册 §4 改指指针；
+> ④ RSS 长龄续点 s3=99.8MB@56min（vs s2 −25.4%＝启动瞬态释放，**远低于平台期下沿**，
+> 无增长趋势加固）。docs-only 轮，豁免沿用。

@@ -113,6 +113,20 @@ tool-cordis README（@47f9438）原文：「该沙箱隔离全局变量，但**�
 诚实口径不变且更强：层1（标准 MCP）可达且已实测；层2（Cordis 生态）仍需 D-5 裁决。
 
 
+
+## 社区插件形态总表（09-03 收口：四形态 × 接管可行性）
+
+| 形态 | 代表 | 载体/协议 | 我方接管 | 证据 |
+|---|---|---|---|---|
+| **① MCP stdio server** | `@zseven-w/dsh-crew`（社区唯一真 server） | JSON-RPC over stdio（跨语言协议） | ✅ **拿来即用**（三通道实测：探针/宿主客户端/App 全链路） | 层1 矩阵 + 层1.5（补记㉞） |
+| **② 技能（SKILL.md）** | 上游 `.agents/skills/` 11 包 + npm `dsh-skill` 生态 | 目录扫描 + frontmatter（纯文本，跨语言） | ✅ **拿来即用**（11/11 零改写） | SkillUpstreamCompatTests（补记㉟） |
+| **③ 服务 seam 补丁** | `@deepseek-ai/dsh-{sandbox,compaction,shell,spill,jobs,goal,web,attachment}` | TS **进程内 ctx.\* API**（npm 包 description 逐字 "Abstract … seam for the DeepSeek Harness"；capability-seams 架构图在册） | ❌ **结构性 N/A**：依赖 DSH TS 宿主进程内服务注册表，Swift 宿主无该 API 面——非缺陷，协议层错配 | npm search 实查 + docs/capability-seams.zh.md |
+| **④ 主题/GUI 插件** | `dsh-theme-kit`(0.1.2)、`@guillaumemeyer/dsh-themes`(0.1.1)、dsh-theme-center/tuner/mineradio/machine/`@eternalnight/*`/`@yguillaumemeyer`等 10+ | **Cordis Web UI 注入**：`cordis.patch.yml` 挂载 + `package.json dsh.client` 浏览器半（browser JS 注入 DSH Web GUI）；资源半含 wallpapers | ❌ **按既定裁决不做**（v8 §四「Cordis UI 注入界面兼容」）；**数据半可吸收**：色板 hex（Tokyo Night/Catppuccin/中国传统色）可人工转写为我方主题插件格式——数据可复用、插件本体不可 | `/tmp/g4pkgs3` npm pack 实拆（--ignore-scripts）：index.js 空 apply + exports["./client"]；kit 的 cordis.patch.yml insert |
+
+**对 D-5 的直接影响**：层2（让社区插件在 App 里跑）的收益面 = 形态①②，两者**层1 已全部实测成立、无需新代码**；
+形态③④即便做 Cordis sidecar 也不适用（③=TS 进程内 API 不可跨宿主；④=Web DOM 注入与我方 SwiftUI 原生基线冲突，
+且属 v8 §四不做项）。即：**「社区主题插件拿来即用」的诚实边界 = 数据可吃、插件体不可**，D-5 决策请据此核算。
+
 ### 技能（指令插件）形态兼容矩阵（09-03 新增，@4a0aa74）
 DSH 生态的插件不止 MCP stdio server——**SKILL.md 指令技能**是另一主形态（上游
 `packages/skill/skill-filesystem` 装载语义：目录扫描 + YAML frontmatter，name/description）。
