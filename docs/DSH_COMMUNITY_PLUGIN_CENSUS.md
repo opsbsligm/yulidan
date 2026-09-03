@@ -1,0 +1,47 @@
+# G4a · DSH 社区插件生态普查（v1）
+
+> 普查时间：2026-09-03（静默轮，全程只读）｜上游基线：deepseek-harness @`47f9438`
+> 方法：本机上游源码逐包核对 + npm registry 实查 + 权威社区目录快照 + 代表性抽样 6 包依赖面分析
+> 铁律 7 合规：全部结论挂证据源；抽样外推处显式标注
+
+## 一、规模与权威源
+
+| 项 | 值 | 证据 |
+|---|---|---|
+| 目录源 | `awesome-dsh-plugin`（https://awesome-dsh-plugin.com，GitHub: awesome-dsh-plugin/awesome-dsh-plugin，CC0-1.0） | 目录包自述；**社区聚合源，非 deepseek-ai 官方渠道**（标注） |
+| 快照版本 | `dsh-plugin-catalog@2026.902.3089`（updated 2026-09-02） | npm registry 实查，tarball 已核验 |
+| 条目数 | **2937**（23 类目） | plugins.json `count` 字段 |
+| 生态热度 | 有 npm 包名 1425 / 独立 tarball 150 / 合计下载 **3,901,145** / stars>50 共 172 | plugins.json 聚合统计 |
+| 官方安装通道 | 全部 2937 条统一 `dsh plugin --profile <p> add <pkg>` CLI | plugins.json install 字段（profile 取值分布待查） |
+
+## 二、类目分布（前 12）
+
+UI 增强 476 · 工具与能力 379 · 开发与运行时 239 · 会话与消息 185 · 工作流 173 · 用量计费 163 · 记忆 136 · 技能包 125 · 通知集成 122 · 模型接入 120 · **主题外观 105** · 安全权限 100（其余：娱乐96/视觉95/远程79/Git71/浏览器70/市场70/语音46/文档44/WSL33/身份9/AGI 1）
+
+## 三、形态分类（核心结论）
+
+**抽样 6/6 全为 Cordis 原生 TS 插件**（`@deepseek-ai/cordis` peer/dep + `@deepseek-ai/dsh-*` 服务包，main=lib/index.js，无 bin）：
+`dshmarket`(市场,dl 30万) / `dsh-better-sidebar`(UI,dl 20.8万) / `dsh-dream-skin`(主题,client-ui/store 依赖=UI注入) / `dsh-context`(会话) / `dsh-config-manager`(工具,带bin) / `dsh-skills-manager`(技能)。
+
+| 形态 | 判据 | 规模估计 | 与 DSH-Swift 兼容路线 |
+|---|---|---|---|
+| ① Cordis host-半（工具/命令/服务） | dep cordis + dsh-agent/tools/session 等 host 服务 | ~2/3（tools/dev/session/memory/workflow/model 等） | **仅 Node sidecar 承载可「拿来即用」**（apply(ctx) 进程内 JS，Swift 无法原生加载） |
+| ② Cordis client-半（UI 注入） | dep dsh-client-ui-*/store/runtime | ≥476（ui 类目）+ 各类目 client 面 | **界面兼容明确不做**（❌WebView 铁律）；仅数据部分可经 spec.json 通道 |
+| ③ 数据型（主题色板/技能 md） | theme 105 + skill 125 中含纯数据件 | ≤230（需逐包二查，部分实为②） | 既有 spec.json / Skill markdown 通道可适配 |
+| ④ 纯 MCP 包装型 | npm 无 cordis dep、bin=MCP server | **抽样 0/6**（v7「层1 已在手」预期需下修；不排除少量长尾存在，待全量二查） | StdioMCPClient 直接装载（能力已在，样本待找） |
+
+## 四、上游信任立场（G4b 安全论证直接引用）
+
+tool-cordis README（@47f9438）原文：「该沙箱隔离全局变量，但**不是安全边界**……应当像对待 bash 访问一样对待该工具集」。上游自己都不把 Cordis 插件当安全沙箱 → 我方 sidecar 必须独立进程 + 最小权限 + 显式授权清单（红线不变），且**动态包（cordis_define）不落盘/不跨重启**语义可借鉴为默认策略。
+
+## 五、对 D-5 决策材料的改写
+
+- 主流生态（2700+）= Cordis 原生：**A（Node sidecar 全承载）是唯一能「拿来即用」覆盖主流的方案**；成本=Node 分发 + 用 dsh 服务 façade 覆盖插件实际 import 面（需先做全量 import 面统计定契约规模）。
+- B（仅数据型适配 ~230 条 + 其余出《改写 MCP 指南》）成本最低，覆盖率最低。
+- C（高星精选人工适配）折中；stars>50 共 172 条为候选池。
+- 补充查证项（拍板前）：① 全量 1425 npm 包 import 面统计（定 sidecar façade 契约规模）；② `dsh plugin --profile` 的 profile 语义；③ 目录外插件（未入目录的增量）。
+
+## 六、可复用发现（超出兼容轨）
+
+- 社区主题插件=client-半注入（Web），印证我们「主题只走数据通道 + 原生玻璃表达」的路线在 2700+ 注入件面前不可同构兼容——不是缺陷，是基线选择。
+- 官方 CLI `dsh plugin add` 的装载体验（目录源+CLI+profile）可作为我们插件市场社区源的对标物（G4c 装载体验清单）。
