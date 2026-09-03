@@ -158,6 +158,14 @@ declaration in a newer version"）。逐语义对照我方（`importMCPServer`/`
 | 模板自带层 | dsh-base 等非依赖，reconcile 永不触碰 | 内置插件（BuiltInPluginCatalog）与用户 servers.json 分离 | 对齐 |
 | 主题发现 | ——（上游主题=Web 插件另成体系，见四形态表④） | 连接后 `get_theme_spec` 自动探测（refreshThemes） | 我方按 MCP 协议的自然扩展，无上游对应物 |
 
+**升级回路已实测闭环（@59cc24b，语义论证 → 实测）**：`dsh-crew` 双版本并装（rc.6 `/tmp/g4pkgs3/dsh-crew-rc6-x`、rc.7 `/tmp/g4pkgs2/dsh-crew`），
+`testCommunityServerUpgradeActivatesViaSameNameImport`：rc.6 装载（**前置断言 serverInfo 含 rc.6**，防两路径同包假绿）→
+同名导入指向 rc.7 路径 → **serverInfo 翻至 0.1.0-rc.7** + 单条目 + toolCount≥6（live passed 0.288s / 默认 skipped）。
+判别力来源：serverInfo **内嵌上游包版本**（探针双版本实测 rc.6↔rc.7 可区分；对照实验：server-filesystem
+两 npm 版本 serverInfo 同为 0.2.0 且工具表相同——**不可作品味判别的反例亦登记**，选包方法论）。
+复现：`npm pack @zseven-w/dsh-crew@0.1.0-rc.6` → 解包 `npm i --omit=dev --ignore-scripts --legacy-peer-deps --cafile=…` →
+`HARNESS_G4_LIVE=1 swift test --filter MCPCommunityAppFlowTests`（RC6 路径键 `HARNESS_G4_DSH_CREW_RC6_DIR`）。
+
 **结论**：插件管理**操作语义与上游同构**（安装即激活/移除即卸载/坏包降级提示/无独立启停开关），
 「拿来即用」在行为层同样成立；升级回路=retry（语义论证，标"未实测新版切换"，如 G3 需要可择时实测）。
 
