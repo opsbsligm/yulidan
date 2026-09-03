@@ -12,13 +12,18 @@ import SwiftUI
 // 动效：沿用全局 .smooth 动画体系，玻璃表面不引入独立动效；
 // 无障碍：除减弱透明度降级外，玻璃表面保持完整对比度（文字始终走 textPrimary 等语义色）。
 
-/// 玻璃强度层级（对应不同表面语义）
+/// 玻璃**语义**层级（对应不同表面用途），⚠️ 非「玻璃厚度」——
+/// 官方 `Glass` 仅两变体（regular/clear，HIG Materials 原文在案 docs/BENCHMARK_CHECKLIST.md §1.9），
+/// 不存在 thin/prominent 材质档：本枚举在 macOS 26 **原生态下不改变 Glass**（三档同走
+/// `resolvedGlass` 单点），仅在降级路径生效——legacy → NSVisualEffectView 材质（hudWindow/
+/// popover/sidebar），solid → 三档不同实色。故命名口径 = 「用途分层」，勿理解为强度差异。
+/// 待办 BENCHMARK_CHECKLIST A11：是否改名为 SurfaceRole 以彻底消除误导。
 enum GlassLevel {
-    /// 薄玻璃：气泡、内联行、chip
+    /// 薄玻璃（语义）：气泡、内联行、chip —— 注：内容层元素按 HIG 宜用 Standard materials（A10）
     case thin
-    /// 常规玻璃：面板、侧栏、卡片
+    /// 常规玻璃（语义）：面板、侧栏、卡片
     case regular
-    /// 重玻璃：顶层浮层、设置面板
+    /// 重玻璃（语义）：顶层浮层、设置面板
     case prominent
 }
 

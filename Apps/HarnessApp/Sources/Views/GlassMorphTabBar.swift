@@ -11,6 +11,88 @@ import SwiftUI
 // 快捷键口径（P1.2 起展开/折叠两态一致）：⌘N = 新对话（此前仅折叠 rail 注册，现展开态亦生效）；
 // ⌘1–⌘5 = 五面板切换（展开态 ⌘1 原为「新对话」，P1.2 起与 rail 一致 = 切换到对话面板）
 // 主题：Glass 从主题上下文解析（glassTintHex → tint，fallback .regular，P1.1 resolvedGlass 单点）
+//
+// G2 打磨轮 F1/F2（2026-09-03，官方判据纠偏，docs/BENCHMARK_CHECKLIST.md §1.8-1.10 逐字在案）：
+// 官方《Applying Liquid Glass to custom views》原文：
+//   morph 触发条件 = "For effects you want to add or remove that are **positioned within the
+//     container's assigned spacing**, the default transition type is matchedGeometry"；
+//     超出该距离须用 .materialize（"farther from each other than the container's assigned spacing"）
+//   判据尺寸 = 最近边："morphs ... when the eraser's **nearest edge is less than or equal to the
+//     container's spacing**"
+//   "Animating views in or out causes the shapes to **morph apart or together as the space in the
+//     container changes**." → 我们的「移除旧选中面 + 插入新选中面」正是官方 morph 构造，❌无需补面
+//   spacing 过大的唯一代价 = "causes Liquid Glass effects to **blend together at rest** because the
+//     views are too close"；本容器静止态恒 1 面 → 该代价结构性不可达 → 放心取覆盖全网格的值
+//   interactive = **显式开启**："**Add** interactive(_:) to custom components to make them react to
+//     touch and pointer interactions"（旧注释「材质自带」属未证实宣称，本轮纠偏 → 见 F2）
+// 上一轮 A1「需给未选中面补玻璃」的推断已被官方原文证否（补面反而制造静止态融合与噪声），已撤销。
+
+/// Morph 几何判据（纯函数，可单测；F1 核心）
+///
+/// 官方判据（逐字见档 §1.8）：add/remove 的两个玻璃面「最近边 ≤ 容器 spacing」才走 matchedGeometry
+/// morph，超出则须 materialize。故容器 spacing 必须覆盖本网格内**最坏最近边距离**，
+/// 否则远距离切换（隔一列 / 跨行）静默退回淡变 —— 这正是 P1.2 实机「交叉淡变」的根因。
+enum MorphTabGeometry {
+    /// 单格宽度保守上界：侧栏固定 260pt − 内容内边距 10~14pt，3 列 − 网格间距 → 实测 ≤76pt，
+    /// 取 80pt 上界（偏大只会让更多面落入 morph 适用域；静止态单面 → 融合代价不可达）
+    static let tileWidthCap: CGFloat = 80
+    /// 单格高度（与 tileContent 的 frame(height:) 同源）
+    static let tileHeight: CGFloat = 46
+    /// 网格间距（列/行同值）
+    static let gridSpacing: CGFloat = 6
+    /// 列数
+    static let columns: Int = 3
+
+    /// 最坏「最近边」距离：跨 2 列 + 跨 1 行的两个玻璃面（本网格内距离最大的一对）
+    /// 水平净距 = 2×网格间距 + 一个面宽；垂直净距 = 1×网格间距；取欧氏距离（对「最近边」的保守上界）
+    static func worstNearestEdgeDistance(
+        tileWidth: CGFloat,
+        tileHeight _: CGFloat,
+        gridSpacing: CGFloat,
+        columns: Int
+    ) -> CGFloat {
+        let stepsAcross = min(2, max(columns - 1, 0))
+        let horizontal = gridSpacing * CGFloat(stepsAcross + 1) + tileWidth * CGFloat(stepsAcross)
+        let vertical = gridSpacing
+        return (horizontal * horizontal + vertical * vertical).squareRoot()
+    }
+
+    /// 容器 spacing = 最坏最近边距离向上取整（官方条件为「≤」，取整即覆盖全部切换距离）
+    static func containerSpacing(
+        tileWidth: CGFloat = tileWidthCap,
+        tileHeight: CGFloat = tileHeight,
+        gridSpacing: CGFloat = gridSpacing,
+        columns: Int = columns
+    ) -> CGFloat {
+        worstNearestEdgeDistance(
+            tileWidth: tileWidth,
+            tileHeight: tileHeight,
+            gridSpacing: gridSpacing,
+            columns: columns
+        ).rounded(.up)
+    }
+
+    /// 全网格统一值（单一事实源：容器与判据同源，避免调参漂移）
+    static var fullGridSpacing: CGFloat {
+        containerSpacing()
+    }
+
+    /// 局部网格值：仅要求覆盖「相邻面」距离 —— 供需要收敛 spacing（例如担心跨面过度融合）时使用
+    static func adjacentSpacing(
+        tileHeight: CGFloat = tileHeight,
+        gridSpacing: CGFloat = gridSpacing
+    ) -> CGFloat {
+        max(tileHeight, gridSpacing) + gridSpacing
+    }
+
+    /// 判定：某对面距离是否落在 matchedGeometry 适用域（官方：最近边 ≤ 容器 spacing）
+    static func qualifiesForMatchedGeometry(
+        nearestEdgeDistance: CGFloat,
+        containerSpacing: CGFloat
+    ) -> Bool {
+        nearestEdgeDistance <= containerSpacing
+    }
+}
 
 /// 分段定义（数据驱动；UI 代码不硬编码业务语义）
 struct MorphTabSegment: Identifiable {
@@ -47,7 +129,9 @@ struct GlassMorphTabBar: View {
     ]
 
     /// 统一选中 ID：切换时旧段移除/新段插入 → 触发原生 morph（官方文档语义）
-    private static let selectionID = "harness-sidebar-selection"
+    /// 单一 ID 是「高亮在分段间流动」的正确构造（官方 morph 语义 = 同 identity 面在不同位置间形变）；
+    /// ❌ 不得改为每段一个 ID —— 那会让官方示例式的「A 面消亡 + B 面新生」双胶囊形态取代流体高亮
+    static let selectionID = "harness-sidebar-selection"
 
     /// 分段面 shape（morph/union 官方约束：同变体 + 同型 shape）
     private static let tileShape = RoundedRectangle(cornerRadius: 10, style: .continuous)
@@ -73,7 +157,9 @@ struct GlassMorphTabBar: View {
             }
         }
         // 同区域玻璃组同一容器（目标 P1 §1 光学采样一致；P1.1 修饰器，降级 no-op）
-        .glassSurfaceContainer()
+        // F1：容器 spacing 必须 ≥ 最坏最近边距离，否则远距离切换静默退化为淡变（官方判据见文件头）
+        // 降级态（solid/legacy）容器本身不包裹 → spacing 参数在该路径无消费方，保持 nil 不变
+        .glassSurfaceContainer(spacing: isNative ? MorphTabGeometry.fullGridSpacing : nil)
     }
 
     /// 分段面模式（纯函数，可单测）：选中 + native → 内容入玻璃（morph 面）；
@@ -87,6 +173,12 @@ struct GlassMorphTabBar: View {
             guard isSelected else { return .plain }
             return isNative ? .glassMorph : .solid
         }
+    }
+
+    /// 选中面材质解析（纯函数，可单测）：选中 → 追加 `.interactive()`（F2 显式开启指针反馈）；
+    /// 未选中 → 原样（当前架构下未选中面无玻璃，此分支为口径完整性/未来补面时复用）
+    nonisolated static func selectedGlass(from glass: Glass, isSelected: Bool) -> Glass {
+        isSelected ? glass.interactive() : glass
     }
 
     private func segment(_ seg: MorphTabSegment, glass: Glass) -> some View {
@@ -131,9 +223,12 @@ struct GlassMorphTabBar: View {
         .contentShape(Self.tileShape)
         switch Self.TileFaceMode.resolve(isSelected: isSelected, isNative: isNative) {
         case .glassMorph:
-            // 原生 morph 选中玻璃面：内容直接入玻璃（官方模式；悬停/按压反馈 = Glass.interactive 材质自带）
+            // 原生 morph 选中玻璃面：内容直接入玻璃（官方模式）
+            // F2：interactive 须**显式添加**（官方原文 "Add interactive(_:) to custom components
+            // to make them react to touch and pointer interactions"）——旧注释称「材质自带」无依据，
+            // 已撤销；本面为导航功能层自定义件，符合 HIG「sparingly」边界（仅选中面加）
             base
-                .glassEffect(glass, in: Self.tileShape)
+                .glassEffect(Self.selectedGlass(from: glass, isSelected: true), in: Self.tileShape)
                 .glassEffectID(Self.selectionID, in: morphNS)
                 .glassEffectTransition(.matchedGeometry)
         case .solid:

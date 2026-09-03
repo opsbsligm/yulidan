@@ -104,6 +104,13 @@
   (b) 你手动丢几张 Codex 截图（含设置页）给我，我以文件路径入册；
   (c) 轴2 延后到 G2 中段。
 - 在拿到截图前，**不写任何"Codex 有 X"的条款**（铁律 5）。
+- ⚠️ **旧档取证口径不合规需重取（诚实登记）**：`docs/UI_CODEX_ALIGNMENT.md`（F7，@17a0fd8）
+  「二、差距清单」的 **Codex 行为列全部无截图取证**（方法自述为"逐文件读当前实现 + 与 Codex
+  桌面端布局/交互范式对照"），且 B1–B8 闭环项多数标注"视觉验收待实机"。
+  按 v8 铁律 5（"Codex 有 X"必须挂本机截图），F7 的**对标依据在 v8 口径下不成立**，
+  其**代码改动本身**（有 commit/测试）不受影响、无需回退，但**结论列需在你提供截图后重判**。
+- 轴2 差距条目登记模板（证据到位即按此填，四件套缺一不登记）：
+  `Codex 截图绝对路径` ＋ `我方文件:行号` ＋ `原生适配表达（具体 API/修饰符）` ＋ `性价比评级(★1-5)`。
 
 ## §6 待你拍板（不代拍）
 
@@ -113,3 +120,99 @@
 - **D-4**：主题 manifest 假参数（A6）是否显式拒绝不支持字段？
 - **轴2 取证方式**：§5 (a)/(b)/(c) 选一。
 - 既有 D-3（C4 卡片归组）/ D-5（插件路线 A/B/C）/ D-6（空会话 24 个处置）不变。
+
+---
+
+## §7 轴1 补强：官方**指南级**原文（09-03 第二轮，HIG + SwiftUI 指南页）
+
+> 通道打通：HIG 与 SwiftUI 指南页正文可经 `https://developer.apple.com/tutorials/data/documentation/<path>.json`
+> 与 `https://developer.apple.com/tutorials/data/design/human-interface-guidelines/<page>.json` 直取
+> （页面本体是 SPA 壳，curl HTML 拿不到正文——早前"HGI 拉不到"已解决）。
+
+### 1.8 《Applying Liquid Glass to custom views》— morph 触发条件（判据级）
+- "For effects you want to add or remove that are **positioned within the container's assigned
+  spacing**, the default transition type is matchedGeometry."
+- "Use the `materialize` transition for effects you want to add or remove that are **farther from
+  each other than the container's assigned spacing**."
+- 判据尺寸 = **最近边**："This morphs the eraser image into the pencil image when the eraser's
+  **nearest edge is less than or equal to the container's spacing**."
+- "SwiftUI uses **the spacing provided to the effect container along with the geometry of the shapes
+  themselves** to determine when and which appropriate shapes to morph into and out of."
+- "**Animating views in or out causes the shapes to morph apart or together as the space in the
+  container changes.**"
+- 容器价值："allows views with Liquid Glass effects to **blend their shapes together and to morph in
+  and out of each other during transitions**"；"Creating **too many** Liquid Glass effect containers
+  and applying too many effects to views outside of containers **can degrade performance**. Limit the
+  use of Liquid Glass effects onscreen at the same time."
+- 修饰符顺序（新审计项 A9）："The `glassEffect(_:in:)` modifier captures the content to send to the
+  container to render. **Apply the `glassEffect(_:in:)` modifier after other modifiers that affect
+  the appearance of the view.**"
+- union 前提："combines all effects with a **similar shape, Liquid Glass effect, and ID**"。
+  — https://developer.apple.com/documentation/swiftui/applying-liquid-glass-to-custom-views
+
+### 1.9 HIG《Materials》— 层级与克制（设计合规级）
+- "Liquid Glass forms a distinct **functional layer** for controls and navigation elements — like
+  **tab bars and sidebars** — that floats above the content layer."
+- "**Don't use Liquid Glass in the content layer.** ... using Standard materials for elements in the
+  content layer, such as app backgrounds."（例外：内容层中瞬时交互件如 Slider/Toggle）
+- "**Use Liquid Glass effects sparingly.** ... Limit these effects to the most important functional
+  elements in your app."
+- 变体口径："The **regular** variant blurs and adjusts the luminosity of background content to
+  maintain legibility ... such as alerts, sidebars, or popovers." / "**clear** ... for components that
+  float above media backgrounds"；亮背景上 clear 需 "a dark dimming layer of **35% opacity**"。
+- 系统开关联动："The appearance of these variants can differ in response to certain system settings,
+  like ... **reduce transparency** or increase contrast."
+- — https://developer.apple.com/design/human-interface-guidelines/materials
+
+### 1.10 `interactive` 语义（**纠偏既有宣称**）
+- "**Add** interactive(_:) to custom components to make them react to touch and pointer interactions.
+  This applies the same responsive and fluid reactions that glass provides to standard buttons."
+  官方示例：`.glassEffect(.regular.tint(.orange).interactive())`
+  → **显式开启，非默认自带**。我方 `GlassMorphTabBar` 旧注释「悬停/按压反馈 = Glass.interactive
+  材质自带」属未证实宣称 → 本轮按官方补齐 `.interactive()`（F2），A7 由 ❓ 转 ✅（有原文）。
+
+## §8 结论修正（自我纠偏，铁律 1/6）
+
+| 上轮结论 | 修正后（官方原文为据） |
+|---|---|
+| A1「容器内单玻璃面 → 必须给未选中面补玻璃才有融合对象」 | **撤销**。官方 morph 构造恰恰是"**add or remove**"（"Animating views in or out causes the shapes to morph apart or together"），单选中面移除+插入是正确形态；**补 6 面反而制造静止态融合（官方警告 "blend together at rest"）＋违反 HIG "sparingly"** |
+| A2「spacing=nil 只是未调参」 | **升级为根因**：官方判据 = 最近边 ≤ 容器 spacing 才走 matchedGeometry；我们 spacing=nil（系统默认值官方未公布），而最远切换对的最近边距离 ≈ 88pt → 大概率**超出**默认 spacing → 远距离切换**静默退回淡变**。这就是 P1.2 实机「交叉淡变」的可解释根因，且与动画曲线无关 |
+| A7「interactive 可能材质自带」 | 官方为**显式 Add**（§1.10）→ 已按官方补齐，宣称有据 |
+
+## §9 本轮已执行修复（G2 头号项 F1/F2，@本轮提交）
+
+| 项 | 改动 | 静默判据（A 层，已跑绿） | 真机目检 |
+|---|---|---|---|
+| **F1 morph 覆盖度** | `GlassMorphTabBar` 容器 `spacing` 由 nil → `MorphTabGeometry.fullGridSpacing`（= 最坏最近边距离向上取整；静止态恒单面 → 官方"静止即融合"代价结构性不可达）；`selectionID` 由 private 提级为 internal 供判据引用 | 新增 5 条 `MorphTabGeometryTests`：容器 spacing ≥ 最坏最近边距离、同列/相邻列/最远切换全部落入 `qualifiesForMatchedGeometry`、列数退化防御、间距单调性、全网格 ⊃ 相邻 | **待你 1 分钟**：切 tab 看是否出现"液体颈"连接而非淡变 |
+| **F2 指针反馈** | 选中面材质 `.interactive()`（官方显式开启），经纯函数 `selectedGlass(from:isSelected:)` 单点 | 新增 3 条 `SelectedGlassTests`：选中面==`base.interactive()` 且≠裸材质；未选中面原样；主题 tint 叠加不丢失 | 悬停/按压反馈需目检 |
+| 注释纠偏 | 撤销「材质自带」宣称；文件头写入官方判据逐字 + 撤销 A1 推断的说明 | 文档一致性（本节） | 不需要 |
+
+## §10 新增审计项（下轮 G2 待办）
+
+### A9 修饰符顺序（§1.8 末）→ ✅ 本轮已审，无违规
+12 个 `.glassSurface(` 调用点 + Tab 栏 1 处 `glassEffect` 全量核查 `.glassSurface` **之后**的外观修饰符：
+- `.overlay(stroke)` ×2（`SettingsSubPages.swift:216`、`ChatInputArea.swift:118`）→ 描边画在玻璃**之上**、
+  不参与玻璃捕获，属预期（solid 降级态也需要同一描边）；**无** padding/background/opacity 后置。
+- `.frame(width:110, alignment:.leading)` ×1（`SettingsView.swift:511`）→ 玻璃面先按内容尺寸成形，
+  再进入 110pt 列内左对齐 = **刻意且正确**（快捷键 chip 贴合文字），非缺陷。
+- 结论：官方「`glassEffect` 应在影响外观的修饰符**之后**施加」满足——我方所有影响尺寸/外观的修饰
+  （font/padding）均在 `.glassSurface` **之前**，玻璃捕获的是最终内容 ✓。
+
+### A10 内容层玻璃合规（§1.9）→ ✅ 本轮已审，无违规
+全 `Sources/` grep `glassSurface|glassEffect`：命中文件仅 8 个，**全部属功能层**
+（Sidebar×2 / TabBar / Settings×2 / SettingsSubPages / MCPServerViews / ChatInputArea /
+SidebarProjectSections / SidebarSupportViews / Styles 收口层）；
+**聊天消息与滚动内容区 0 处玻璃** → 符合 "Don't use Liquid Glass in the content layer"。
+残留：`GlassLevel.thin` 旧注释自称"气泡、内联行、chip"与实际用法不符（气泡并不用玻璃）→ 本轮已随
+A11 一并改写注释，消除误导。
+
+### A11 `GlassLevel` 三档原生态真实性 → ✅ 注释口径本轮已纠偏
+代码事实（`GlassSurface.swift`）：三档在 macOS 26 原生态**不改变 `Glass`**（统一走 `resolvedGlass`），
+仅影响 legacy 材质映射（hudWindow/popover/sidebar）与 solid 实色。Apple 只有 regular/clear 两变体
+（§1.9）。→ 本轮把枚举注释改为「**语义层级/用途分层**，非玻璃厚度」并写明生效路径；
+是否进一步改名 `SurfaceRole` 属可选美化（不影响行为），**留你定**（并入 D-4 类美化项）。
+
+### A12 效果总量与容器数（§1.8 性能段）→ ⏳ 待静默采样
+静态计数在册：容器 4 个、`.glassSurface` 调用点 12 个、Tab 栏玻璃面 1 个（选中态）。
+同屏面数需运行时统计（可用测试缝/静态可达性分析，无需走测）→ G2 后续轮做，
+护栏口径 = "Limit the use of Liquid Glass effects onscreen at the same time" + PERFORMANCE.md。

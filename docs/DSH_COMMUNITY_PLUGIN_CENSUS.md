@@ -45,3 +45,55 @@ tool-cordis README（@47f9438）原文：「该沙箱隔离全局变量，但**�
 
 - 社区主题插件=client-半注入（Web），印证我们「主题只走数据通道 + 原生玻璃表达」的路线在 2700+ 注入件面前不可同构兼容——不是缺陷，是基线选择。
 - 官方 CLI `dsh plugin add` 的装载体验（目录源+CLI+profile）可作为我们插件市场社区源的对标物（G4c 装载体验清单）。
+
+---
+
+## 补查（09-03 G4a 第二轮）：import 面量化统计（n=256 实抓，替换早前 6 例抽样结论）
+
+> 方法（纯只读）：目录 `plugins.json`（2937 条 → **唯一 npm 包 1425**）取 stars>50 全部唯一包 **116**
+> ＋ 其余随机抽样 **140**（seed=42）＝ **256 个包**，逐个 `curl registry.npmjs.org/<pkg>` 取
+> `dist-tags.latest` 的 `dependencies`/`devDependencies`/`bin`/`keywords`，**抓取成功 256/256（0 失败）**。
+> 判据：`cordis` = 依赖名匹配 `cordis|@deepseek-ai/*|^dsh-*`；`mcp` = 依赖名含
+> `modelcontextprotocol` 或 `mcp`；`bin` = manifest 声明可执行；`ui` = keywords/description 命中
+> userscript/tampermonkey/content.script/inject/浏览器 等（关键词启发式，弱信号，仅用于下限估计）。
+
+| 维度 | n=256 实测 | 高星组(n=116) | 随机组(n=140) |
+|---|---|---|---|
+| **依赖 Cordis/`@deepseek-ai`/`dsh-*`**（需 Cordis+Node 运行时） | **129 = 50%** | **57%** | 44% |
+| 依赖 MCP SDK（我方可**原生**承载） | **4 = 1%** | 1% | 1% |
+| 带 `bin`（配置/CLI 层可装载） | 32 = 12% | — | — |
+| keywords 命中 UI 注入/浏览器面（弱信号下限） | 11 = 4% | — | — |
+| 既非 Cordis 也非 MCP（数据/工具类） | 125 = 49% | — | — |
+
+最高频运行时依赖 Top6：`@deepseek-ai/schemastery` 35 ｜ `zod` 27 ｜ `schemastery` 10 ｜
+`undici` 9 ｜ `js-yaml` 8 ｜ `qrcode`/`yaml` 7 —— **第一高频即上游私有的 `@deepseek-ai/schemastery`**
+（Cordis 侧 UI schema 库），非通用 MCP 生态件。
+
+### 结论改写（对 D-5 的直接后果，铁律 7：以实查为准）
+
+1. **早前「抽样 6/6 全 Cordis 原生」结论修正为更准的区间**：Cordis 系**约半数**（高星 57% > 随机 44%
+   ——越受欢迎的包越依赖上游运行时），并非 100%，也**不是**可以忽略的少数。
+2. **「社区插件拿过来直接用」经 MCP 路线不可达**：全目录 MCP 依赖率 **1%**。我们的原生 MCP 宿主
+   能承载的社区包 ≈ **14 个量级/1425**（1% 外推），且这 1% 还需逐个验证入口兼容性。
+   → **「拿来即用」的前提被实测否定**，这不是实现难度问题，是生态事实。
+3. 于是 D-5 三案的真实覆盖面（以本次 n=256 为证据）：
+   - **A｜Node + Cordis 运行时 sidecar**：覆盖 **≈50%（高星 57%）**，也是唯一能让"社区目录基本可用"
+     的路；代价 = 第三方运行时入基线（需「基线纯度论证 + 用户裁决」门）+ 上游自述
+     "沙箱不是安全边界，像 bash 一样对待" 的安全面 + 体积/更新面。
+   - **B｜仅原生 MCP/CLI 承载（零新运行时）**：覆盖 **≈1%（MCP）∪ 12%（带 bin，仍需逐个包装）**
+     → 实质等于「社区目录基本不可用，只兼容标准 MCP 插件」。诚实表述应为
+     **"兼容 MCP 协议插件生态，不兼容 Cordis 目录"**，不得称"DSH 社区插件拿来即用"。
+   - **C｜精选高星适配**：116 高星唯一包 → 57% 需 sidecar（回到 A 的运行时问题），
+     余 43%（≈50 包）可逐个写薄适配层；成本随包数线性增长，且上游 API 变动需持续追平。
+4. **决策口径建议（供你拍板，不代拍）**：把兼容目标从"社区目录拿来即用"改为**分层承诺**——
+   层1 标准 MCP 插件（我们原生承载，长期正确，社区当前覆盖率 1%）；
+   层2 Cordis 目录 = 明示"需 Node/Cordis sidecar（可选组件，默认关闭，独立进程+最小权限+显式授权）"，
+   仅在你批准 A 时实施；UI 注入类（Cordis 476 条最大类目）永久不做（与纯原生基线结构性冲突）。
+
+### 可复核产物
+- `/tmp/dshcat2/package/plugins.json`（目录快照，tarball 源 `/tmp/dshcat.tgz`）
+- `/tmp/census_ok.json`（256 包 deps/bin/keywords 明细）
+- `/tmp/census_out.txt`（统计原始输出，含 Top12 依赖计数）
+- 复现脚本要点：唯一化 by npm → stars>50 ∪ random.sample(seed=42, 140) → `curl -s -m 10
+  https://registry.npmjs.org/<pkg 斜杠转 %2f>` → latest manifest 分类（本机 python urllib 走 HTTPS
+  会 CERTIFICATE_VERIFY_FAILED，**必须用 curl**；已踩坑记录）

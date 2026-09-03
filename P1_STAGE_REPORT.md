@@ -374,3 +374,106 @@
 > 口径：解锁轮完成 #3/#7(脚本部分)/#8/#9 填空后，本表+终版总表+QUALITY_REPORT 同日条目三处同步，即为「文档全核销」。
 
 > 2026-09-03 R1 用户在线手动轮补记㉔（**注入式走测用户禁令 + 27 beta 三环境事实 + 副产登记**）：① **用户在线禁令（新口径，最高优先）**：用户明确否决「抢前台/键鼠注入」式走测在你在线时执行——r1walk 注入轮（C 层）自本记起**永不自动触发**，归档为「用户离键盘可选工具」；#3/#6/#7/#8 的「真机视觉帧」补证改二选一：用户顺手配合（右键一次标题 / 手动拖一次会话 / 拨一次系统开关，合约 1 分钟）或明确认可 A 层进程内证据即满足该子句（`ThemeLiveRenderTests`/`SidebarDropHighlightRenderTests`/`GlassSurfaceTests` 像素+降级链测试，**已包含于 02:26 xcresult TEST SUCCEEDED 867 项**，无需重跑）。② **27 beta 文案变更实证**：系统设置「减弱透明度」→「**降低透明度**」（System Events 全量 checkbox 枚举实锤，同位 辅助功能>显示）；脚本 grep/press 文案已同步。③ **幻影边界新实证**：主窗落副屏(x=-1663)或被移动后，CGWindowList 持续报 158-220×152-169 缩略图幻影（∈ 历史带 137-221×150-179），污染 wl 坐标读数→注入轮 #3/#7 全脱靶；4beb21d 缓解仅护 watchdog remap、不护外部读取；**quit 重开主屏新窗 CG 即恢复 1470×860 正常**——幻影随窗口记录而非全局故障。v4.7.3 补丁：WID 认 `name=Harness` 行（缩略图行 name 空自动排除）、WINX 以 AX 窗口 pos 为权威、wl 仅兜底。④ **SKIP_N 过度产生实证**：注入轮每轮 DB +2（脚本口径仅登记 +1 走测临时会话）——press「新对话」同名歧义/过度产生待查；**6 个副产登记**（全部 0 事件，待 D-6 一并处置）：`BB0112F7`/`8FF4EE09`(12:02) `618BB207`/`DF74B23A`(12:23) `6F012001`/`9191AD8D`(12:29)；DB 26 行=基线 20+副产 6，有事件会话仍恰 2（用户数据零污染）。⑤ **系统状态核验**：`reduceTransparency` 实测未设置（#8 press 命中 StaticText 未拨中开关，defaults 实锤）；系统设置已关；caffeinate 断言全释放。⑥ **bundle 更正**：首跑发现运行实例为 08-19 化石 debug bundle（早于全部修复，取证将无效）→ `rebuild-app.sh relaunch` 重建至 @7a853d6（sha 8d27fc… 同步断言过）后一切窗口/坐标问题均为环境态而非代码缺陷。
+
+> 2026-09-03 G1 双轴审计轮补记㉕（**轴1 官方指南级依据打通 + morph 根因改判 + F1/F2 已修 + 取证通道证伪**）：
+> ① **文档通道打通**：HIG 与 SwiftUI 指南页正文可经 `tutorials/data/documentation/**.json`、
+> `tutorials/data/design/human-interface-guidelines/<page>.json` 直取（页面本体 SPA 壳，curl HTML 无正文）——
+> 早前"HGI 拉不到"的阻塞解除；本轮入册逐字原文见 `docs/BENCHMARK_CHECKLIST.md` §1.8–§1.10。
+> ② **morph 根因改判（撤销上一轮的 A1 推断）**：官方判据 = add/remove 两玻璃面「**最近边 ≤ 容器
+> spacing**」才走 `matchedGeometry`，超出须 `.materialize`；`spacing` 语义为融合提前量。我们
+> 4 个容器全传 `nil`（系统默认值官方未公布），而侧栏 Tab 网格最远切换对的最近边距离 ≈88pt，
+> **大概率超出默认 spacing → 远距离切换静默退回淡变** = P1.2 实机「交叉淡变」的可解释根因，
+> 与动画曲线无关（同时撤销更早「`.smooth` 需换 spring」嫌疑：官方对 morph 未规定任何动画类型）。
+> 上一轮「容器内单玻璃面 → 需给未选中面补玻璃」推断**已被官方原文证否并撤销**：官方 morph 构造
+> 恰恰是 add/remove（"Animating views in or out causes the shapes to morph apart or together"），
+> 补 6 面反而触发官方警告的静止态融合（"blend together at rest"）＋违反 HIG "sparingly"。
+> ③ **F1 已修（G2 头号项）**：`GlassMorphTabBar` 容器 spacing 由 nil → `MorphTabGeometry.fullGridSpacing`
+> （几何纯函数：`hypot(2×间距+面宽, 间距)` 向上取整；静止态恒单面 → 静止融合代价结构性不可达）；
+> 判据 = 新增 5 条 `MorphTabGeometryTests`（覆盖最坏最近边距离 / 三类切换距离全落入适用域 /
+> 列数退化防御 / 间距单调性 / 全网格⊃相邻），A 层静默跑绿。
+> ④ **F2 已修**：选中面材质补 `.interactive()`——官方为**显式开启**（"**Add** interactive(_:) to custom
+> components…"），我方旧注释「悬停反馈=材质自带」属未证实宣称，已撤销并按官方补齐；经纯函数
+> `selectedGlass(from:isSelected:)` 单点（`nonisolated`，避免 #expect 隔离告警），判据 = 3 条
+> `SelectedGlassTests`（选中面==base.interactive() 且≠裸材质 / 未选中面原样 / 主题 tint 叠加不丢失）。
+> ⑤ **A9/A10/A11 审计结论**：A9 修饰符顺序 ✅ 无违规（12 调用点，后置仅 2 处描边 overlay 与 1 处
+> 刻意 `.frame` 列内对齐，均不参与玻璃捕获，符合官方"glassEffect 后置"要求）；A10 内容层合规 ✅
+> 无违规（全 Sources 玻璃使用 8 文件全属功能层，聊天内容区 0 处）；A11 ✅ 注释纠偏（`GlassLevel`
+> 三档在 macOS 26 原生态不改 `Glass`，仅影响 legacy 材质与 solid 色 → 改为「用途分层」口径，
+> 是否改名 `SurfaceRole` 待用户定）。A12 效果总量/容器数护栏 ⏳ 待静默采样。
+> ⑥ **取证通道证伪（重要，影响 G2/G3 全部判据）**：新写 `tools/qa/glass-fidelity-probe.swift`
+> （A 层零窗口）实测 **`ImageRenderer` 完全不渲染 `glassEffect`**——spacing 10/30/60 三组，
+> 「有玻璃 vs 无玻璃」**24000 像素逐点差异 = 0** → v8 目标 G2 原文「用 ImageRenderer 像素帧判定
+> morph 流体融合」**判据不成立**（若继续执行＝造无效证据）。同时 macOS 27 SDK 已
+> **移除 `CGWindowListCreateImage`**（编译期 "Please use ScreenCaptureKit instead"），
+> ScreenCaptureKit 需 TCC 弹窗＝打扰用户不采用。**修订判据三轨**（`BENCHMARK_CHECKLIST.md` §4）：
+> A 层结构断言（每次修复默认回归）＋ A 层真机静态帧（`screencapture -o -x -l<wid>`，不 activate）
+> ＋ 过渡态 morph 感**无静默通道** → 归用户二选一（顺手 1 分钟目检 / 认可结构+静态帧即满足）。
+> ⑦ **轴2 Codex 界面证据源当前不可静默获取**（实证）：主窗在其他 Space 时 `screencapture -l`
+> 仅回畸变缩略（`/tmp/g1b/codex_554.png` 274×318），宠物浮层窗截回 1544×4138 白底——
+> 按铁律 5，在拿到真实截图前**不写任何"Codex 有 X"条款**。取证方式待你择一（置前我只读截 /
+> 你手动丢图 / 延后）。
+> ⑧ **本轮教训入档**：官方文档读**半句**就会导出错误根因（上一轮只读 GlassEffectContainer 摘要，
+> 漏了《Applying Liquid Glass to custom views》的"最近边≤spacing"与"add/remove 即 morph"两句，
+> 直接导出相反结论）→ 定规：任何 API 结论必须读到**该 API 所属专题指南全文**（不只看 API 摘要页），
+> 摘要页与指南页冲突时以指南页为准。
+
+> 2026-09-03 G4a 补查轮补记㉖（**社区插件 import 面 n=256 实抓统计 → 「拿来即用」前提被实测否定**）：
+> ① **方法与规模**：目录 2937 条 → 唯一 npm 包 1425；取 stars>50 全量唯一包 **116** ∪ 其余随机抽样
+> **140**（seed=42）= **256 包**，逐个 `curl registry.npmjs.org/<pkg>` 读 `latest` manifest，
+> **256/256 成功、0 失败**（本机 python urllib 走 HTTPS 报 CERTIFICATE_VERIFY_FAILED，必须用 curl）。
+> ② **实测占比**：Cordis 系（依赖 `cordis|@deepseek-ai/*|^dsh-*`）**50%**（高星组 57% > 随机组 44%
+> ——越受欢迎越绑上游运行时）；**MCP 依赖率仅 1%（4/256）**；带 `bin` 12%；keywords 命中 UI 注入面 4%
+> （弱信号下限）；既非 Cordis 也非 MCP 者 49%。最高频运行时依赖 = **`@deepseek-ai/schemastery` 35 次**
+> （上游私有 UI schema 库），其次 zod 27 / schemastery 10 —— 生态绑定度第一的不是任何通用协议件。
+> ③ **对 D-5 的决定性后果**：早前「抽样 6/6 全 Cordis」修正为「约半数（高星多数）」；
+> 而**「DSH 社区插件拿过来直接用」经 MCP 路线不可达**——原生 MCP 宿主可承载的社区包 ≈ 14/1425 量级。
+> 诚实承诺口径必须分层：**层1 标准 MCP 插件（原生，长期正确，社区当前覆盖 1%）** /
+> **层2 Cordis 目录 = 需 Node+Cordis sidecar 可选组件（覆盖约半数、高星 57%，默认关闭、独立进程、
+> 最小权限、显式授权，且需你过「基线纯度论证」门）** / UI 注入类目永久不做。
+> **不得再以「DSH 社区插件拿来即用」作为可交付承诺**（此为实测结论，非实现难度问题）。
+> ④ 证据产物：`/tmp/census_ok.json`（256 包明细）`/tmp/census_out.txt`（统计输出）
+> `/tmp/dshcat2/package/plugins.json`（目录快照）；入册 `docs/DSH_COMMUNITY_PLUGIN_CENSUS.md` 补查节。
+
+> 2026-09-03 D-6 处置预案轮补记㉗（**只读复核 26 行实况 + 删除预案待你明示**）：
+> ① **DB 实况（`mode=ro` 只读复核，零写入）**：sessions **26** 行 = 零事件 **24** + 有事件 **2**；
+> events 表总计 **6** 行，全部属这 2 个会话——`D043EF0D…`（08-24 10:54，5 事件）
+> `E7D52757…`（08-30 19:11，1 事件）＝**保留集，用户真实数据零污染**。
+> ② **24 个零事件会话分解**：18 个历史（08-20 16:32 → 09-02 22:42）＋ 6 个本轮走测副产
+> （09-03 12:02×2 / 12:23×2 / 12:29×2，与补记㉔登记逐一对应，ID 前缀
+> `BB0112F7/8FF4EE09/618BB207/DF74B23A/6F012001/9191AD8D`）。
+> ③ **口径修正（事实精度）**：v7 时代 R2 原文「**3 个 08-30 19:11 空会话**」不精确——该时刻实为
+> **3 行**，其中 2 行零事件（`1FFDE591` 19:11:25 / `278A44E8` 19:11:33）+ **1 行有 1 事件**
+> （`E7D52757` 19:11:23，属保留集）。删除预案以本记 ② 为准，勿按「3 个」执行。
+> ④ **执行预案（等你明示后再跑；当前未执行任何写操作）**：备份 → 事务内删除 → 三重校验
+> ```bash
+> # 步骤 1 备份（只读复制，安全）
+> cp "$HOME/Library/Application Support/Harness/sessions.sqlite" \
+>    "$HOME/Library/Application Support/Harness/sessions.backup-$(date +%Y%m%d-%H%M%S).sqlite"
+> # ⚠️ 步骤 2 为不可逆写操作——需你明示「批准删除 24 个零事件会话」后才执行；App 需先退出避免写锁
+> sqlite3 "$HOME/Library/Application Support/Harness/sessions.sqlite" \
+>   "BEGIN; DELETE FROM events WHERE session_id IN (SELECT s.id FROM sessions s WHERE NOT EXISTS (SELECT 1 FROM events e WHERE e.session_id=s.id)); DELETE FROM sessions WHERE id IN (SELECT s.id FROM sessions s WHERE NOT EXISTS (SELECT 1 FROM events e WHERE e.session_id=s.id)); COMMIT;"
+> # 步骤 3 校验（期望：sessions=2 / events=6 / 两个保留 ID 仍在）
+> ```
+> 注：步骤 2 的 WHERE 只命中零事件会话（子查询双保险：events 内不存在任何事件的会话），
+> 保留集恒不受影响；即便如此仍先备份、执行后立即跑步骤 3 三项断言。Keychain 旧 Apple 凭证清理
+> 仍为**可选项**（你手动，路径 钥匙串访问 → 搜索 "Harness"）。
+
+> 2026-09-03 G2 首轮执行轮补记㉘（**⚠️清除一个违反静默铁律的自动触发源 + exec 会话回收再次实证**）：
+> ① **发现（用户静默铁律的潜在违反源）**：`~/Library/LaunchAgents/com.harness.r1loop.plist`
+> 处于 `RunAtLoad=true` 且 `ProgramArguments` = `/Users/liguangming/harness-wt/r1loop2.sh`，
+> 该脚本第 20 行实锤 `SKIP_N=1 SKIP_45=1 /bin/zsh .../r1walk4.sh 120`——即**注入式走测（C 层）**，
+> 且脚本自述触发条件为「**解锁 + TCC 权限自检通过 才跑**」＝恰好在你在键盘前时开跑。
+> 这正是 09-03 你明令禁止、且已被你删除的 heartbeat 同类能力的 **launchd 残留载体**。
+> ② **处置（不做删除、留证归档）**：`launchctl bootout gui/501/com.harness.r1loop`（本次返回
+> "No such process"＝当前未加载，但 plist 在位则**下次登录/开机即自动开跑**）→
+> plist 已 `mv` 至 `/Users/liguangming/harness-wt/quarantine-manual-only/com.harness.r1loop.plist.DISABLED`
+> （保留可复核、脱离 LaunchAgents 自动加载路径）。
+> LaunchAgents 现仅存 `com.harness.ci11.pr` + `com.harness.ci11.watch`（门禁相关，无注入能力），
+> 距目标清理项「launchd 终态仅剩 App + ci11.pr」只差 watch（列入 G3 清理，本轮不动以免失去门禁监控）。
+> ③ **口径固化**：任何 C 层（ev activate/key/rclick/drag、System Events key code、模拟鼠标、
+> 抢前台）动作**不得挂载任何自启动载体**（launchd/heartbeat/cron/automation）——本轮起新增检查项：
+> 每轮开工 `ls ~/Library/LaunchAgents/ | grep -i harness` 复核，出现非 ci 前缀即视为红线告警。
+> ④ **教训再实证（已入档过，本轮复现）**：以 `nohup … &` 从 exec 会话挂起的门禁，会话回收时
+> **随整个进程组被 SIGKILL**（本轮 14:43 那次门禁就在 PR-4 起跑后消失，日志停在表头、无 rc 行）。
+> 唯一可靠载体仍是 LaunchAgent：`launchctl bootstrap gui/501 <plist>`（未加载时）＋
+> `launchctl kickstart -k gui/501/com.harness.ci11.pr`（已加载时）；本轮 14:55 起门禁在 launchd 下正常推进。
