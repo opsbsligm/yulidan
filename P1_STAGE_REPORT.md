@@ -678,3 +678,7 @@
 > 非矛盾（AX press 不经 hit-test；你实机折叠往返未报异常）。定级收敛：几何成立、
 > 功能无实机反证、终裁归 G3 A-b 目检一眼；F6 维持 D-12 待批不擅动。
 > 同步 BENCHMARK A17 节 + DECISION_INDEX D-12 锚注。docs-only 豁免。
+
+> 2026-09-03 手册口径补丁补记㊸（微型）：G3_MVP_WALKTHROUGH 取证模板补 **A12 运行时面数
+> 统计口径**（sessionRow `.thin` 线性项单列、不混判静态 12 调用点、数量级偏差才记缺陷）——
+> BENCHMARK §15-A12 附产口径此前未同步至走查手册，防 G3 轮错判。docs-only 豁免。
