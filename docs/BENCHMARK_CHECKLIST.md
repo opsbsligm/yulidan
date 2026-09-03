@@ -280,9 +280,9 @@ A11 一并改写注释，消除误导。
 | **A13 装饰性全局 tint** | ⚠️ **冲突（需裁决）** | 官方：tint 用于**功能性强调**、"use them selectively"、色彩应放内容层。我方 P1.4 把主题 `glassTintHex` 铺到**所有**玻璃面（纯装饰性全局染色）→ 与官方口径冲突，且影响"主题插件"卖点定义（主题该染什么） |
 | **A14 减弱透明度语义** | ⚠️ 不同轨（需裁决） | 系统 = frostier glass（仍折射）；我方 = solid 纯色（可读性更强、已实机验收）。二选一：保 solid / 或新增「frosted」中间态 |
 | **A15 玻璃折射源缺失** | ❌ **根因级（比 morph 更根本）** | 代码事实链：`HarnessApp.swift:136` `window.backgroundColor = NSColor.windowBackgroundColor`（**不透明窗底**）＋ `ContentView.swift:11` `HStack(spacing:0)`（侧栏与内容**并排**，非浮于其上）＋ `HarnessTheme.swift:8` surface=不透明窗口色 → 侧栏玻璃**身后既无内容也无桌面**，按 §1.12「sidebar floats above your content / refracting against the sidebar」的材质前提，**必然呈现扁平灰片**。讽刺点：legacy 降级分支用 `VisualEffectMaterial(blendingMode: .behindWindow)` 真采桌面，**采样能力反而强于原生态路径**（`GlassSurface.swift:224/229`） |
-| **A16 滚动边缘效果** | ⏳ 待审 | 侧栏会话列表/消息滚动进入玻璃下方时是否有 dissolve 效果；`scrollEdgeEffectStyle` 本 SDK 可用（§1.13），我们未使用 |
-| **A17 静止态内容交叠** | ⏳ 待审 | 官方要求启动静止态避免内容与玻璃交叠（§1.11）；需审 composer/顶栏与消息流初始位置 |
-| **A18 sheet 自铺背景反模式** | ⏳ 待审 | 官方建议移除 `presentationBackground` 类自铺背景；需审设置 sheet/概览 sheet 是否自填底色（`SettingsView.swift:158-160` 附近有 prominent 面） |
+| **A16 滚动边缘效果** | ✅ 已审·结构性 N/A（§15） | 侧栏会话列表/消息滚动进入玻璃下方时是否有 dissolve 效果；`scrollEdgeEffectStyle` 本 SDK 可用（§1.13），我们未使用 |
+| **A17 静止态内容交叠** | ⚠️ 折叠 rail 命中（§15） | 官方要求启动静止态避免内容与玻璃交叠（§1.11）；需审 composer/顶栏与消息流初始位置 |
+| **A18 sheet 自铺背景反模式** | ⚠️ 1/5 命中（§15） | 官方建议移除 `presentationBackground` 类自铺背景；需审设置 sheet/概览 sheet 是否自填底色（`SettingsView.swift:158-160` 附近有 prominent 面） |
 | **A19 圆角同心** | ❌ 不支持 | 本 SDK 无 `containerConcentric`（§1.13）→ 只能手设各层圆角，存在视觉不同心风险；❌不得宣称已支持最佳实践 |
 
 ## §13 新增提案（F3/F4，等你拍板后实施）
@@ -300,8 +300,78 @@ A11 一并改写注释，消除误导。
   铺到侧栏后方 → 折射源来自 App 自身内容（Apple 侧栏案例正是此法）。改动面大于 (a)。
   **我的建议**：先做 (a)（小、可回退、直接决定玻璃是否"活"），(b) 视 (a) 的目检结果再定。
 
+
+- **F5｜设置完整页 sheet 撤自铺底（A18 修法，单行）**：删除 `SettingsCompletePage.swift:63`
+  `.background(HarnessTheme.surface)` → 让系统 sheet 材质透出（WWDC323 原文口径）。
+  改动极小可回退；⚠️ 可见状态变化，验收走「用户目检」或「A 层编译+测试满足即核销」二选一。
+  建议与 D-10 材质议题同批裁决（透明底窗口下，sheet 自铺不透明底同样挡折射）。
+- **F6｜折叠 rail 顶部避让红绿灯 + overlay 展开按钮错位（A17 修法，两个小改动）**：
+  (a) `collapsedBody` 顶部加 ≈38pt 避让带（rail 宽 52 < 红绿灯带宽 62，x 避让不可行，只能 y 下沉，
+      与 Codex 等应用 rail 顶部留空一致）；
+  (b) `ContentView.swift:64-79` 折叠 overlay 展开按钮从 `.padding(10)` 改为顶部避让带之下起算。
+  官方配套事实：`fullSizeContentView` 头文件原文「contentView will consume the full size of the
+  window… Utilize the contentLayoutRect or auto-layout contentLayoutGuide to layout views
+  underneath the titlebar/toolbar area」（NSWindow.h L48，macOS 10.10+ 双 API 本机 SDK 在头中实证）。
+  ⚠️ 属可见状态变化，且与 R1② 已核销证据存在一个待对齐点（见 §15 A17-2），以真机目检为准。
+
 ## §14 【待确认】新增两项
 
 - **D-10**：F4 折射源修法 → (a) 窗口透明底 / (b) backgroundExtensionEffect / (c) 暂不动（接受扁平）。
   不选 (c) 的话，玻璃质感提升的上限基本由此决定 —— 这是本轮最重要的单项。
 - **D-11**：A13 主题 tint 定位 → 全局装饰染色（现状，卖点直观）/ 仅功能件染色（官方口径）/ 二者兼容（主题可声明 tint 作用域，默认仅功能件）。
+
+- **D-12**：F5（设置完整页撤自铺底）+ F6（折叠 rail 避让带 + overlay 错位）执行批次。
+  两者均为可见状态变化、无静默视觉通道 → 修前/修后各需你顺手 1 分钟目检，或认可静态几何证据直接修+编译测试核销。
+
+## §15 A16/A17/A18 审计结论（09-03 第四轮·全程静默 A 层）
+
+**事实基座（本轮新增，先立地基再下结论）**
+- 官方（本机 SDK ObjC 头逐字，NSWindow.h L48/L314-318）：
+  `NSWindowStyleMaskFullSizeContentView`「contentView will consume the full size of the window;
+  … only respected for windows with a titlebar. Utilize the \c contentLayoutRect or auto-layout
+  \c contentLayoutGuide to layout views underneath the titlebar/toolbar area.」；
+  `contentLayoutRect`「returns the portion of the layout that is not obscured under the toolbar…
+  in window coordinates. KVO compliant」（macOS 10.10+）→ **官方口径：内容延伸进标题栏区是设计使然，
+  避让靠显式工具，系统不会自动 inset**。
+- 本 App 实证（仓内既有事实，非本轮推测）：`SidebarView.swift:155-157` P1.5 注释记录红绿灯实测带
+  **x∈[10,62] / y∈[8,28]**（内容坐标），且当时仅 x 避让（leading 56）即通过实机验收
+  → **内容原点 == 窗口原点（无顶 inset）**，与上条官方口径一致。
+- 窗口事实：`HarnessApp.swift:128-133` fullSizeContentView + titlebarAppearsTransparent +
+  titleVisibility hidden。
+
+### A16 滚动边缘效果 → ✅ 已审：**当前结构性 N/A**
+逐区核查（代码事实）：① 聊天区 `ChatAreaView.swift:11-49` 纯 `VStack(spacing:0)`——顶栏/消息流/
+composer 三段并排，**消息永不从任何玻璃面下滑经过**；顶栏 `ChatAreaView.swift:14`
+`.background(.ultraThinMaterial)`（legacy 材质，非 glassEffect，本就不具备 scrollEdge 行为）；
+② 侧栏为**单一整面玻璃**（`SidebarView.swift:95/97`），会话列表滚动**在玻璃面之上**（内容是玻璃的
+子内容，非玻璃之下）；③ tab 栏玻璃在侧栏底部，其下无滚动内容。
+→ `scrollEdgeEffectStyle`（SDK 存在性 §1.13 在册）**当前无适用对象**；若 D-10 走 F4(b)
+（内容延伸到玻璃之下），侧栏/列表即成为适用区。顺带登记材质口径观察：聊天顶栏 ultraThinMaterial
+与玻璃体系不同轨，统一决策挂 F4/D-10 批次。
+
+### A17 静止态内容交叠 → ⚠️ 折叠 rail 左上角静态命中（三方交叠）
+- ✅ 聊天区（VStack 并排，顶栏/输入区与消息流静止零交叠）；✅ Toast（瞬态件，非静止态条款对象，
+  且 bottom 70 已避 composer）。
+- ⚠️ **折叠态 rail 左上角交叠簇**（静态几何，Y 基准=上节实证）：
+  ① rail 首个图标「新对话」28×28：x∈[12,40]、y∈[0,28]（`SidebarView.swift:371-381` VStack 无顶 padding）；
+  ② ContentView 折叠 overlay 展开按钮 26×26 `.padding(10)`：x∈[10,36]、y∈[10,36]
+  （`ContentView.swift:64-79`，SwiftUI overlay 绘制于侧栏之上）；
+  ③ 红绿灯带 x∈[10,62]、y∈[8,28]（实测在册）。
+  三者两两相交（①∩② ≈24×18pt；①②均落在③带内）。**潜在功能后果分级**：②盖①（overlay 抢点击，
+  「新对话」图标点不中，⌘N/品牌菜单不受影响）；若红绿灯层序高于内容则近旁点击误触窗口按钮——
+  此半点为机制推断，**与 R1② 实机核销存在张力**（AX press 走无障碍层不受遮挡影响可解释其通过；
+  且你历轮目检未报告该处异常）。⚠️ 定级悬而未决：目检一眼即裁决（折叠一次看左上角）。修法 F6。
+- 附注：rail 宽 52 < 红绿灯带宽 62 → 折叠态 **x 避让不可行**，只能 y 下沉（与 Codex/VSCode 类
+  rail 顶部留空同型）。展开态品牌行已按 x=70 避让（在册，不受影响）。
+
+### A18 sheet 自铺背景 → ⚠️ 5 处 sheet 命中 1
+- ❌ `SettingsCompletePage.swift:63` `.background(HarnessTheme.surface)`：sheet 根视图自铺**不透明底**
+  ——正是 WWDC323 点名的反模式（「consider removing that and let the new material shine」）。
+- ✅ 合规 4：重命名 sheet（`SidebarProjectSections.swift:201` glassSurface(.regular) 无自铺底）、
+  删除确认 sheet（同 231）、归档管理 sheet（`SidebarSupportViews.swift:78` glassSurface(.regular)）、
+  MCP 日志 sheet（`MCPServerViews.swift:116` 玻璃面 + 内部 0.5 透明度**内容层**底色，属内容层着色可接受）。
+- 修法 F5（单行撤底）。建议与 D-10 材质议题同批（透明底窗口方案下，sheet 不透明底同样阻断折射源）。
+
+### A12 附产（顺带登记）
+`SidebarProjectSections.swift:339` 会话行 `.glassSurface(.thin)` → **运行时玻璃面数随会话列表行数线性增长**，
+G2 的运行时面数护栏必须把此调用点列入统计口径（静态计数 12 处掩盖了这一点）。

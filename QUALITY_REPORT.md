@@ -506,3 +506,11 @@ cf0e230  docs(quality): 刷新质量报告 — 前端阶段1/2 基线
 > 早前"HGI/WWDC 原文拉不到"的阻塞解除；
 > ⑤ **方法论教训**：只读 API 摘要页会导出**相反**的根因结论（本仓库一天内两次自我纠偏：
 > A1 补面推断被指南页证否）→ 固化"任何 API 结论必须读该 API 所属专题指南全文，冲突以指南页为准"。
+
+> 2026-09-03 静默审计轮入册（BENCHMARK_CHECKLIST §15/§16·D-12 新开）：
+> ① 核验方法论纠偏：API 存在性 = swiftinterface ∪ AppKit `Headers/*.h`（ObjC 声明不进
+> swiftinterface，单查会假阴性——contentLayoutRect/Guide 实例）；
+> ② 新质量事实：折叠 rail 左上角三方交叠（静态几何确证，与 AX 核销证据的张力已登记，目检定级）；
+> ③ 新质量事实：sheet 自铺不透明底 1/5 命中（SettingsCompletePage）；
+> ④ 新质量事实：sessionRow 玻璃面运行时计数随行数线性增长，纳入 G2 护栏口径；
+> ⑤ `bin/ax dump` 窗口子树不可用（77 行截断于菜单栏）登记为工具缺陷，实时 AX 取证前先修。

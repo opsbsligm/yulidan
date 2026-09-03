@@ -477,3 +477,23 @@
 > **随整个进程组被 SIGKILL**（本轮 14:43 那次门禁就在 PR-4 起跑后消失，日志停在表头、无 rc 行）。
 > 唯一可靠载体仍是 LaunchAgent：`launchctl bootstrap gui/501 <plist>`（未加载时）＋
 > `launchctl kickstart -k gui/501/com.harness.ci11.pr`（已加载时）；本轮 14:55 起门禁在 launchd 下正常推进。
+
+> 2026-09-03 G1 静默审计轮补记㉙（**A16/A17/A18 全核销：1 结构性 N/A + 2 静态命中入册 F5/F6**）：
+> ① **A16=结构性 N/A**：全 App 不存在「内容从玻璃之下滑过」区（聊天三段纯 VStack 并排；侧栏为单一
+> 整面玻璃、列表滚动在面**之上**；tab 栏之下无滚动内容）→ `scrollEdgeEffectStyle` 暂无适用对象，
+> 与 F4(b) 联动；顺带登记聊天顶栏 `.ultraThinMaterial` 与玻璃体系材质不同轨（挂 D-10 批次）。
+> ② **A17 折叠 rail 左上角三方交叠（静态确证）**：rail「新对话」x[12,40]·y[0,28] ∩ ContentView
+> 折叠 overlay 展开按钮 x[10,36]·y[10,36] ∩ 红绿灯实测带 x[10,62]·y[8,28]（P1.5 在册坐标）；
+> Y 基准由「fullSizeContentView 官方头原文 + 品牌行当年仅 x 避让即过实机验收」双重钉死
+> （内容原点==窗口原点，系统不自动 inset，避让须用 contentLayoutRect/Guide 显式做）。
+> ⚠️ 与 R1② 实机核销存在张力（AX press 不受遮挡污染可解释假绿）→ 定级以你目检一次为准，修法 F6
+> （rail 顶避让带 ≈38pt + overlay 下移；rail 宽 52<灯带宽 62，x 避让不可行）。
+> ③ **A18 命中 1/5**：`SettingsCompletePage.swift:63` sheet 根自铺不透明底（WWDC323 反模式点名），
+> 余 4 处合规 → 修法 F5 单行撤底；建议与 D-10 同批（新登 **D-12** = F5+F6 目检批次）。
+> ④ **API 存在性核验方法论纠偏**：ObjC 时代声明的 API（如 contentLayoutRect/Guide）**不在
+> swiftinterface 中，必须并查 `Headers/*.h`**（本轮 grep swiftinterface 得假阴性 0 命中，头文件
+> 实证 10.10+ 存在）→ 存在性 = swiftinterface（Swift 原生 API，§1.13 结论不受影响）∪ Headers（ObjC 声明）。
+> ⑤ **取证通道现状**：`bin/ax dump` 实测仅出菜单栏 77 行（窗口子树未输出，工具限制入册，后续实时
+> AX 取证需先修）；当前 CGWindowList 无 Harness 窗（隐藏/他 Space）→ 本轮零窗口截图、零打扰。
+> ⑥ **A12 附产**：`SidebarProjectSections.swift:339` 会话行 `.glassSurface(.thin)` 面数随行数线性增长，
+> 运行时面数护栏口径必须含此点（静态计数 12 掩盖此项）。本轮 docs-only（门禁豁免沿用），无代码改动。
