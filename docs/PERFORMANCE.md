@@ -80,6 +80,10 @@ Release 侧性能结论以 leaks+编译产物一致性背书，不为 Release �
 **启动方式（静默合规实证）**：`open -g -j`（open(1) 标准旗标：不置前台+隐藏启动）——
 采样时前台进程仍为原前台（System Events 只读核对）、DB 零新增（26/24 不变，启动不建会话）、
 bundle 隐藏态 axdump windows=1（离屏窗，非旧表「windows=0」口径——差异如实标注）。
+**口径精确化（09-03 实例反查再补正）**：SwiftPM **debug** 构建实际产出 `HarnessApp.app` bundle
+（`.build/arm64-apple-macosx/debug/HarnessApp.app`，实证：该 bundle 存在一个 12:28 启动的用户侧实例
+pid 58301 正常运行——非 Agent 启动、未动）；**release 目录无 bundle 实测维持**。即「裸可执行
+SIGTRAP」限定于**无 bundle 的裸 exec**，SwiftPM debug bundle 可正常启动——与既有全部判定自洽。
 采样器 `tools/perf/rss-sample.sh`（ps 只读）入仓。
 
 | 点 | 时刻 | RSS | pcpu | 进程龄 | 状态 |

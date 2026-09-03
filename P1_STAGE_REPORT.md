@@ -652,3 +652,15 @@
 > 252 files lint/format 0）＋ leaks（`0 leaks`，pid 65632 vs 上轮 35153 指纹）＋ xcode
 > （`** TEST SUCCEEDED **`）＋ main（rc=0；9,755/未覆盖 241=**97.53%**，vs 上轮 238 +3 行＝
 > 已入档漂移带 238–244 内，无回归）。临时载体退役（红线复验仅剩 ci 系两项）。
+
+> 2026-09-03 清理预检轮补记㊵（**G3 清理项预检 + 入口文档基线纠误 + 载体自收口**）：
+> ① **README 入口纠误**：「macOS 15+」为早期残留，与 `Package.swift .macOS(.v26)` +
+> deployment 26.0 实证冲突 → 改「macOS 26（Tahoe）基线」+ 增加现状/权威源导航段
+> （MVP 交付面入口正确性）；全库扫描此类残留仅此一处；
+> ② **G3 清理项预检**：注入式工具「仅用户手动」标注在位（r1walk README）✓；ci11.watch
+> 终态退役按 v8 归 G3 轮执行；
+> ③ **载体自收口**：Agent 启动的隐藏采样实例 pid 83857 已 kill（趋势线数据已足，
+> 谁启动谁收尾）；反查发现**用户侧实例** pid 58301（12:28 启动，SwiftPM debug bundle，
+> 非 Agent 启动）**未动**——如实登记；
+> ④ **口径再精确化**：SwiftPM debug 有 `HarnessApp.app` bundle（实证可正常长跑），
+> release 无 bundle 维持——「裸 exec SIGTRAP」限定无 bundle 裸 exec，与既有判定自洽。docs-only 豁免。

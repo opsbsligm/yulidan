@@ -1,7 +1,12 @@
 # Swift Harness — macOS 原生 AI Agent 框架
 
 > 使用 Swift 6 原生（SwiftUI + AppKit）复刻的 DeepSeek Harness AI Agent 框架。
-> 无 WebView / Electron / JS，全部本地代码，macOS 15+，Apple Silicon 优先。
+> 无 WebView / Electron / JS，全部本地代码，macOS 26（Tahoe）基线（`Package.swift .macOS(.v26)` +
+> deployment target 26.0，彻底不兼容旧系统），Apple Silicon 优先。
+>
+> **现状与权威信息源**：功能冻结前打磨期。四门禁台账见 `QUALITY_REPORT.md` 头部主表；
+> 阶段史与核销链见 `P1_STAGE_REPORT.md`；待拍板事项见 `docs/DECISION_INDEX.md`；
+> 社区插件兼容矩阵见 `docs/DSH_COMMUNITY_PLUGIN_CENSUS.md`；性能护栏见 `docs/PERFORMANCE.md`。
 
 ## 🏗️ 架构
 
