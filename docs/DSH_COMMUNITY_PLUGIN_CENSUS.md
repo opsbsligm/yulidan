@@ -196,3 +196,16 @@ HARNESS_G4_LIVE=1 swift test --filter MCPCommunityLiveTests
 # App 全链路实测（用户同款 importMCPServer→connectStdio→展示层→卸载，opt-in）
 HARNESS_G4_LIVE=1 swift test --filter MCPCommunityAppFlowTests
 ```
+
+### 层2 兼容矩阵·正式流程四样本（09-04 G4c-C4，全 A 层 CLI 实测）
+
+流程=`dsh cordis add <pkg> --i-understood → probe`（隔离 env，npm registry 正式安装+peer 闭包）：
+
+| 样本 | 结果 | 工具面/根因 |
+|---|---|---|
+| `dsh-web-search-zai@0.2.0` | ✅ | 1 工具 `search_provider_1`（web façade 采集面收割） |
+| `@zseven-w/dsh-crew@0.1.0-rc.7` | ✅ | 2 工具 `describe_image`/`generate_image`（ctx.tools 直采面；scoped+rc-pin+ERESOLVE 史包全通） |
+| `@vectorize-io/hindsight-coding-agents@0.5.1` | ❌ | 需 DSH 宿主**未发布服务** `worktree`（npm 无 dsh-worktree，且插件未在 inject 声明）——第三方宿主结构性不可用，CENSUS 形态③「进程内私有 API」预判再证 |
+| `dsh-skill-mcp-manager@1.1.2` | ❌ | 对**已声明服务调用真实方法**（C2 stub 显式报错拦截）——façade 语义边界，属宿主服务真实实现缺口，非桥缺陷 |
+
+失败分类学：①宿主未发布服务（结构性）；②façade 未实现真实语义（可评估扩展，但每服务真实实现=无限工程，收益按 CENSUS 四形态总表已论证≈0）。成功样本的 call 面=bridge selftest 在册（`impl:execute echo:hi`）；真实包 call 一律不实测（外部副作用红线）。矩阵基线：cordis 4.0.2 + loader 1.0.3 + node v26.6.0 @09-04。

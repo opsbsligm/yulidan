@@ -143,3 +143,7 @@ DoD（G4c 子集）：C0–C4 全过 + 四门禁（bridge 不在 Swift 门禁面
   `CordisBridgeLiveTests` opt-in（正例断言 + 守卫 skip 判别力双验）。
 - probe 失败路径带 bridge stderr 透出（recentStderr，CLI 可运维性）。
 - 门禁：C3 代码批触发 pr 全量（载体 com.harness.ci11.pr，日志 /tmp/ci_r9_pr.log rc 入册）。
+
+## 11 C4 实录（09-04，矩阵入 CENSUS「层2 兼容矩阵」节）
+
+四样本正式流程实跑：**2 ✅（zai 1 工具 / crew 2 工具，含 scoped+rc-pin）+ 2 ❌（根因归类：宿主未发布服务 worktree / façade 语义边界）**。call 面口径=selftest 在册+真实包不实测（红线）。成功=「拿来即用」CLI 层成立且失败样本给生态普查贡献分类学；「≥3 成功样例」冲刺=下一轮（候选：第五真实包 或 add 本地包支持+demo 发包，两案已在册）。运行时新证：正式版 `hindsight` main=dist/index.js（早前手猜 lib/index.js 错误被正式流程读 main 自动纠正——main 字段读取设计的价值实证）。
