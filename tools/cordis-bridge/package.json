@@ -1,0 +1,12 @@
+{
+  "name": "swift-harness-cordis-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "G4c sidecar: exposes authorized Cordis community plugins as an MCP stdio server (D-5=做). NOT shipped in app binary; Node host runtime discovered locally (S-1).",
+  "main": "bridge.js",
+  "dependencies": {
+    "@deepseek-ai/cordis": "4.0.2",
+    "@deepseek-ai/cordis-plugin-loader": "1.0.3"
+  }
+}
