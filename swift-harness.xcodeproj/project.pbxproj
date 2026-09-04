@@ -60,6 +60,7 @@
 		300A95CE6756C6DCF1DBA81D /* ThemePluginManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DE37C8F5A660E5369846554 /* ThemePluginManager.swift */; };
 		306033FE711EFEEAAA32A6D7 /* WebUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20023F4A499B563CFBC38E6B /* WebUITests.swift */; };
 		30EE3EF2C8DDA6D1523914D7 /* TemplateRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4C0BE51FA420CA382D29F5D /* TemplateRenderer.swift */; };
+		31128B85B8BA90832C157511 /* CordisCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF2F3FE06A6C14240421440E /* CordisCommands.swift */; };
 		3115C406C354B583DFCADBA5 /* SidebarModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C02C4B08CF794B138A687685 /* SidebarModel.swift */; };
 		319BE0706EEB1E2493BA806F /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = DB48E8D4D0639EB3A173DCE5 /* GRDB */; };
 		322A588132082EE630CE0F5C /* libServiceContainer.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 61C6CA6563030BB3744F87F3 /* libServiceContainer.a */; };
@@ -307,6 +308,7 @@
 		E3BBADB903CD4E2602171683 /* libSandbox.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 0F2B59DE785559CB6C4F91C2 /* libSandbox.a */; };
 		E47175DAB7BDE353DCCB1EAF /* libLLM.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 0614A9CD104A5A1E12602FF0 /* libLLM.a */; };
 		E6DA370B2C140C5D4EBB666C /* MemProbeMain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 076CFC562885AB9041384FAD /* MemProbeMain.swift */; };
+		E744D696BBBFBAF56EE4DBD3 /* CordisBridgeLiveTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2784389E93A0D8027EB402FD /* CordisBridgeLiveTests.swift */; };
 		E83C8A390E8827D8CD86F2E9 /* WebUIPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 875F25C4543A2962EF23B4C0 /* WebUIPage.swift */; };
 		E902B8422C8B534A26B75B5F /* ToolListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D950AEEB1A4E2CA03E20C9B /* ToolListView.swift */; };
 		E94DAEBF95EB22187F01B9A4 /* SharedRAGEngineRoutingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD0AA8461F4F78E7F5460AE4 /* SharedRAGEngineRoutingTests.swift */; };
@@ -1473,6 +1475,7 @@
 		24FFE977F66296DC20013F6A /* LLMToolCallWireTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMToolCallWireTests.swift; sourceTree = "<group>"; };
 		260DC67F3C26C1C4C6F09EB2 /* PromptR17GapTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptR17GapTests.swift; sourceTree = "<group>"; };
 		272D637A0749F8C297C93705 /* AgentWireFormatTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentWireFormatTests.swift; sourceTree = "<group>"; };
+		2784389E93A0D8027EB402FD /* CordisBridgeLiveTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CordisBridgeLiveTests.swift; sourceTree = "<group>"; };
 		2917D2915A40CF266614EDCC /* AgentTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AgentTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		296224C023D70C88B5E6A1D5 /* AgentLoopCoverageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentLoopCoverageTests.swift; sourceTree = "<group>"; };
 		2C4C2C57972EDD61126C1B14 /* RAGTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RAGTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -1681,6 +1684,7 @@
 		FBE138B25D8BC41635F2EB50 /* ToolsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolsTests.swift; sourceTree = "<group>"; };
 		FE2A74307587A16F9C200BA6 /* Plan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Plan.swift; sourceTree = "<group>"; };
 		FF2B8B864E1D7D67A3435259 /* LocalAdapterEngineRoutingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalAdapterEngineRoutingTests.swift; sourceTree = "<group>"; };
+		FF2F3FE06A6C14240421440E /* CordisCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CordisCommands.swift; sourceTree = "<group>"; };
 		FFA8A0F8A5A8034FC5FB7955 /* LongTermMemoryStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LongTermMemoryStoreTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -2384,6 +2388,7 @@
 			isa = PBXGroup;
 			children = (
 				9F2A3FDA461D16983AFFA64C /* CLIWiring.swift */,
+				FF2F3FE06A6C14240421440E /* CordisCommands.swift */,
 				8156D78095D32FBB3B0F0D80 /* DSHMain.swift */,
 				D2E1A684FB6E8B8ADA4C5419 /* MCPCommands.swift */,
 				348DB86FF43D7ED899E524A2 /* ProviderFactory.swift */,
@@ -2580,6 +2585,7 @@
 		DF1DC764404A2CD12E84BEF1 /* Tests */ = {
 			isa = PBXGroup;
 			children = (
+				2784389E93A0D8027EB402FD /* CordisBridgeLiveTests.swift */,
 				D6830F389E28D96A126D8FDC /* MCPCommunityLiveTests.swift */,
 				5993134C6556F8DFB359BB52 /* MCPGapCoverageTests.swift */,
 				8FC4EFA19E0779A4626E286D /* MCPProtocolExtensionTests.swift */,
@@ -4367,6 +4373,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E744D696BBBFBAF56EE4DBD3 /* CordisBridgeLiveTests.swift in Sources */,
 				E3135E9D639DAE80B0C60A11 /* MCPCommunityLiveTests.swift in Sources */,
 				01A017D8E9C03DB3D0096CCD /* MCPGapCoverageTests.swift in Sources */,
 				153AF64649FA50B6ED299C59 /* MCPProtocolExtensionTests.swift in Sources */,
@@ -4534,6 +4541,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				3C7CF9B925F3B5BFFEDE5458 /* CLIWiring.swift in Sources */,
+				31128B85B8BA90832C157511 /* CordisCommands.swift in Sources */,
 				AB4219C634353FC07780E95A /* DSHMain.swift in Sources */,
 				C5625A2FB43CEB502A9E6F04 /* MCPCommands.swift in Sources */,
 				F86FC80F711773AE282B638F /* ProviderFactory.swift in Sources */,
