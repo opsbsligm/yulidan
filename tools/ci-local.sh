@@ -61,6 +61,11 @@ run_xcode() {
 }
 
 run_main() {
+  # 09-04 源头治理：开头清旧 profraw——跨运行累积的 profraw 会被本轮 merge 污染，
+  # 门禁覆盖率假高/漂移（本轮 main2 全员 100% 假高即该坑极端形态，QUALITY L165 观察项同源）。
+  # 用 mv 隔离而非删除：留取证 + 规避 rm 口径。
+  mkdir -p /tmp/ci-profraw-quarantine
+  find .build -path '*/debug/codecov/*.profraw' -exec mv {} /tmp/ci-profraw-quarantine/ \; 2>/dev/null || true
   step "MAIN Build Release"
   swift build --configuration release
   step "MAIN Full Test Suite + Coverage"
