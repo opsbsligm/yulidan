@@ -174,7 +174,12 @@ export class Bridge {
 }
 
 /* ---------------- CLI 入口 ---------------- */
-if (import.meta.url === `file://${process.argv[1]}`) {
+// 主模块判定走 realpath 双侧（09-04 实测：Swift 宿主传 /tmp 绝对路径而
+// import.meta.url 解析为 /private/tmp，字符串相等判定被 symlink 击穿）
+import { realpathSync } from 'node:fs'
+const isMainEntry = process.argv[1] != null &&
+  import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href
+if (isMainEntry) {
   const argv = process.argv.slice(2)
   const plugins = []
   let sandbox = '/tmp/cordis-bridge-sandbox'

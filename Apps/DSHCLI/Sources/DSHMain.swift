@@ -21,7 +21,7 @@ struct DSH: AsyncParsableCommand {
         abstract: "Swift Harness — macOS Native AI Agent Framework",
         version: "0.1.0",
         subcommands: [WebCommand.self, HeadlessCommand.self, PluginCommand.self, AgentsCommand.self,
-                      SkillsCommand.self, MCPCommand.self]
+                      SkillsCommand.self, MCPCommand.self, CordisCommand.self]
     )
 }
 
@@ -81,11 +81,13 @@ enum DSHConfig {
 enum CLIError: Error, CustomStringConvertible {
     case configMissing(String)
     case manifestInvalid(String)
+    case message(String)
 
     var description: String {
         switch self {
         case let .configMissing(k): "缺少配置：\(k)"
         case let .manifestInvalid(r): "插件清单无效：\(r)"
+        case let .message(m): m
         }
     }
 }
