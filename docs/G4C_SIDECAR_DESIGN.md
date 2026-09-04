@@ -66,13 +66,30 @@ DoD（G4c 子集）：C0–C4 全过 + 四门禁（bridge 不在 Swift 门禁面
 
 ## 7 C1 实录（09-04，全 A 层，零前台）
 
-- 落位 （package.json 钉 cordis 4.0.2 + plugin-loader 1.0.3；node_modules 不入库，
-up to date in 222ms 6s/4 包，MITM 直连再证）。
-- **契约实证补录**（全部运行时反馈，非脑补）：① loader  对相对路径按 sandbox baseUrl 解析（裸相对路径被解析成目录导入报错实录）→ bridge 侧统一转绝对 file URL，裸包名交 node_modules 解析；②  子类构造即注册（service.d.ts 原文 + selftest 生效证实）；③ 插件  +  形态经 fixture 实跑装载成功；④ loader.create 运行时返回 entry id（tree.d.ts 签名一致）。
-- **A 层证据**： **PASS**（tools/list 含 fixture + tools/call 返回 ）；stdio 冒烟三帧全过（initialize 应答含 protocolVersion/capabilities/serverInfo=StdioMCPClient 期望形制）。
-- 边界如实：tool 执行面为候选字段探测（impl 命中 ，真实社区包形状 C2 实拆落定）；Swift 宿主 StdioMCPClient 对桥冒烟测试 = C3 首批。
-- 门禁注记：本批零 Swift 文件改动（git diff 全在 tools/cordis-bridge + docs），pr 门禁 Swift 面零影响沿用；四门禁清偿计划不变。
+- 落位 `tools/cordis-bridge/`（package.json 钉 cordis 4.0.2 + plugin-loader 1.0.3；
+  node_modules 不入库；`npm install --ignore-scripts` 4 包 6s，MITM 直连再证）。
+- **契约实证补录**（全部运行时反馈，非脑补）：
+  ① loader 的 `name` 对相对路径按 sandbox `baseUrl` 解析（裸相对路径被解析成
+    目录导入报错实录，错误源曾是脚本 argv 解析 bug 把 sandbox 值当插件）→
+    bridge 侧本地路径统一转绝对 file URL，裸包名交 node_modules 解析；
+  ② `Service` 子类构造即注册（service.d.ts 原文 + selftest 生效证实）；
+  ③ 插件 `export const inject = ['tools']` + `export async function apply(ctx)`
+    形态经 fixture 实跑装载成功（dsh-crew 实拆同款契约）；
+  ④ `loader.create` 运行时返回 entry id（tree.d.ts 签名一致）。
+- **A 层证据**：`--selftest` **PASS**（tools/list 含 fixture + tools/call 返回
+  `impl:execute echo:hi`）；stdio 冒烟三帧全过（initialize 应答含
+  protocolVersion/capabilities/serverInfo = StdioMCPClient 期望形制）。
+- 边界如实：tool 执行面为候选字段探测（impl 命中 `execute`；真实社区包形状
+  C2 实拆落定）；Swift 宿主 StdioMCPClient 对桥冒烟测试 = C3 首批。
+- 门禁注记：本批零 Swift 文件改动（git diff 全在 tools/cordis-bridge + docs），
+  pr 门禁 Swift 面零影响沿用；三大门禁清偿计划不变。
+- **过程教训（已同步 QUALITY）**：文档写入 heredoc 必须用引号定界符——本轮
+  未引号 `$C6` 展开虽然成功，但内容内反引号被 zsh 当命令执行（§7 首写受损+
+  混入命令噪声一行，已重写修复）。
 
 ## 8 下一步（C2/C3 入口）
-- C2：扫 /tmp/g4pkgs* 全样本  普查服务名 → façade 最小集排序；dsh-crew 实包装载试跑（tool 真实形状落定，替换探测式 call）。
-- C3：DSHCLI  + 授权清单文件 + StdioMCPClient↔bridge 冒烟测试（opt-in，模式沿 MCPCommunityLiveTests）。
+
+- C2：扫 /tmp/g4pkgs* 全样本 `export const inject` 普查服务名 → façade 最小集
+  排序；dsh-crew 实包装载试跑（tool 真实形状落定，替换探测式 call）。
+- C3：DSHCLI `harness cordis add/list/remove` + 授权清单文件 +
+  StdioMCPClient↔bridge 冒烟测试（opt-in，模式沿 MCPCommunityLiveTests）。
