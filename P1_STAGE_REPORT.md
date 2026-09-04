@@ -705,3 +705,8 @@
 > ALLDONE→bootout→mv 回 quarantine，LaunchAgents 终态回归仅 pr+watch。**新实测：双门禁并行
 > 总墙钟 ~7.7min（pr 22:39:15 起、ALLDONE 22:46:5x），后台零前台占用**——豁免链无需再攒，
 > 用户缺席>60min 即可低成本随清。docs 更新：QUALITY 主表 CI 行刷新 @193d567。
+
+> 2026-09-04 长尾采样点补记❶（新日号段重置标记，正文注记「接续㊻」）：隐藏态 RSS
+> 追加异源长尾点 s5——用户侧实例 58301（SwiftPM debug bundle，非 Agent 启动）隐藏空闲
+> 22.5h 后 RSS=34.3MB，自 100MB 平台续降 65.7%，单向下降零回升 → 无泄漏征象加固
+> （异实例/异构建，不并入三点平台期计算，口径已在 PERFORMANCE 表注）。零动作纯只读。
