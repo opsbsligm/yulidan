@@ -24,7 +24,7 @@ struct GlassSurfaceRegistryTests {
         .deletingLastPathComponent() // → HarnessApp/
         .appendingPathComponent("Sources", isDirectory: true)
 
-    /// 注册表 ①：`.glassSurface(` 调用点（文件相对路径 → 调用点数），基线合计 12
+    /// 注册表 ①：`.glassSurface(` 调用点（文件相对路径 → 调用点数），基线合计 13
     private static let surfaceRegistry: [String: Int] = [
         "Styles/HarnessTheme.swift": 1,
         "Views/ChatInputArea.swift": 1,
@@ -33,7 +33,7 @@ struct GlassSurfaceRegistryTests {
         "Views/SettingsView.swift": 2,
         "Views/SidebarProjectSections.swift": 3,
         "Views/SidebarSupportViews.swift": 1,
-        "Views/SidebarView.swift": 2,
+        "Views/SidebarView.swift": 3,  // D-10(a) F4 侧栏玻璃底（09-04 有意新增，登记于补记❹）
     ]
 
     /// 注册表 ②：`.glassSurfaceContainer(` 调用点，基线合计 4
@@ -134,12 +134,12 @@ struct GlassSurfaceRegistryTests {
 
     // MARK: 护栏测试
 
-    @Test("注册表①：.glassSurface( 调用点与登记逐文件一致（基线 12 处）")
+    @Test("注册表①：.glassSurface( 调用点与登记逐文件一致（基线 13 处）")
     func surfaceRegistryMatches() throws {
         try #require(FileManager.default.fileExists(atPath: Self.sourcesDir.path), "Sources 目录不存在：\(Self.sourcesDir.path)")
         try Self.verifyRegistry(Self.surfaceRegistry, pattern: ".glassSurface(", scanned: Self.scanSources(), registryName: "surfaceRegistry")
         let total = Self.surfaceRegistry.values.reduce(0, +)
-        #expect(total == 12, "surfaceRegistry 基线总数应为 12，请确认是有意变更")
+        #expect(total == 13, "surfaceRegistry 基线总数应为 12，请确认是有意变更")
     }
 
     @Test("注册表②：.glassSurfaceContainer( 调用点与登记逐文件一致（基线 4 处）")
