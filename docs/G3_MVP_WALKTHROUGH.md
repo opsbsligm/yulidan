@@ -7,7 +7,7 @@
 
 | # | 项 | 判据 | 状态 |
 |---|----|------|------|
-| P1 | HEAD 四门禁全绿 | pr rc=0 / leaks 0 / xcode TEST SUCCEEDED / main rc=0（QUALITY_REPORT 末段对账行） | ✅ 预检 09-04：三门新鲜实测 @`05f5d1d`+pr 沿用 @`028cb5c`（QUALITY CI 行在册）；走查时 @最终HEAD 复验 |
+| P1 | HEAD 四门禁全绿 | pr rc=0 / leaks 0 / xcode TEST SUCCEEDED / main rc=0（QUALITY_REPORT 末段对账行） | ✅ 预检 09-04：**四门全部 @当前工作树新鲜实测**（pr 深夜清偿=788/170 全绿 0 警告；QUALITY CI 行在册）；走查时 @最终HEAD 复验 |
 | P2 | 镜像 MATCH | `git push --mirror swift-harness-backup.git` 后 `git ls-remote` HEAD 一致 | ✅ 预检 09-04：深夜轮双次 ls-remote diff 空（e576dc6→1b7045c 链）；走查时复验 |
 | P3 | LaunchAgents 红线 | `ls ~/Library/LaunchAgents/` 仅 `com.harness.ci11.pr` + `watch`（注入式走测工具已归档 quarantine） | ◐ 09-04：restci 已回收、LaunchAgents 现仅 ci11.pr+watch ✓；「注入工具归档」保留为终局项（B 层 #3 可选通道存续期不动，归档动作=宣告冻结同批） |
 | P4 | 覆盖率 | QUALITY_REPORT 台账 ≥90% 且无未解释漂移 | ✅ 预检 09-04：清洁口径 97.56%（9,755/238）；唯一漂移疑云（main2 假高）根因实锤+源头治理闭环（QUALITY 深夜补记） |
