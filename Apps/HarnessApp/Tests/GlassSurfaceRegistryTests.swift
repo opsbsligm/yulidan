@@ -33,7 +33,7 @@ struct GlassSurfaceRegistryTests {
         "Views/SettingsView.swift": 2,
         "Views/SidebarProjectSections.swift": 3,
         "Views/SidebarSupportViews.swift": 1,
-        "Views/SidebarView.swift": 3,  // D-10(a) F4 侧栏玻璃底（09-04 有意新增，登记于补记❹）
+        "Views/SidebarView.swift": 3, // D-10(a) F4 侧栏玻璃底（09-04 有意新增，登记于补记❹）
     ]
 
     /// 注册表 ②：`.glassSurfaceContainer(` 调用点，基线合计 4
