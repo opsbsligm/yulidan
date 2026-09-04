@@ -119,3 +119,27 @@ DoD（G4c 子集）：C0–C4 全过 + 四门禁（bridge 不在 Swift 门禁面
   StdioMCPClient↔bridge 冒烟测试（opt-in，模式沿 MCPCommunityLiveTests；
   Swift 改动批进全量门禁）。
 - C4：add=正式 npm install 流程 + ≥3 包 tools/list 矩阵 + 无副作用 call 样例。
+
+## 10 C3 实录（09-04，CLI 全链 + 在册宿主客户端实锤）
+
+- **落位**：`dsh cordis add|list|remove|probe`（`CordisCommands.swift` @DSHCLI）；
+  授权清单 `~/.harness/cordis/allowlist.json`（S-4，consent 文本=上游 README 口径）；
+  测试缝 `DSH_CORDIS_ROOT`/`DSH_CORDIS_BRIDGE_SRC`（同 reduceTransparencyTestOverride 模式）。
+- **env 洗刷达成**：`/usr/bin/env -i HOME PATH 白名单` 作 StdioMCPClient command，
+  **零改在册客户端**。probe 未授权即拒（实测 S-4 门）；remove 撤销后 probe 复拒 ✔。
+- **三轮运行时教训（全部实证修复）**：
+  ① **peer 传递闭包**：`--legacy-peer-deps` 跳过 peers，@deepseek-ai 生态 peer=硬依赖
+    且递归（zai→dsh-web→dsh-llm/credentials/…）→ `installPeerClosure` 迭代安装
+    （实测第 3 轮收敛）；
+  ② **npm reify 清 extraneous**：bridge 包不可放 node_modules（装完插件即被清）→
+    `env/bridge-src/`（node 解析向上可达）；
+  ③ **/tmp→/private/tmp symlink 击穿主模块判定**：`import.meta.url === file://argv[1]`
+    被 Swift 宿主绝对路径差异打断 → realpath 双侧比较（症状=握手"传输断开"且 stderr 空）。
+- **loader 解析锚=baseUrl（sandbox）非 node_modules**：裸包名不可用 → 包名经已装
+  `package.json.main` 转 file URL（`cordisResolveSpecifier`；exports-only 包未支持已登记）。
+- **A 层验收证据**：`HOME` 隔离（测试缝）全链 add→list→probe→remove→probe 复拒；
+  probe 输出「✅ 握手成功：dsh-web-search-zai 暴露 1 个工具 search_provider_1」
+  （=在册 StdioMCPClient + env 洗刷 + 真实社区包，DoD「拿来即用」CLI 层实锤）；
+  `CordisBridgeLiveTests` opt-in（正例断言 + 守卫 skip 判别力双验）。
+- probe 失败路径带 bridge stderr 透出（recentStderr，CLI 可运维性）。
+- 门禁：C3 代码批触发 pr 全量（载体 com.harness.ci11.pr，日志 /tmp/ci_r9_pr.log rc 入册）。
