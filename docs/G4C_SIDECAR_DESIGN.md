@@ -49,8 +49,17 @@ tool-cordis README @47f9438 原文：「该沙箱隔离全局变量，但**不�
 DoD（G4c 子集）：C0–C4 全过 + 四门禁（bridge 不在 Swift 门禁面，宿主改动在）+ 兼容矩阵
 追加「层2 实跑样例 ≥3」行 + 镜像 MATCH。
 
-## 5 ⚠️待查清单（实施第一步就是查，不脑补）
+## 5 ⚠️待查清单（09-04 C0 轮首查，实证落位）
 
-1. `@deepseek-ai/cordis` 宿主 API：实例化/插件装载/ctx 服务注册的确切签名 → 读 @47f9438 上游 `cordis` 包源码 + 最新 npm tarball 的 `.d.ts`；
-2. Cordis 插件的 `apply(ctx)` 工具注册如何枚举（tools/list 转发的前提）→ 读 tool-cordis README + 抽 1 包实拆（/tmp/g4pkgs* 残存则复用）；
-3. `dsh-*` façade 最小集排序 → CENSUS import 面统计原始产物（若 /tmp 已清则重跑统计脚本，登记于 CENSUS「可复核产物」节）。
+1. **✅已落定｜cordis 宿主 API**：npm 实包 `@deepseek-ai/cordis@4.0.2`（time.modified 2026-08-30）自带 `bin.js` 官方 bootstrap 范式，逐字：
+   `new Context()` → `ctx.baseUrl = pathToFileURL(cwd)+'/'` → `ctx.plugin(Loader)` → `ctx.loader.create({ name: '@deepseek-ai/cordis-plugin-include', config: { path: './cordis.yml' } })`
+   （deps 仅 `@standard-schema/spec` + `@deepseek-ai/cosmokit`，依赖面极小；类型面=context/events/fiber/logger/registry/service/utils，registry.d.ts 经 `declare module './context.ts'` 扩展 ctx）。
+2. **◐半结｜loader 与工具枚举**：`@deepseek-ai/cordis-plugin-loader@1.0.3` registry 可达 ✅（C0）；「插件注册工具如何从 ctx 枚举」仍待查——bridge selftest 阶段用 fixture 插件实调落定（读 fiber/registry.d.ts + 实跑），❌脑补签名。
+3. **☐未启动｜façade 最小集排序**：依赖 CENSUS import 面统计产物重跑（/tmp/g4pkgs* 状态实施时确认），C2 轮前置。
+
+## 6 C0 预检实录（09-04，全 A 层只读）
+
+- 本机 Node：`/opt/homebrew/bin/node` **v26.6.0**，npx 同路径 ✅（S-1 通过）；
+- registry（npmjs.org）直连可达：cordis 4.0.2 / plugin-loader 1.0.3 ✅（S-2 供保成立；MITM 环境 cafile 口径沿 CENSUS「环境实操事实」节）；
+- 实包下载 `npm pack --ignore-scripts` 成功；取证残留 `/tmp/g4c/`（注：loader 与 cordis 解包同名目录互相覆盖，正式实施按包名分目录重拆）；
+- 上游源码 @47f9438 在位（monorepo packages/ 内无 cordis 包——cordis 为独立发版件，以 npm 实包为准，铁律 7）。
