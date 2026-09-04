@@ -87,9 +87,35 @@ DoD（G4c 子集）：C0–C4 全过 + 四门禁（bridge 不在 Swift 门禁面
   未引号 `$C6` 展开虽然成功，但内容内反引号被 zsh 当命令执行（§7 首写受损+
   混入命令噪声一行，已重写修复）。
 
-## 8 下一步（C2/C3 入口）
+## 8 C2 实录（09-04，全 A 层）
 
-- C2：扫 /tmp/g4pkgs* 全样本 `export const inject` 普查服务名 → façade 最小集
-  排序；dsh-crew 实包装载试跑（tool 真实形状落定，替换探测式 call）。
+- **inject 普查**（n=4 实拆样本）：dsh-crew rc6/rc7 `inject=[agents,sessions,
+  agentDefaultModel,tools,llm,attachments]`+`ctx.tools.register`；
+  dsh-web-search-zai `inject=[invariants,web]`+**第二注册面 `ctx.web.
+  registerSearchProvider(p)`**；theme-kit（UI 形态已裁决不做）。
+- **façade v2 落位**：① `provideStub(ctx,name)` 显式 stub（满足 inject 存在性，
+  方法调用即显式报错；注册走 `ctx.reflect.provide`——service.d.ts 注释原文证实
+  Service 构造内部即此调用）；② `makeWebFacade` 采集半：provider→MCP tool 转换
+  （`search_<name>`，execute→provider.search(query)）；③ 装载前静态读 `inject`
+  自动铺 stub/tools 保持真实。
+- **实包试跑（结果如实）**：
+  - ✅ **dsh-crew rc7 装载成功**：tools/list 返回真实工具 `describe_image`+
+    `generate_image`（完整 description/inputSchema）——**形态①「拿来即用」首例
+    实锤**（走 file URL 快捷路径，包自带 node_modules 使依赖自足）；
+    真实 tool 形状含 execute——C1 探测字段命中，**call 面不实测**（两工具均外部
+    副作用，安全红线：验证名义不驱动第三方执行）。
+  - ❌ zai：`Cannot find package '@deepseek-ai/dsh-credentials'`——tarball 裸拆
+    缺自身依赖（非 façade 问题）→ **正式口径=宿主 add 时 `npm install <pkg>` 到
+    bridge 环境**（S-2 设计意图，本轮手工验证走了快捷路径）；
+  - ❌ hindsight：lib/index.js 不存在（main 猜测路径错误，实施 add 流程时以
+    package.json main 为准）。
+- selftest 扩为**双 fixture**（tools 直采+web 采集）全 PASS。
+- C4 入口定型：add 流程=npm install --no-save（或独立安装目录）+ specifier=包名；
+  call 面验收改用**无副作用工具**样本或 mock provider，不驱动真实外部服务。
+
+## 9 下一步（C3/C4 入口）
+
 - C3：DSHCLI `harness cordis add/list/remove` + 授权清单文件 +
-  StdioMCPClient↔bridge 冒烟测试（opt-in，模式沿 MCPCommunityLiveTests）。
+  StdioMCPClient↔bridge 冒烟测试（opt-in，模式沿 MCPCommunityLiveTests；
+  Swift 改动批进全量门禁）。
+- C4：add=正式 npm install 流程 + ≥3 包 tools/list 矩阵 + 无副作用 call 样例。

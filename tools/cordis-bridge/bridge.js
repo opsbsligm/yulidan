@@ -38,9 +38,66 @@ class ToolsService extends Service {
   list () { return [...this.registry.values()] }
 }
 
+/**
+ * C2 显式 stub：满足插件 inject 依赖存在性，方法调用即显式报错（诚实口径）。
+ * 注册走 ctx.reflect.provide（service.d.ts 注释原文证实 Service 构造内部即此调用；
+ * 需 Proxy 实例为注册对象故手动 provide，不经 Service 子类构造）。
+ */
+export function provideStub (ctx, name, impl = {}) {
+  const proxy = new Proxy({ facadeName: name }, {
+    get (t, prop) {
+      if (prop === 'facadeName') return name
+      if (prop === 'then') return undefined // 防 await 误判 thenable
+      if (Object.prototype.hasOwnProperty.call(impl, prop)) return impl[prop]
+      return (..._args) => {
+        throw new Error(`cordis-bridge facade stub: service '${name}' method '${String(prop)}' not materialized (C2 stub; see G4C_SIDECAR_DESIGN §8)`)
+      }
+    },
+    has: () => true,
+  })
+  ctx.reflect.provide(name, proxy, () => true)
+  return proxy
+}
+
+/** web 服务采集半（dsh-web-search-zai 实拆：ctx.web.registerSearchProvider(p)） */
+export function makeWebFacade (ctx, toolsService) {
+  let counter = 0
+  return {
+    registerSearchProvider (provider) {
+      counter += 1
+      const name = `search_${provider?.name ?? `provider_${counter}`}`
+      toolsService.register({
+        name,
+        description: provider?.description ?? `search provider '${provider?.name ?? counter}' via web façade`,
+        inputSchema: { type: 'object', properties: { query: { type: 'string' } } },
+        execute: async (args) => {
+          const q = typeof args === 'string' ? args : args?.query
+          if (typeof provider?.search !== 'function') throw new Error('provider has no search() (shape logged for C2)')
+          const out = await provider.search(q, args)
+          return typeof out === 'string' ? out : JSON.stringify(out)
+        },
+      })
+      return () => toolsService.unregister(name)
+    },
+  }
+}
+
 /** 宿主侧 façade 插件：提供 tools 服务（后续 C2 扩 dsh-* 服务映射时同型追加） */
 function FacadePlugin (ctx) { new ToolsService(ctx) }
 FacadePlugin.provide = 'tools'
+
+/** 静态探测插件 inject 声明：动态 import 模块形状（与 loader 同一 specifier）。
+ *  import 失败不吞——交 loader 装载时报错统一呈现；仅“import 成功但无 inject”返回 []。 */
+async function readPluginInject (specifier) {
+  try {
+    const mod = await import(specifier.startsWith('.') || specifier.startsWith('/') || specifier.startsWith('file:')
+      ? specifier : specifier) // 裸包名交 node_modules 解析（与 loader 解析环境不同源则如实失败）
+    const inj = mod.inject ?? mod.default?.inject
+    return Array.isArray(inj) ? inj : []
+  } catch {
+    return [] // loader 装载阶段会以权威错误重报，这里不重复报
+  }
+}
 
 /** 桥内核：bootstrap 一次，rpc() 复用（stdio 循环与 --selftest 共享同一路径） */
 export class Bridge {
@@ -58,6 +115,14 @@ export class Bridge {
     await ctx.plugin(Loader)
     this.tools = ctx.tools
     for (const specifier of pluginSpecifiers) {
+      // C2：先读插件 inject 声明（社区契约 export const inject=[...]，
+      // dsh-crew/zai 实拆证实），为未知服务铺显式 stub；web 铺采集半。
+      const required = await readPluginInject(specifier)
+      for (const svc of required) {
+        if (svc === 'tools') continue // 真实 façade 已提供
+        if (svc === 'web') provideStub(ctx, 'web', makeWebFacade(ctx, ctx.tools))
+        else provideStub(ctx, svc)
+      }
       // 逐包显式装载（S-4）；name=模块 specifier，loader.create 契约见
       // plugin-loader@1.0.3 config/tree.d.ts create(options: Omit<EntryOptions,'id'>)
       await ctx.loader.create({ name: specifier })
@@ -121,20 +186,28 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     // 行为以本次实测为准（09-04：相对裸路径会被解析到 baseUrl，必须显式化）
     plugins.push(argv[i].startsWith('.') ? pathToFileURL(resolve(argv[i])).href : argv[i])
   }
+  const selftest = argv.includes('--selftest')
+  // selftest 模式：固定双 fixture（tools 直采面 + web provider 采集面），与入参解耦
+  const effective = selftest
+    ? ['fixtures/echo-plugin.mjs', 'fixtures/web-provider-plugin.mjs'].map((f) => pathToFileURL(resolve(f)).href)
+    : plugins
   const bridge = new Bridge(sandbox)
   try {
-    await bridge.start(plugins)
+    await bridge.start(effective)
   } catch (e) {
     console.error(`bridge bootstrap failed: ${e?.stack ?? e}`)
     process.exit(2)
   }
-  if (argv.includes('--selftest')) {
+  if (selftest) {
     const list = await bridge.rpc({ jsonrpc: '2.0', id: 1, method: 'tools/list' })
     const names = (list.result?.tools ?? []).map((t) => t.name)
     const call = await bridge.rpc({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'bridge_fixture_echo', arguments: { msg: 'hi' } } })
     const text = call.result?.content?.[0]?.text ?? ''
-    const ok = names.includes('bridge_fixture_echo') && text === 'impl:execute echo:hi'
-    console.log(JSON.stringify({ selftest: ok ? 'PASS' : 'FAIL', tools: names, call: text }))
+    const call2 = await bridge.rpc({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'search_fixture', arguments: { query: 'hi' } } })
+    const text2 = call2.result?.content?.[0]?.text ?? ''
+    const ok = names.includes('bridge_fixture_echo') && names.includes('search_fixture') &&
+      text === 'impl:execute echo:hi' && text2 === 'impl:execute results:hi'
+    console.log(JSON.stringify({ selftest: ok ? 'PASS' : 'FAIL', tools: names, call: text, callWeb: text2 }))
     process.exit(ok ? 0 : 1)
   }
   // stdio JSON-RPC 循环（一行一条，MCP stdio 口径）
