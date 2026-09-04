@@ -18,13 +18,9 @@ import XCTest
 
 @MainActor
 final class MCPCommunityAppFlowTests: XCTestCase {
-    override func setUp() {
-        super.setUp()
-        AppViewModel.notificationServiceFactory = { NoopNotificationService() } // 幂等：门禁用例间重复赋值无害
-    }
-
     @MainActor
     private static func makeVM() -> (vm: AppViewModel, mcpConfigURL: URL) {
+        AppViewModel.notificationServiceFactory = { NoopNotificationService() } // 隔离上下文内注入（XCTestCase.setUp 非隔离，赋值放这里免非隔离告警；用例间重复赋值无害）
         let mcpConfigURL = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("harness-g4-appflow-\(UUID().uuidString)")
             .appendingPathComponent("servers.json")
@@ -52,7 +48,7 @@ final class MCPCommunityAppFlowTests: XCTestCase {
         let node = env["HARNESS_G4_NODE"] ?? "/opt/homebrew/bin/node"
         let sandboxHome = env["HARNESS_G4_SANDBOX_HOME"] ?? "/tmp/g4home"
 
-        let (vm, mcpURL) = await Self.makeVM()
+        let (vm, mcpURL) = Self.makeVM()
         // ① 导入 = 用户在插件页表单填的同一函数/同一配置格式（拿来即用的「装」）
         await vm.importMCPServer(name: "dsh-crew-appflow", command: node,
                                  arguments: serverPath, environment: "HOME=\(sandboxHome)")
@@ -91,7 +87,7 @@ final class MCPCommunityAppFlowTests: XCTestCase {
         let node = env["HARNESS_G4_NODE"] ?? "/opt/homebrew/bin/node"
         let sandboxHome = env["HARNESS_G4_SANDBOX_HOME"] ?? "/tmp/g4home"
 
-        let (vm, _) = await Self.makeVM()
+        let (vm, _) = Self.makeVM()
         // ① 旧版装载：serverInfo 必须是 rc.6（前置断言，防两路径同包假绿）
         await vm.importMCPServer(name: "dsh-crew-upgrade", command: node,
                                  arguments: p6, environment: "HOME=\(sandboxHome)")
