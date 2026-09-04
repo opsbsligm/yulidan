@@ -43,20 +43,50 @@ class ToolsService extends Service {
  * 注册走 ctx.reflect.provide（service.d.ts 注释原文证实 Service 构造内部即此调用；
  * 需 Proxy 实例为注册对象故手动 provide，不经 Service 子类构造）。
  */
-export function provideStub (ctx, name, impl = {}) {
+export function provideStub (ctx, name, impl = {}, collector = null) {
   const proxy = new Proxy({ facadeName: name }, {
     get (t, prop) {
+      const key = String(prop)
       if (prop === 'facadeName') return name
       if (prop === 'then') return undefined // 防 await 误判 thenable
-      if (Object.prototype.hasOwnProperty.call(impl, prop)) return impl[prop]
+      if (Object.prototype.hasOwnProperty.call(impl, key)) return impl[key]
+      // 通用采集面（C4 扩展，dsh-skills-manager 实证 skills.registerProvider）：
+      // 服务上的 register/add 前缀调用被收割为候选工具；其余方法维持显式报错
+      if (collector && (key.startsWith('register') || key.startsWith('add'))) {
+        return (item) => collector(key, name, item)
+      }
       return (..._args) => {
-        throw new Error(`cordis-bridge facade stub: service '${name}' method '${String(prop)}' not materialized (C2 stub; see G4C_SIDECAR_DESIGN §8)`)
+        throw new Error(`cordis-bridge facade stub: service '${name}' method '${key}' not materialized (C2 stub; see G4C_SIDECAR_DESIGN §8)`)
       }
     },
     has: () => true,
   })
   ctx.reflect.provide(name, proxy, () => true)
   return proxy
+}
+
+/** 通用注册收割：register / add 前缀方法的条目转为候选 MCP 工具（元数据投影，
+ *  执行面仅当条目自带无副作用可执行字段时接通，否则显式 isError——❌猜语义） */
+export function makeRegistrarCollector (toolsService) {
+  let counter = 0
+  return (method, service, item) => {
+    counter += 1
+    const label = item?.name ?? item?.id ?? `${service}_${counter}`
+    const toolsName = `${service}_${label}`
+    const run = item?.execute ?? item?.handler ?? item?.call ?? item?.run ?? item?.invoke
+    toolsService.register({
+      name: toolsName,
+      description: item?.description ?? `registered via ${service}.${method} (metadata projection)`,
+      inputSchema: item?.inputSchema ?? item?.parameters ?? item?.schema ?? { type: 'object', properties: {} },
+      execute: typeof run === 'function'
+        ? async (args) => {
+            const out = await run.call(item, args)
+            return typeof out === 'string' ? out : JSON.stringify(out)
+          }
+        : undefined, // 无可执行字段：tools/call 走「no callable impl」显式 isError（诚实投影）
+    })
+    return () => toolsService.unregister(toolsName)
+  }
 }
 
 /** web 服务采集半（dsh-web-search-zai 实拆：ctx.web.registerSearchProvider(p)） */
@@ -114,14 +144,17 @@ export class Bridge {
     await ctx.plugin(FacadePlugin)
     await ctx.plugin(Loader)
     this.tools = ctx.tools
+    const collector = makeRegistrarCollector(ctx.tools)
     for (const specifier of pluginSpecifiers) {
       // C2：先读插件 inject 声明（社区契约 export const inject=[...]，
       // dsh-crew/zai 实拆证实），为未知服务铺显式 stub；web 铺采集半。
       const required = await readPluginInject(specifier)
       for (const svc of required) {
         if (svc === 'tools') continue // 真实 façade 已提供
-        if (svc === 'web') provideStub(ctx, 'web', makeWebFacade(ctx, ctx.tools))
-        else provideStub(ctx, svc)
+        // web 保留专用语义（search() 执行接通，C2 实证），register/add 前缀走通用采集；
+        // 其余服务：通用采集 + 显式 stub（09-04 skills.registerProvider 实证）
+        else if (svc === 'web') provideStub(ctx, svc, makeWebFacade(ctx, ctx.tools), collector)
+        else provideStub(ctx, svc, {}, collector)
       }
       // 逐包显式装载（S-4）；name=模块 specifier，loader.create 契约见
       // plugin-loader@1.0.3 config/tree.d.ts create(options: Omit<EntryOptions,'id'>)
@@ -193,8 +226,9 @@ if (isMainEntry) {
   }
   const selftest = argv.includes('--selftest')
   // selftest 模式：固定双 fixture（tools 直采面 + web provider 采集面），与入参解耦
+  // fixture 以 bridge.js 所在目录解析（不依赖 cwd，09-04 实测 cwd 漂移击穿 resolve()）
   const effective = selftest
-    ? ['fixtures/echo-plugin.mjs', 'fixtures/web-provider-plugin.mjs'].map((f) => pathToFileURL(resolve(f)).href)
+    ? ['fixtures/echo-plugin.mjs', 'fixtures/web-provider-plugin.mjs'].map((f) => new URL(f, import.meta.url).href)
     : plugins
   const bridge = new Bridge(sandbox)
   try {
