@@ -7,10 +7,10 @@
 
 | # | 项 | 判据 | 状态 |
 |---|----|------|------|
-| P1 | HEAD 四门禁全绿 | pr rc=0 / leaks 0 / xcode TEST SUCCEEDED / main rc=0（QUALITY_REPORT 末段对账行） | ☐ |
-| P2 | 镜像 MATCH | `git push --mirror swift-harness-backup.git` 后 `git ls-remote` HEAD 一致 | ☐ |
-| P3 | LaunchAgents 红线 | `ls ~/Library/LaunchAgents/` 仅 `com.harness.ci11.pr` + `watch`（注入式走测工具已归档 quarantine） | ☐ |
-| P4 | 覆盖率 | QUALITY_REPORT 台账 ≥90% 且无未解释漂移 | ☐ |
+| P1 | HEAD 四门禁全绿 | pr rc=0 / leaks 0 / xcode TEST SUCCEEDED / main rc=0（QUALITY_REPORT 末段对账行） | ✅ 预检 09-04：三门新鲜实测 @`05f5d1d`+pr 沿用 @`028cb5c`（QUALITY CI 行在册）；走查时 @最终HEAD 复验 |
+| P2 | 镜像 MATCH | `git push --mirror swift-harness-backup.git` 后 `git ls-remote` HEAD 一致 | ✅ 预检 09-04：深夜轮双次 ls-remote diff 空（e576dc6→1b7045c 链）；走查时复验 |
+| P3 | LaunchAgents 红线 | `ls ~/Library/LaunchAgents/` 仅 `com.harness.ci11.pr` + `watch`（注入式走测工具已归档 quarantine） | ◐ 09-04：restci 已回收、LaunchAgents 现仅 ci11.pr+watch ✓；「注入工具归档」保留为终局项（B 层 #3 可选通道存续期不动，归档动作=宣告冻结同批） |
+| P4 | 覆盖率 | QUALITY_REPORT 台账 ≥90% 且无未解释漂移 | ✅ 预检 09-04：清洁口径 97.56%（9,755/238）；唯一漂移疑云（main2 假高）根因实锤+源头治理闭环（QUALITY 深夜补记） |
 | P5 | 待拍板清零 | 本手册 §4 全部 D 项有拍板记录 | ☐ |
 
 ## 1. 走查池 A：视觉/UI 主观项（你操作 + 目检，Agent 只读截窗/axdump 补档）
@@ -53,8 +53,8 @@
 |---|------|------|------|------|
 | C-a | 轴2 取证（二选一）：你从 Codex 各观察窗丢截图 / 你择时允许只读截自己另开的观察窗 | BENCHMARK §16 W1-W8 取证齐 → UI_CODEX_ALIGNMENT 行为列回正 | 取证方式拍板 | ☐ |
 | C-b | G1a 轴1 清单终查 | BENCHMARK_CHECKLIST 全项 ✅ 或 N/A 有论证 | — | ☐（09-04 Agent 预检：BENCHMARK ☐=0 全闭合/N-A 有论证，待你终查） |
-| C-c | （D-5 已批层2）社区插件实装载：G4c C4 CLI 层实跑后，设置→MCP 面复核呈现（B 层可选） | 装载成功、工具可见、禁用即卸载无残留 | D-5→G4c | ☐（待 C4） |
-| C-d | 兼容矩阵引用 | CENSUS 层1 矩阵（dsh-crew/filesystem/everything）无回归 | — | ☐ |
+| C-c | （D-5 已批层2）社区插件实装载：G4c C4 CLI 层实跑后，设置→MCP 面复核呈现（B 层可选） | 装载成功、工具可见、禁用即卸载无残留 | D-5→G4c | ◐ C4 CLI 层已闭环（矩阵 3✅+2❌ 含真实 create_skill；S-4 双向实测在册）；残余=设置→MCP 面呈现复核（B 层可选，你择时） |
+| C-d | 兼容矩阵引用 | CENSUS 层1 矩阵（dsh-crew/filesystem/everything）无回归 | — | ✅ Agent 预检 09-04 深夜 **3/3 复现**：crew=751ms/6 工具/rc.7（同码同令，依赖闭包借用 cb-c4 已装环境——口径偏差注记见 QUALITY 深夜二轮补记）/ fs=4.9s/14 工具 0.2.0 / everything=3.0s/13 工具 2.0.0，与矩阵逐项吻合 |
 
 ## 4. 终拍板检查点（G3 开始前须全部有记录）
 
