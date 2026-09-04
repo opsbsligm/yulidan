@@ -63,3 +63,16 @@ DoD（G4c 子集）：C0–C4 全过 + 四门禁（bridge 不在 Swift 门禁面
 - registry（npmjs.org）直连可达：cordis 4.0.2 / plugin-loader 1.0.3 ✅（S-2 供保成立；MITM 环境 cafile 口径沿 CENSUS「环境实操事实」节）；
 - 实包下载 `npm pack --ignore-scripts` 成功；取证残留 `/tmp/g4c/`（注：loader 与 cordis 解包同名目录互相覆盖，正式实施按包名分目录重拆）；
 - 上游源码 @47f9438 在位（monorepo packages/ 内无 cordis 包——cordis 为独立发版件，以 npm 实包为准，铁律 7）。
+
+## 7 C1 实录（09-04，全 A 层，零前台）
+
+- 落位 （package.json 钉 cordis 4.0.2 + plugin-loader 1.0.3；node_modules 不入库，
+up to date in 222ms 6s/4 包，MITM 直连再证）。
+- **契约实证补录**（全部运行时反馈，非脑补）：① loader  对相对路径按 sandbox baseUrl 解析（裸相对路径被解析成目录导入报错实录）→ bridge 侧统一转绝对 file URL，裸包名交 node_modules 解析；②  子类构造即注册（service.d.ts 原文 + selftest 生效证实）；③ 插件  +  形态经 fixture 实跑装载成功；④ loader.create 运行时返回 entry id（tree.d.ts 签名一致）。
+- **A 层证据**： **PASS**（tools/list 含 fixture + tools/call 返回 ）；stdio 冒烟三帧全过（initialize 应答含 protocolVersion/capabilities/serverInfo=StdioMCPClient 期望形制）。
+- 边界如实：tool 执行面为候选字段探测（impl 命中 ，真实社区包形状 C2 实拆落定）；Swift 宿主 StdioMCPClient 对桥冒烟测试 = C3 首批。
+- 门禁注记：本批零 Swift 文件改动（git diff 全在 tools/cordis-bridge + docs），pr 门禁 Swift 面零影响沿用；四门禁清偿计划不变。
+
+## 8 下一步（C2/C3 入口）
+- C2：扫 /tmp/g4pkgs* 全样本  普查服务名 → façade 最小集排序；dsh-crew 实包装载试跑（tool 真实形状落定，替换探测式 call）。
+- C3：DSHCLI  + 授权清单文件 + StdioMCPClient↔bridge 冒烟测试（opt-in，模式沿 MCPCommunityLiveTests）。
