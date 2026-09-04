@@ -207,5 +207,6 @@ HARNESS_G4_LIVE=1 swift test --filter MCPCommunityAppFlowTests
 | `@zseven-w/dsh-crew@0.1.0-rc.7` | ✅ | 2 工具 `describe_image`/`generate_image`（ctx.tools 直采面；scoped+rc-pin+ERESOLVE 史包全通） |
 | `@vectorize-io/hindsight-coding-agents@0.5.1` | ❌ | 需 DSH 宿主**未发布服务** `worktree`（npm 无 dsh-worktree，且插件未在 inject 声明）——第三方宿主结构性不可用，CENSUS 形态③「进程内私有 API」预判再证 |
 | `dsh-skill-mcp-manager@1.1.2` | ❌ | 对**已声明服务调用真实方法**（C2 stub 显式报错拦截）——façade 语义边界，属宿主服务真实实现缺口，非桥缺陷 |
+| `@michengai/dsh-skills-manager@0.1.38` | ✅ | **3 工具**含真实 `create_skill`（通用 registrar 采集面收割 `skills.registerProvider`+`webServer.register`；元数据投影口径，执行面仅条目自带可执行字段才接通） |
 
-失败分类学：①宿主未发布服务（结构性）；②façade 未实现真实语义（可评估扩展，但每服务真实实现=无限工程，收益按 CENSUS 四形态总表已论证≈0）。成功样本的 call 面=bridge selftest 在册（`impl:execute echo:hi`）；真实包 call 一律不实测（外部副作用红线）。矩阵基线：cordis 4.0.2 + loader 1.0.3 + node v26.6.0 @09-04。
+**矩阵更新（同日 collector 轮）**：3✅+2❌=五样本正式实跑；`@zseven-w/dsh-crew` 随采集面扩展升至 3 工具。失败分类学：①宿主未发布服务（结构性）；②façade 未实现真实语义（可评估扩展，但每服务真实实现=无限工程，收益按 CENSUS 四形态总表已论证≈0）。成功样本的 call 面=bridge selftest 在册（`impl:execute echo:hi`）；真实包 call 一律不实测（外部副作用红线）。矩阵基线：cordis 4.0.2 + loader 1.0.3 + node v26.6.0 @09-04。

@@ -147,3 +147,11 @@ DoD（G4c 子集）：C0–C4 全过 + 四门禁（bridge 不在 Swift 门禁面
 ## 11 C4 实录（09-04，矩阵入 CENSUS「层2 兼容矩阵」节）
 
 四样本正式流程实跑：**2 ✅（zai 1 工具 / crew 2 工具，含 scoped+rc-pin）+ 2 ❌（根因归类：宿主未发布服务 worktree / façade 语义边界）**。call 面口径=selftest 在册+真实包不实测（红线）。成功=「拿来即用」CLI 层成立且失败样本给生态普查贡献分类学；「≥3 成功样例」冲刺=下一轮（候选：第五真实包 或 add 本地包支持+demo 发包，两案已在册）。运行时新证：正式版 `hindsight` main=dist/index.js（早前手猜 lib/index.js 错误被正式流程读 main 自动纠正——main 字段读取设计的价值实证）。
+
+## 12 collector 轮（09-04 同日续）：矩阵 3✅+2❌ 达成
+- 第三注册面 `skills.registerProvider` 实证 → 通用 registrar 采集（register/add 前缀→
+  元数据投影；执行面仅条目自带 execute/handler/... 字段接通，❌猜语义）；web 专用
+  语义（search 执行）与通用采集**并存**（一度被通用替换致 zai 执行面降级——当场回归
+  网住，selftest 判别力实证）。
+- crew 随采集扩展 2→3 工具；skills-manager 3 工具（含真实 `create_skill`）。
+- 教训入档：JS 块注释内 `*/` 字样（register*/add*）提前闭合注释——注释文案禁裸 `*/`。
