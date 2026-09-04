@@ -294,7 +294,7 @@ A11 一并改写注释，消除误导。
   (b) **官方 segmented 形态**：6 面常驻 + `glassEffectUnion` 合成**单一形状**（§1.5 "even when your
   content is at rest"＋§1.11 "singular floating plane"），选中态用 tint/前景强调 → 更像系统分段控件。
   两者都有官方出处，**只有真机目检能裁决**（无静默像素通道，§0）。
-- **F4｜让玻璃有东西可折射（A15 修法，二选一或并用）**：
+- **F4｜让玻璃有东西可折射（A15 修法，二选一或并用）**： **〔执行态 09-04：用户拍板 (a) 已实施 @`ee1da43`，实况终裁 G3 A-d〕**
   (a) **窗口透明底**：`window.isOpaque=false` + `backgroundColor=.clear`（AppKit 层，改动小、可回退）
   → 侧栏玻璃采**桌面**，恢复 macOS 侧栏传统；可读性由 regular 变体的 blur/luminosity 调整负责（§1.9 原文）。
   ⚠️ 风险：窗口内文字对比度与"内容区是否也变透"需目检；`NSWindow` 行为改动属可见状态变化，验收需你 1 分钟。
@@ -318,7 +318,7 @@ A11 一并改写注释，消除误导。
 
 ## §14 【待确认】新增两项
 
-- **D-10**：F4 折射源修法 → (a) 窗口透明底 / (b) backgroundExtensionEffect / (c) 暂不动（接受扁平）。
+- **D-10**：F4 折射源修法 → **(a) ✅ 拍板并实施 @09-04 `ee1da43`**（透明窗底；(b) backgroundExtensionEffect 未选、(c) 未选——账本 DECISION_INDEX）。
   不选 (c) 的话，玻璃质感提升的上限基本由此决定 —— 这是本轮最重要的单项。
 - **D-10 拍板材料加固（09-03 补记㊹·官方原文双项，A 层静默）**：
   - **(a) 窗口透明底**：官方**无**「glassEffect 透过透明窗底采样桌面」明文——该因果属机制推断；
