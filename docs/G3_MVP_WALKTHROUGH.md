@@ -52,7 +52,7 @@
 | # | 动作 | 判据 | 依赖 | 状态 |
 |---|------|------|------|------|
 | C-a | 轴2 取证（二选一）：你从 Codex 各观察窗丢截图 / 你择时允许只读截自己另开的观察窗 | BENCHMARK §16 W1-W8 取证齐 → UI_CODEX_ALIGNMENT 行为列回正 | 取证方式拍板 | ☐ |
-| C-b | G1a 轴1 清单终查 | BENCHMARK_CHECKLIST 全项 ✅ 或 N/A 有论证 | — | ☐ |
+| C-b | G1a 轴1 清单终查 | BENCHMARK_CHECKLIST 全项 ✅ 或 N/A 有论证 | — | ☐（09-04 Agent 预检：BENCHMARK ☐=0 全闭合/N-A 有论证，待你终查） |
 | C-c | （如 D-5 批层2）社区插件实装载：设置→MCP 添加 dsh-crew | 装载成功、6 工具可见、禁用即卸载无残留；失败则层1 口径收口 | D-5 | ☐ |
 | C-d | 兼容矩阵引用 | CENSUS 层1 矩阵（dsh-crew/filesystem/everything）无回归 | — | ☐ |
 
