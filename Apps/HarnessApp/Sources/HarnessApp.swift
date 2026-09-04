@@ -121,6 +121,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// D-10(a) 透明窗底配置（测试缝：进程内单测对装配实例断言旗标；不产生任何 ordering/前台动作）
+    static func applyGlassSampling(to window: NSWindow) {
+        window.isOpaque = false
+        window.backgroundColor = .clear
+    }
+
     /// 创建标准主窗口（启动与重建共用）
     private func makeWindow() -> NSWindow {
         let window = UnconstrainedWindow(
@@ -133,7 +139,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
         window.minSize = NSSize(width: 800, height: 500)
-        window.backgroundColor = NSColor.windowBackgroundColor
+        // D-10(a)/BENCHMARK §13-F4：透明窗底——让玻璃获得「窗后」（桌面）采样源，恢复 macOS 侧栏传统。
+        // 透窗采样实况成败仅 G3 A-d 目检裁决（补记㊹：官方无透窗采样明文，锚定 legacy behindWindow 在册能力）；
+        // 可读性兜底 = 侧栏 GlassSurface(.regular) 底（native 玻璃 / legacy 材质 / solid 回落）+ 主区 bgPrimary 实底。
+        Self.applyGlassSampling(to: window)
         return window
     }
 

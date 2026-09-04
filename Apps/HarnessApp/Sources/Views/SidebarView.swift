@@ -95,6 +95,10 @@ struct SidebarView: View {
         // P1.3：展开/折叠双态共享同一容器（morph 面同一 GlassEffectContainer；跨态组合未官方实证，
         // 铁律 1 注记：最坏 = 交叉淡变不 morph，功能不受损，实机走查判定）
         .glassSurfaceContainer()
+        // D-10(a)/F4：侧栏玻璃底——透明窗底下 regular 玻璃采样桌面（legacy 材质/solid 实色自动回落，
+        // 与容器降级行为一致）。链位在容器之外 = 独立表面，不与 tab morph 面参与配对。
+        // 透窗采样实况成败 G3 A-d 目检裁决（补记㊹风险注记）。
+        .background(Color.clear.glassSurface(.regular, cornerRadius: 0))
         // 新建项目
         .alert("新建项目", isPresented: $showNewProject) {
             TextField("项目名称", text: $newProjectName)
