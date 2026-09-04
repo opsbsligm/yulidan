@@ -9,7 +9,7 @@
 | **D-2** | `interactive` 宣称口径 | 已半结：注释「材质自带」宣称已撤销（BENCHMARK §9）→ 残余=悬停反馈目检（归 G3 A-h） | ◐ | BENCHMARK §6/§9 |
 | **D-3** | 设置页 C4 卡片归组 | 与 SETTINGS_IA_PROPOSAL **合并裁决**（IA_PROPOSAL L77：不必单列） | ☐ | docs/SETTINGS_IA_PROPOSAL.md |
 | **D-4** | 主题 manifest 假参数（A6） | 显式拒绝不支持字段+提示 / 维持现状 | ☐ | BENCHMARK §3-A6/§6 |
-| **D-5** | G4 层2（Cordis sidecar 跑社区插件） | 做 / 不做 | ☐ | CENSUS **四形态总表**（层1/1.5 双形态证据齐；③④结构性不适用论证在册）——材料已足 |
+| **D-5** | G4 层2（Cordis sidecar 跑社区插件） | 做 / 不做 | ✅ 09-04 = 做（G4c 启动） | CENSUS **四形态总表**；实施设计 docs/G4C_SIDECAR_DESIGN.md |
 | **D-6** | 24 零事件会话处置 | 删（DB 写需明示+二次确认）/ 留 | ☐ | QUALITY DB 只读复核（26=24+2）；Keychain 旧凭证为可选项 |
 | **D-10** | 玻璃折射源修法（材质走向，**最重要**） | (a) 窗口透明底 / (b) backgroundExtensionEffect / (c) 接受扁平 | ✅ 09-04 = (a) | BENCHMARK §13-F4/§15-A15 根因链 |
 | **D-11** | 主题 tint 作用域（A13） | 全局装饰 / 仅功能件（官方口径）/ 主题可声明 | ☐ | BENCHMARK §12/§14 |
@@ -20,6 +20,8 @@
 | **G1-SCOPE** | 双轴审计范围追认（DoD「范围经确认」条的正式落点） | 认可现行范围（轴1 A1–A19+材质提案 F3/F4 系列；轴2 W1–W8 观察窗清单）/ 或指出增删 | ✅ 09-04 追认 | BENCHMARK §2/§10/§12/§15/§16 全链在册；本轮补登记（发现 DoD 该条此前无正式确认载体） |
 
 ## 拍板记录区（拍一条记一条）
+
+- **D-5** ✅ = 做（G4c 启动）2026-09-04：用户 chat 答复「1」，双位落位记录（blocked#6 报告后列项首位 = D-5 × 选项首位 =「做」；如属误读一条 revert 即回退，代码面尚未开跑、回退成本最低）。Agent 材料立场如实留档：层2 增量收益 ≈0（CENSUS 总表：形态①②层1 已成立、③④不适用），但用户历史立场（社区插件拿来即用）明确，**做=用户裁决非材料推导**。执行口径 = docs/G4C_SIDECAR_DESIGN.md（S-1~S-4 默认策略可否决；C0–C4 全 A 层验收；安全红线含「JS=任意代码执行」授权声明）。
 
 - **G1-SCOPE** ✅ 2026-09-04：用户追认现行双轴审计范围（轴1 A1–A19 + 材质提案 F3/F4 系列；轴2 W1–W8 观察窗清单），无增删。拍板载体：chat 答复「1」（对应 Agent 列项「认可池 B + G1-SCOPE」）。DoD「范围经确认」条闭合。
 - **池 B（R1 #3/#6a/#6b/#7/#8 真机视觉帧补证，㉔ 二选一）** ✅ 2026-09-04：用户选第二项=「认可 A 层进程内证据即满足该子句」→ 静默核销（证据：#3 源码共享+溢出 10 项实测；#6a ThemeLiveRenderTests；#6b FileThemePackageTests；#7 SidebarDropHighlightRenderTests+noChange 单测；#8 GlassSurfaceTests 降级链+测试缝——均在册含 02:26 xcresult 867 项）。#7「用户手动拖一次」子句按 ㉓ 第二分支（认可在册）闭环，A-f 转 G3 可选观察项。**R1 八项全 ✅**。落点 HEAD：本提交（tag `g0-baseline-20260904`）。
