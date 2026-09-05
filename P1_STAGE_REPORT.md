@@ -375,7 +375,7 @@
 | 9 | R1 走测⑧减弱透明度降级 | ✅（09-04 静默核销） | GlassSurfaceTests 降级链+测试缝+867 项 xcresult + 09-04 池 B 拍板 | 无 |
 | 10 | R2 数据处置 | ✅ 09-05 已执行 | 明细㉓ + QUALITY 09-05 执行轮（26→2 三重校验；Keychain=可选项用户手动，不阻塞本项） | 已闭环 |
 | 11 | R3 覆盖率 ≥90% | ✅ 关闭 | 补记⑬（WorkspaceRoot 100%／关闭时全量 97.57%＝历史 9,755/237）；**当前权威 97.56%**（09-05 11:45 `main` rc=0：80 文件/9,755 行/238 未覆盖，本轮离线重算逐位吻合，见 QUALITY §三口径行）|
-| 12 | 四门禁全绿 @当前HEAD | **✅ 4/4（09-05 18:09 补齐 leaks 一门）** | `pr` rc=0@12:54:34／`main` rc=0@11:45:08／`xcode` rc=0@12:19:54／**`leaks` rc=0@18:09:07**（`0 leaks for 0 total leaked bytes`＋RSS 峰值 20,928KB < 512MB 阈值＋零 T 态残留） | 09-05 18:09 全量重跑 `tools/ci-local.sh leaks` rc=0@HEAD c2b5ef0（12:54 之后提交经 `git log --name-only` 复核全为 docs/shell，未触 `.swift`，其余三门 marker 对当前 HEAD 仍适用）。同日「三通道 wedge／登录会话退化」归因经对照实测**否证**（详见 P1 补记⓬／D-13 闭环条），故本行由 ⚠️ 3/4 升为 ✅ 4/4；DoD「四门禁全绿」此刻为真，G3 走查时仍须 @最终HEAD 复验 |
+| 12 | 四门禁全绿 @当前HEAD | **✅ 4/4（09-05 18:09 补齐 leaks 一门）** | `pr` rc=0@12:54:34／`main` rc=0@11:45:08／`xcode` rc=0@12:19:54／**`leaks` rc=0@18:09:07**（`0 leaks for 0 total leaked bytes`＋RSS 峰值 20,928KB < 512MB 阈值＋零 T 态残留） | 09-05 18:09 全量重跑 `tools/ci-local.sh leaks` rc=0@HEAD c2b5ef0（12:54 之后提交经 `git log --name-only` 复核全为 docs/shell，未触 `.swift`；**并以 §18 新立的子树指纹机制机械复核**：`git rev-parse "<rev>:Apps" "<rev>:Packages"` 在 `9e4dbf4`（pr 门禁批次）／`f87e855`／`c2b5ef0`／当前 HEAD 四处**完全同哈希**（6ba1b52c…／1c495203…）⇒ 三门 marker 对当前 HEAD 仍适用，不依赖提交标题推断）。同日「三通道 wedge／登录会话退化」归因经对照实测**否证**（详见 P1 补记⓬／D-13 闭环条），故本行由 ⚠️ 3/4 升为 ✅ 4/4；DoD「四门禁全绿」此刻为真，G3 走查时仍须 @最终HEAD 复验 |
 | 13 | HEAD 推镜像 | ✅ 持续 | 每轮 ls-remote 对账 | 收口轮终对账 |
 | 14 | 功能冻结宣告 | ⏳ 归用户 | — | 1–13 全绿后用户发起 |
 
