@@ -163,6 +163,7 @@
 		72AF9D402F3A11544876A2E1 /* OllamaNativeIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C86FFC01A3E9AA599CDD063F /* OllamaNativeIntegrationTests.swift */; };
 		73B819BFDC1D6FED93D48020 /* RAGR17GapTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 171AD937E5ABBE61A0B52177 /* RAGR17GapTests.swift */; };
 		76895B58B4667278B0EB86AD /* Turn.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC19B31F17532CFDD9D43FDA /* Turn.swift */; };
+		77326A884654EB4F8D78C66B /* TerminalCooperativePoolTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3B92CD383A4C117A541CA0C /* TerminalCooperativePoolTests.swift */; };
 		7750112E2E44C0084579A657 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 2BE623C953E85611034C38C2 /* GRDB */; };
 		78616A119E5C1A68CBBFB748 /* libTerminal.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A46E124774A36A19EC3DE5AA /* libTerminal.a */; };
 		787CFCB36FB53304A9EB5FBF /* ChatAreaView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4EF46F915BFEA6A4C2E5A7E /* ChatAreaView.swift */; };
@@ -292,6 +293,7 @@
 		DAB3641A354BFD88CAD30109 /* libSkill.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 0AD7099E7BA4780928E54FF1 /* libSkill.a */; };
 		DBBF98ACF565A69097306E59 /* CircuitBreaker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B08F6B7C802378B1CA12823 /* CircuitBreaker.swift */; };
 		DBDFA2B38BB06E8861A10672 /* ToolsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBE138B25D8BC41635F2EB50 /* ToolsTests.swift */; };
+		DBEDF261DEE448F8B6BA7850 /* MCPToolOwnershipTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E560B0C15F57BA49BF5FA1D3 /* MCPToolOwnershipTests.swift */; };
 		DC694582F6E54EA493154BEC /* libSession.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C296DBEF902C64F1A11B41A1 /* libSession.a */; };
 		DCC0576096BBC7975DDBF87E /* ToolPipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = F843259F7C70D8D67550C43A /* ToolPipeline.swift */; };
 		DCF3F89AA8D9F43F40CEE10C /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 7B58E4B4167751F0A4060E14 /* GRDB */; };
@@ -1628,6 +1630,7 @@
 		C296DBEF902C64F1A11B41A1 /* libSession.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libSession.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		C3953B22218F307C556072FA /* libMCP.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libMCP.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		C395C650546D0C8B2B77364C /* ToolTraceViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolTraceViews.swift; sourceTree = "<group>"; };
+		C3B92CD383A4C117A541CA0C /* TerminalCooperativePoolTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalCooperativePoolTests.swift; sourceTree = "<group>"; };
 		C57C9643D9985DF3BBAD68C8 /* WorkspaceR17GapTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceR17GapTests.swift; sourceTree = "<group>"; };
 		C5B44BA80CFB3E9FFB75448B /* Goal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Goal.swift; sourceTree = "<group>"; };
 		C84877ED4AB8818B9F281F57 /* SessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionTests.swift; sourceTree = "<group>"; };
@@ -1662,6 +1665,7 @@
 		E3EC32D0319702B0AA11952F /* libRAG.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libRAG.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		E47B563F5F351D1F5C986DAE /* ServiceProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServiceProtocol.swift; sourceTree = "<group>"; };
 		E4AA32F5353CF3C85607C79E /* MemoryEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryEngine.swift; sourceTree = "<group>"; };
+		E560B0C15F57BA49BF5FA1D3 /* MCPToolOwnershipTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPToolOwnershipTests.swift; sourceTree = "<group>"; };
 		E97F29627BF79AD924D6F5BD /* RAGEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RAGEngineTests.swift; sourceTree = "<group>"; };
 		E9E471CE2C33955A672FBACB /* SessionDBTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionDBTests.swift; sourceTree = "<group>"; };
 		EB5200FD958E2EBB15CAFBEB /* ConsistencyChecker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConsistencyChecker.swift; sourceTree = "<group>"; };
@@ -2594,6 +2598,7 @@
 				8FC4EFA19E0779A4626E286D /* MCPProtocolExtensionTests.swift */,
 				E32B63BA4E52F8DDB5D0A8F5 /* MCPR17GapCoverageTests.swift */,
 				5E0D7E63453CFF501A89952B /* MCPTests.swift */,
+				E560B0C15F57BA49BF5FA1D3 /* MCPToolOwnershipTests.swift */,
 			);
 			path = Tests;
 			sourceTree = "<group>";
@@ -2613,6 +2618,7 @@
 		E257023BCA99B850D6F1D1BE /* Tests */ = {
 			isa = PBXGroup;
 			children = (
+				C3B92CD383A4C117A541CA0C /* TerminalCooperativePoolTests.swift */,
 				6F460081D85DAECE0F43C338 /* TerminalGapCoverageTests.swift */,
 				24442DD06997F7D9308FF153 /* TerminalR17GapTests.swift */,
 				347EB5861FA112502F9714EA /* TerminalTests.swift */,
@@ -4366,6 +4372,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				77326A884654EB4F8D78C66B /* TerminalCooperativePoolTests.swift in Sources */,
 				D9C6927E9C2CE9E92DF21542 /* TerminalGapCoverageTests.swift in Sources */,
 				D0107360BBD15FE90BE13CE4 /* TerminalR17GapTests.swift in Sources */,
 				90C9ED5957C0CAEA9786DF1B /* TerminalTests.swift in Sources */,
@@ -4383,6 +4390,7 @@
 				153AF64649FA50B6ED299C59 /* MCPProtocolExtensionTests.swift in Sources */,
 				62AE6C88FA9ABEC78AC38926 /* MCPR17GapCoverageTests.swift in Sources */,
 				06ECD4B28BB6B81E51CC33FB /* MCPTests.swift in Sources */,
+				DBEDF261DEE448F8B6BA7850 /* MCPToolOwnershipTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
