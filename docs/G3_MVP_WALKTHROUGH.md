@@ -12,6 +12,7 @@
 | P3 | LaunchAgents 红线 | `ls ~/Library/LaunchAgents/` 仅 `com.harness.ci11.pr` + `watch`（注入式走测工具已归档 quarantine） | ◐ 09-04：restci 已回收、LaunchAgents 现仅 ci11.pr+watch ✓；「注入工具归档」保留为终局项（B 层 #3 可选通道存续期不动，归档动作=宣告冻结同批） |
 | P4 | 覆盖率 | QUALITY_REPORT 台账 ≥90% 且无未解释漂移 | ✅ 预检 09-04：清洁口径 97.56%（9,755/238）；唯一漂移疑云（main2 假高）根因实锤+源头治理闭环（QUALITY 深夜补记） |
 | P5 | 待拍板清零 | 本手册 §4 全部 D 项有拍板记录 | ☐ |
+| P6 | **走查构建新鲜度（09-05 新发现，Agent 可静默代跑）** | 运行中的 Harness 二进制 mtime ≥ HEAD 提交时间；否则走查对象是旧代码，结论无效 | 你重启 App（可见状态变化＝B 层，由你操作） | ☐ **09-05 实测**：pid 58301 存活 2天4h55m，exe=`.build/arm64-apple-macosx/debug/HarnessApp.app` mtime=**Sep 3 15:05**，HEAD=Sep 5 15:43 ⇒ **陈旧 2 天**，且 `wl`/`axdump` 双通道均报 windows=0。**自纠**：上一轮 Agent 曾据 `pgrep -f Harness.app` 零命中判「App 未在运行」——错，进程一直在跑；准确表述是「进程存活但零窗口，且二进制早于 HEAD」。判据：`stat -f %m` 对比 `git log -1 --format=%ct`（本轮已实跑）|
 
 ## 1. 走查池 A：视觉/UI 主观项（你操作 + 目检，Agent 只读截窗/axdump 补档）
 

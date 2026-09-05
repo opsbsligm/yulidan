@@ -18,6 +18,7 @@
 | **D-11** | 主题 tint 作用域（A13） | 全局装饰 / 仅功能件（官方口径）/ 主题可声明 | ☐ | BENCHMARK §12/§14 |
 | **D-12** | F5（撤 sheet 自铺底）+F6（rail 避让带）批次 | 做 / 延后 / 部分（修后各需 1 分钟目检或认可静态证据） | ☐ | BENCHMARK §14/§15；F6(b) overlay 落带官方沉默、终裁归 G3 A-b 目检（㊷） |
 | **D-13** | **leaks 门禁在本机不可用**（09-05 新登：`leaks`/`lldb`/`sample` 三条 task-inspection 通道同时无返回） | (a) 你重启登录会话后我复跑原判据 / (b) 认可「RSS 峰值护栏 + 全量测试」为本期泄漏证据（口径降级须你明示）/ (c) 挂起至下次自然恢复后复测 | ☐ 待拍板 | QUALITY 09-05 门禁清偿轮（TN 态证据 + MemProbe 本体 2s rc=0 + 09-04 21:20 曾 rc=0） |
+| **D-14** | launchd 重门禁静默化（新发现） | (a) `com.harness.ci11.pr` 的 `ProgramArguments` 改调 `tools/ci-quiet.sh pr`（登录不再立即抢占，等缺席窗口才跑，你回场即整组回收）／(b) 维持现状（登录即跑全量 pr）／(c) 卸载该 LaunchAgent，改由 Agent 在缺席窗口手跑 | ☐ 待批 | **实测现状**：`launchctl list` 显示该 job **已加载**，plist 为 `RunAtLoad=true`+`KeepAlive=false` ⇒ **每次登录/加载即在你必然到场时跑全量 pr 门禁**（Lint+Format+编译+788 测试）；全仓 `grep HIDIdleTime` 零命中 ⇒ 「重门禁只在缺席窗口跑」此前**纯靠人工判断、无任何守卫**。守卫工具已入仓（本轮），四路径实测 rc 正确。⚠️ 改 plist 需 `launchctl` 重载 = 动用户级守护进程，**必须你批准**，Agent 不擅自动手（与 D-13「绝不代用户动会话/守护进程」同源）。|
 | **A14** | 减弱透明度语义（v8 手册补登记） | 保 solid 纯色（现状已验收）/ 增 frosted 中间态 | ☐ | BENCHMARK §12-A14 |
 | **轴2** | Codex 界面取证方式 | (a) 你丢截图 / (b) 择时只读截观察窗 / (c) 延后 | ☐ | BENCHMARK §16 工作单；UI_CODEX_ALIGNMENT 重判节 |
 | **RSS 可见态组** | 可见态性能基线 | 你开 App 自然用 ≥10 分钟（我后台只读）/ 免 | ☐ | PERFORMANCE 正式基线节 |
