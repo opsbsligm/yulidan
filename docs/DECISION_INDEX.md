@@ -9,6 +9,9 @@
 | **D-2** | `interactive` 宣称口径 | 已半结：注释「材质自带」宣称已撤销（BENCHMARK §9）→ 残余=悬停反馈目检（归 G3 A-h） | ◐ | BENCHMARK §6/§9 |
 | **D-3** | 设置页 C4 卡片归组 | 与 SETTINGS_IA_PROPOSAL **合并裁决**（IA_PROPOSAL L77：不必单列） | ☐ | docs/SETTINGS_IA_PROPOSAL.md |
 | **D-4** | 主题 manifest 假参数（A6） | 显式拒绝不支持字段+提示 / 维持现状 | ☐ | BENCHMARK §3-A6/§6 |
+| **D-7** | 设置容器形态（**09-05 补登**：此前只存在于 IA_PROPOSAL §七，账本漏登） | (a) 维持 sheet（现状，Esc/xmark 闭环已核销）/ (b) 独立 `Settings` 窗口 | ☐ | docs/SETTINGS_IA_PROPOSAL.md §七（提案内建议=a）；与 D-3 合并裁决 |
+| **D-8** | 设置概览页去留（**09-05 补登**，同上） | 概览页保留 + 每行「编辑…」跳转（提案默认）/ 删概览页只留 6 编辑 pane | ☐ | docs/SETTINGS_IA_PROPOSAL.md §七 |
+| **D-9** | 记忆/工作区可编辑性（**09-05 补登**，同上） | 升为可编辑 / 明确标为只读并在文案说明（IA-4 二选一） | ☐ | docs/SETTINGS_IA_PROPOSAL.md §七 |
 | **D-5** | G4 层2（Cordis sidecar 跑社区插件） | 做 / 不做 | ✅ 09-04 = 做（G4c 启动） | CENSUS **四形态总表**；实施设计 docs/G4C_SIDECAR_DESIGN.md |
 | **D-6** | 24 零事件会话处置 | 删（DB 写需明示+二次确认）/ 留 | ✅ 09-04 拍板 = 删；✅ **09-05 已执行**（26→2，三重校验通过） | QUALITY DB 只读复核（26=24+2）；Keychain 旧凭证为可选项 |
 | **D-10** | 玻璃折射源修法（材质走向，**最重要**） | (a) 窗口透明底 / (b) backgroundExtensionEffect / (c) 接受扁平 | ✅ 09-04 = (a) | BENCHMARK §13-F4/§15-A15 根因链 |
@@ -29,3 +32,5 @@
 - **池 B（R1 #3/#6a/#6b/#7/#8 真机视觉帧补证，㉔ 二选一）** ✅ 2026-09-04：用户选第二项=「认可 A 层进程内证据即满足该子句」→ 静默核销（证据：#3 源码共享+溢出 10 项实测；#6a ThemeLiveRenderTests；#6b FileThemePackageTests；#7 SidebarDropHighlightRenderTests+noChange 单测；#8 GlassSurfaceTests 降级链+测试缝——均在册含 02:26 xcresult 867 项）。#7「用户手动拖一次」子句按 ㉓ 第二分支（认可在册）闭环，A-f 转 G3 可选观察项。**R1 八项全 ✅**。落点 HEAD：本提交（tag `g0-baseline-20260904`）。
 
 - **D-10** ✅ = (a) 窗口透明底 2026-09-04：用户 chat 答复「1」，双位落位记录（G0 收口报告「下一步」第 1 项 = D-10 × 其选项首位 = (a) 透明窗底案；如属误读一条 revert 即回退）。执行=@`ee1da43` 三处联动（makeWindow 透明装配测试缝 / 实底只贴主区 / 侧栏 GlassSurface(.regular) 底）+ WindowGlassSamplingTests 结构测试。**透窗采样实况终裁 = G3 A-d 目检**（㊹ 风险注记：官方无透窗采样明文，锚定 legacy behindWindow 在册能力）；F5（sheet 自铺底）归 D-12 未拍不动，已知其同窗下仍挡 sheet 区折射。
+
+- **账本完整性补登 09-05**：全量 ID 扫描（`docs/*.md` + P1/QUALITY 交叉比对）发现 **D-7/D-8/D-9 三项被 BENCHMARK/SETTINGS_IA_PROPOSAL 引用却从未入本账本**——后果是 G3 手册 §0 P5「§4 全部 D 项有拍板记录」按副本走查会整组漏掉设置页决策簇（D-3 + D-7/8/9）。已补齐三行并同步 G3 §4 副本；**口径重申**：任何文档新设 D-x/A-x 编号，必须同批写入本账本，否则视为未登记。

@@ -134,13 +134,12 @@ struct AgentLoopExtendedTests {
         let loop = makeLoop()
         let msg = UserMessage(content: [.text("test")])
         await loop.send(msg, target: .nextTurn, wakeup: true)
-        // 有界等待 processInbox 异步 turn 收敛（固定 100ms 可被负载下调度滞后突破；P1 flake 修复）
-        for _ in 0 ..< 100 {
-            if await loop.currentStatus == .idle {
-                break
-            }
-            try? await Task.sleep(for: .milliseconds(20))
-        }
+        // 收敛等待必须锚定「新 turn 确实起跑并结束」。轮询 `currentStatus == .idle` 存在结构性假收敛：
+        // followup/send(wakeup:) 仅 Task { processInbox() } 即返回，status 尚未转 .running，
+        // 故第 0 次检查即命中「启动前的 idle」→ 立刻 break → 随后 turn 起跑转 .running → 终判失败
+        // （09-05 xcode 门禁实测复现，失败耗时 0.001s 正是该假收敛指纹；负载下起跑越慢越易触发）。
+        // awaitTurnResult 以 turnNumber 递增为锚（本模块通用原语），天生免疫此窗口。
+        _ = await awaitTurnResult(loop)
         #expect(await loop.currentStatus == .idle)
     }
 
@@ -149,13 +148,12 @@ struct AgentLoopExtendedTests {
         let loop = makeLoop()
         let msg = UserMessage(content: [.text("followup")])
         await loop.followup(msg)
-        // 有界等待 processInbox 异步 turn 收敛（固定 100ms 可被负载下调度滞后突破；P1 flake 修复）
-        for _ in 0 ..< 100 {
-            if await loop.currentStatus == .idle {
-                break
-            }
-            try? await Task.sleep(for: .milliseconds(20))
-        }
+        // 收敛等待必须锚定「新 turn 确实起跑并结束」。轮询 `currentStatus == .idle` 存在结构性假收敛：
+        // followup/send(wakeup:) 仅 Task { processInbox() } 即返回，status 尚未转 .running，
+        // 故第 0 次检查即命中「启动前的 idle」→ 立刻 break → 随后 turn 起跑转 .running → 终判失败
+        // （09-05 xcode 门禁实测复现，失败耗时 0.001s 正是该假收敛指纹；负载下起跑越慢越易触发）。
+        // awaitTurnResult 以 turnNumber 递增为锚（本模块通用原语），天生免疫此窗口。
+        _ = await awaitTurnResult(loop)
         #expect(await loop.currentStatus == .idle)
     }
 
