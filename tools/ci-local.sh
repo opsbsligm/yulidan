@@ -17,7 +17,8 @@ trap 'rm -f "$DONE_MARKER" "${DONE_MARKER}.tmp"' EXIT
 # 全量测试看门狗：挂起（runner 存活但不退出）不会触发下方「非零退出才重试」的有界重试，
 # 超过 TEST_TIMEOUT 秒由 SIGALRM 终止为 rc=142 → 正常走重试路径（经验来源：QUALITY_REPORT 2026-09-01 第六轮）
 TEST_TIMEOUT=1200
-# 09-05 新增有界化：xcode 收尾阶段与 leaks 均实测过「工具无返回」挂起（详见 QUALITY 09-05 条目），
+# 09-05 新增有界化：xcode 收尾阶段与 leaks 均实测过「工具无返回」挂起（详见 QUALITY 09-05 条目；
+#   注：同日 18:09 该轮「本机通道不可用」归因经对照实测已否证＝间歇性故障、病因未定，见 P1 补记⓬；有界化本身保留）。
 # 无超时的门禁会无限滞留并留下被停住(T 态)的孤儿子进程，故一律加闹钟并显式判失败（不静默放行）。
 XCODE_TEST_TIMEOUT=2400
 LEAKS_TIMEOUT=300
@@ -75,8 +76,9 @@ run_leaks() {
   if [ "$rc" -eq 142 ]; then
     # leaks 超时会使目标停在 T 态并被孤儿化，必须清理，否则污染后续门禁与 ps 口径
     pkill -9 -f "MemProbe 500" 2>/dev/null || true
-    echo "❌ leaks 工具超时无返回（本机 task-inspection 通道不可用；见 DECISION_INDEX D-13）"
-    echo "   已通过：RSS 增长护栏（上方数值）。如需 leaks 原判据：先恢复调试通道（或用户重启登录会话）后复跑。"
+    echo "❌ leaks --atExit ${LEAKS_TIMEOUT}s 内无结论（病因未定：09-05 曾连续挂起，同日 18:09 同判据实测 rc=0 ⇒ 间歇性故障，非本机永久退化）"
+    echo "   已通过：RSS 增长护栏（上方数值；口径不等同对象图泄漏判据，不可自审自批）。"
+    echo "   处置顺序：① 查并发重门禁/高负载 → ② 直接复跑本模式 → ③ 连续 ≥3 次挂起才升级为环境事件申报（不得写成「本机不可用」）。"
     exit 142
   fi
   [ "$rc" -eq 0 ] || exit "$rc"
