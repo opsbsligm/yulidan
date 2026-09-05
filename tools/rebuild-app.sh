@@ -60,14 +60,19 @@ verify_bundle() {
   stamp_sha="$(sed -n 's/^src_sha=//p' "$STAMP")"
   head="$(sed -n 's/^head=//p' "$STAMP")"
   time_="$(sed -n 's/^time=//p' "$STAMP")"
-  local cur
+  local cur lagged=0
   cur="$(sha256 "$SRC")"
   if [ "$cur" != "$stamp_sha" ]; then
     echo "❌ bundle 落后：构建产物已变化（stamp $stamp_sha → 现 $cur，同步于 $time_ @ $head）— 启动前必须先 tools/rebuild-app.sh"
+    lagged=1
   else
     echo "✅ bundle 与构建产物一致（$time_ @ $head）"
   fi
   if [ -n "$symbol" ]; then probe_symbol "$symbol"; fi
+  # 09-05 修复：原实现在「落后」分支只打印 ❌ 不改退出码 ⇒ 调用方按 rc 判定必然假绿。
+  # 实锤：本次 verify 在 bundle 落后 2 天（Sep 3 产物 vs 今日 12:17 构建）时仍返回 rc=0。
+  # 现改为：符号探测照常跑，最后按 lagged 决定退出码（不吞错也不提前退出，保持一次看全）。
+  [ "$lagged" -eq 0 ] || exit 1
 }
 
 probe_symbol() {
@@ -82,6 +87,16 @@ probe_symbol() {
 }
 
 relaunch_app() {
+  # ⚠️ 静默验收铁律 8（v8 最高优先）：kill 正在运行的 App + open 唤起窗口 = 改变你可见状态（B/C 层），
+  # 任何 Agent 自动调用都属违规。故此处加机制门（不依赖自觉，与 tools/ci-quiet.sh 同思路）：
+  # 无用户当场放行变量即拒绝执行。**用户手动**执行请显式加前缀：
+  #     HARNESS_USER_APPROVED_RELAUNCH=1 tools/rebuild-app.sh relaunch
+  if [ "${HARNESS_USER_APPROVED_RELAUNCH:-}" != "1" ]; then
+    echo "🚫 relaunch 需要用户当场放行（静默铁律 8：kill+open 会改变你的前台/可见状态）。"
+    echo "   本次仅完成构建与 bundle 同步（sync 部分已做完/可直接用 tools/rebuild-app.sh verify 核验）。"
+    echo "   用户手跑请执行：HARNESS_USER_APPROVED_RELAUNCH=1 tools/rebuild-app.sh relaunch"
+    exit 7
+  fi
   local p
   p="$(pgrep -f "HarnessApp.app/Contents/MacOS/HarnessApp" || true)"
   if [ -n "$p" ]; then
@@ -98,6 +113,15 @@ case "${1:-sync}" in
     ;;
   relaunch)
     # 兼容旧用法：tools/rebuild-app.sh relaunch = 同步 + 重启
+    # ⚠️ 09-05：门必须放在 sync 之前——副本实测证明「门只在 relaunch_app 内」时 sync 仍会先执行
+    #   （本次表现为 /tmp 副本里 swift build 报 Could not find Package.swift），
+    #   真仓场景即「先构建再 kill+open」，故在分支入口直接拦截。
+    if [ "${HARNESS_USER_APPROVED_RELAUNCH:-}" != "1" ]; then
+      echo "🚫 relaunch 需要用户当场放行（静默铁律 8：kill+open 会改变你的前台/可见状态）。"
+      echo "   仅想同步 bundle 请跑：tools/rebuild-app.sh（无参数＝sync，零可见状态变化）"
+      echo "   用户手跑重启请显式执行：HARNESS_USER_APPROVED_RELAUNCH=1 tools/rebuild-app.sh relaunch"
+      exit 7
+    fi
     sync_bundle
     relaunch_app
     ;;
