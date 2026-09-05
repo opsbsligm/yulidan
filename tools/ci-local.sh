@@ -17,6 +17,11 @@ trap 'rm -f "$DONE_MARKER" "${DONE_MARKER}.tmp"' EXIT
 # 全量测试看门狗：挂起（runner 存活但不退出）不会触发下方「非零退出才重试」的有界重试，
 # 超过 TEST_TIMEOUT 秒由 SIGALRM 终止为 rc=142 → 正常走重试路径（经验来源：QUALITY_REPORT 2026-09-01 第六轮）
 TEST_TIMEOUT=1200
+# 09-05 新增有界化：xcode 收尾阶段与 leaks 均实测过「工具无返回」挂起（详见 QUALITY 09-05 条目），
+# 无超时的门禁会无限滞留并留下被停住(T 态)的孤儿子进程，故一律加闹钟并显式判失败（不静默放行）。
+XCODE_TEST_TIMEOUT=2400
+LEAKS_TIMEOUT=300
+RSS_GUARD_MAX_KB=${RSS_GUARD_MAX_KB:-524288}   # MemProbe RSS 增量护栏阈值（默认 512MB）
 
 step() { echo; echo "===== $1 ====="; }
 
@@ -45,8 +50,36 @@ run_pr() {
 run_leaks() {
   step "LEAKS Build debug"
   swift build
-  step "LEAKS leaks --atExit MemProbe 500（期望 0 leaks）"
-  leaks --atExit -- .build/debug/MemProbe 500
+
+  # 补充证据（不需要 task 端口，故不受本机调试通道状态影响）：外部 ps 轮询 MemProbe RSS 增长。
+  # 口径注明：这是「无失控增长」护栏，**不等同** leaks 的对象图泄漏判据，不可代替其核销。
+  step "LEAKS 外部 RSS 增长护栏（MemProbe 2000 迭代，ps 轮询）"
+  .build/debug/MemProbe 2000 > /tmp/ci_leaks_rss.log 2>&1 &
+  probe_pid=$!
+  rss_first=0; rss_max=0
+  for _ in 1 2 3 4 5 6 8 10 12 15 20 25 30 40 50 60; do
+    rss=$(ps -o rss= -p "$probe_pid" 2>/dev/null | tr -d ' ' || true)
+    [ -z "$rss" ] && break
+    [ "$rss_first" -eq 0 ] && rss_first=$rss
+    [ "$rss" -gt "$rss_max" ] && rss_max=$rss
+    sleep 1
+  done
+  wait "$probe_pid" || { echo "❌ MemProbe 本体失败（见 /tmp/ci_leaks_rss.log）"; exit 1; }
+  # 判据取「峰值 RSS 对绝对阈值」：首采样含进程冷启动爬坡（实测 208KB 伪低值），不可作基线算增量。
+  echo "RSS 护栏：首采样=${rss_first}KB（仅参考）峰值=${rss_max}KB（阈值 ${RSS_GUARD_MAX_KB}KB）"
+  [ "$rss_max" -le "$RSS_GUARD_MAX_KB" ] || { echo "❌ 峰值 RSS 超阈值，疑似失控增长"; exit 1; }
+
+  step "LEAKS leaks --atExit MemProbe 500（期望 0 leaks；有界 ${LEAKS_TIMEOUT}s）"
+  rc=0
+  perl -e 'alarm shift @ARGV; exec @ARGV' "$LEAKS_TIMEOUT" leaks --atExit -- .build/debug/MemProbe 500 || rc=$?
+  if [ "$rc" -eq 142 ]; then
+    # leaks 超时会使目标停在 T 态并被孤儿化，必须清理，否则污染后续门禁与 ps 口径
+    pkill -9 -f "MemProbe 500" 2>/dev/null || true
+    echo "❌ leaks 工具超时无返回（本机 task-inspection 通道不可用；见 DECISION_INDEX D-13）"
+    echo "   已通过：RSS 增长护栏（上方数值）。如需 leaks 原判据：先恢复调试通道（或用户重启登录会话）后复跑。"
+    exit 142
+  fi
+  [ "$rc" -eq 0 ] || exit "$rc"
 }
 
 run_xcode() {
@@ -56,8 +89,16 @@ run_xcode() {
   xcodebuild -project swift-harness.xcodeproj -scheme HarnessApp -configuration Debug \
     -derivedDataPath ./ci-derived-data build
   step "XCODE Test (HarnessApp Debug)"
-  xcodebuild -project swift-harness.xcodeproj -scheme HarnessApp -configuration Debug \
-    -derivedDataPath ./ci-derived-data test
+  rc=0
+  perl -e 'alarm shift @ARGV; exec @ARGV' "$XCODE_TEST_TIMEOUT" xcodebuild -project swift-harness.xcodeproj \
+    -scheme HarnessApp -configuration Debug -derivedDataPath ./ci-derived-data test || rc=$?
+  if [ "$rc" -eq 142 ]; then
+    echo "❌ xcodebuild test 超时无结论（有界 ${XCODE_TEST_TIMEOUT}s；09-04 前曾实测收尾阶段挂起 20+ 分钟）"
+    pkill -9 -f "xcodebuild -project swift-harness.xcodeproj" 2>/dev/null || true
+    pkill -9 -f "ci-derived-data.*xctest" 2>/dev/null || true
+    exit 142
+  fi
+  [ "$rc" -eq 0 ] || exit "$rc"
 }
 
 run_main() {
