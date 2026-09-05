@@ -48,9 +48,9 @@ struct AppViewModelMCPServerTests {
         #expect(configs.first?.arguments == ["-h", "--verbose"])
         #expect(configs.first?.environment == ["FOO": "bar", "BAZ": "qux"])
         // /usr/bin/true 立即退出 → 连接不可用，但配置已落盘、列表已刷新
-        #expect(vm.mcpServers.count == 1)
-        #expect(vm.mcpServers.first?.isAvailable == false)
-        #expect(vm.mcpServers.first?.id == configs.first?.id)
+        #expect(vm.userMCPServers.count == 1)
+        #expect(vm.userMCPServers.first?.isAvailable == false)
+        #expect(vm.userMCPServers.first?.id == configs.first?.id)
         #expect(vm.showMCPImportForm == false)
     }
 
@@ -62,7 +62,7 @@ struct AppViewModelMCPServerTests {
 
         await vm.importMCPServer(name: "dup", command: "/usr/bin/true",
                                  arguments: "", environment: "")
-        guard let firstId = vm.mcpServers.first?.id else {
+        guard let firstId = vm.userMCPServers.first?.id else {
             Issue.record("首次导入后 mcpServers 为空")
             return
         }
@@ -72,8 +72,8 @@ struct AppViewModelMCPServerTests {
 
         let configs = MCPDiscovery.loadConfigs(url: mcpURL)
         #expect(configs.count == 1)
-        #expect(vm.mcpServers.count == 1)
-        #expect(vm.mcpServers.first?.id == firstId)
+        #expect(vm.userMCPServers.count == 1)
+        #expect(vm.userMCPServers.first?.id == firstId)
         #expect(configs.first?.command == "/usr/bin/false")
         #expect(configs.first?.arguments == ["--x"])
     }
@@ -87,9 +87,9 @@ struct AppViewModelMCPServerTests {
         await vm.importMCPServer(name: "broken", command: "/usr/bin/nonexistent_mcp_xyz_123",
                                  arguments: "", environment: "")
 
-        #expect(vm.mcpServers.count == 1)
-        #expect(vm.mcpServers.first?.isAvailable == false)
-        #expect(vm.mcpServers.first?.toolCount == nil)
+        #expect(vm.userMCPServers.count == 1)
+        #expect(vm.userMCPServers.first?.isAvailable == false)
+        #expect(vm.userMCPServers.first?.toolCount == nil)
         #expect(vm.toolsLoadWarning?.contains("broken") == true)
     }
 
@@ -103,11 +103,15 @@ struct AppViewModelMCPServerTests {
                                  arguments: "", environment: "")
         #expect(MCPDiscovery.loadConfigs(url: mcpURL).count == 1)
 
-        let item = vm.mcpServers[0]
+        // 选卸载对象按名取（见 MCPUserListFilter.swift 的口径说明）
+        guard let item = vm.userMCPServer(named: "rm-test") else {
+            Issue.record("前置未成立：列表里没有 rm-test（实得 \(vm.userMCPServers.map(\.name))）")
+            return
+        }
         await vm.removeMCPServer(item)
 
         #expect(MCPDiscovery.loadConfigs(url: mcpURL).isEmpty)
-        #expect(vm.mcpServers.isEmpty)
+        #expect(vm.userMCPServers.isEmpty)
         #expect(await vm.mcpManager.isConnected(name: "rm-test") == false)
     }
 
@@ -120,11 +124,15 @@ struct AppViewModelMCPServerTests {
         await vm.importMCPServer(name: "broken2", command: "/usr/bin/nonexistent_mcp_xyz_123",
                                  arguments: "", environment: "")
 
-        let item = vm.mcpServers[0]
+        // 选重启对象按名取
+        guard let item = vm.userMCPServer(named: "broken2") else {
+            Issue.record("前置未成立：列表里没有 broken2（实得 \(vm.userMCPServers.map(\.name))）")
+            return
+        }
         await vm.retryMCPServer(item)
 
-        #expect(vm.mcpServers.count == 1)
-        #expect(vm.mcpServers.first?.isAvailable == false)
+        #expect(vm.userMCPServers.count == 1)
+        #expect(vm.userMCPServers.first?.isAvailable == false)
         #expect(MCPDiscovery.loadConfigs(url: mcpURL).count == 1)
         #expect(await vm.mcpManager.isConnected(name: "broken2") == false)
     }
@@ -170,24 +178,30 @@ struct AppViewModelMCPServerTests {
         // 等待握手完成 + 工具注册进工具列表（工具页自动注册链路）
         let deadline = Date().addingTimeInterval(20)
         while Date() < deadline {
-            if vm.mcpServers.first?.isAvailable == true,
+            if vm.userMCPServer(named: "regtest")?.isAvailable == true,
                vm.tools.contains(where: { $0.name == "mcp_regtest_echo" }) {
                 break
             }
             try? await Task.sleep(for: .milliseconds(100))
         }
-        #expect(vm.mcpServers.first?.isAvailable == true)
+        #expect(vm.userMCPServer(named: "regtest")?.isAvailable == true)
         #expect(vm.tools.contains(where: { $0.name == "mcp_regtest_echo" }))
 
-        // 卸载：工具即时移除 + 服务器断开
-        // 移除断言带短暂宽限循环（与导入侧等待循环对称）：正常路径首检即命中；
-        // 吸收主门禁高负载（Release+覆盖率插桩）下的调度抖动（2026-08-25 agent8 主门禁瞬态失败后加固）
-        await vm.removeMCPServer(vm.mcpServers[0])
-        let removeDeadline = Date().addingTimeInterval(5)
-        while Date() < removeDeadline,
-              vm.tools.contains(where: { $0.name.hasPrefix("mcp_regtest_") }) {
-            try? await Task.sleep(for: .milliseconds(100))
+        // 卸载：工具**即时**移除 + 服务器断开。
+        // ⚠️ 这里刻意**不留宽限循环**（原为 5s 轮询，2026-08-25 高负载瞬态失败后加的对称加固）：
+        //   宽限把「卸载后工具迟迟不消失」的用户可感知缺陷折算成测试等待，正是 D-16 期间
+        //   「上限 5s→20s 试探」被实测撤销的同一条理由（QUALITY_REPORT 09-06 补记㉕）。
+        //   现在钉住的语义＝「removeMCPServer 返回时工具已下线」——removeMCPServer 内部
+        //   以 await refreshTools() 收尾（AppViewModel.swift L1054 起），返回时快照已刷新完毕，无需轮询。
+        //   ⇒ 本行若再次变红，含义是「即时性被破坏」或「协作线程池又饿了」，处置方向是查根因，
+        //     不是把循环加回来。
+        // 选卸载对象按名取——曾因按下标取到内置演示服务器 "local"（按名排序在前），
+        // 导致「卸载了 regtest，regtest 工具当然还在」的假缺陷（D-16 真正根因）
+        guard let victim = vm.userMCPServer(named: "regtest") else {
+            Issue.record("前置未成立：列表里没有 regtest（实得 \(vm.userMCPServers.map(\.name))）")
+            return
         }
+        await vm.removeMCPServer(victim)
         #expect(!vm.tools.contains(where: { $0.name.hasPrefix("mcp_regtest_") }))
         #expect(await vm.mcpManager.isConnected(name: "regtest") == false)
     }

@@ -57,15 +57,15 @@ final class MCPCommunityAppFlowTests: XCTestCase {
         XCTAssertEqual(configs.count, 1)
         XCTAssertEqual(configs.first?.command, node)
         // ③ 运行时连接 + 展示层在册（「拿过来能直接用」的可见证据）
-        XCTAssertEqual(vm.mcpServers.count, 1)
-        let item = try XCTUnwrap(vm.mcpServers.first)
+        XCTAssertEqual(vm.userMCPServers.count, 1)
+        let item = try XCTUnwrap(vm.userMCPServer(named: "dsh-crew-appflow"))
         XCTAssertTrue(item.isAvailable, "dsh-crew 应经 App 真实链路连接成功（失败会置 toolsLoadWarning）")
         XCTAssertGreaterThanOrEqual(item.toolCount ?? 0, 6, "工具数应 ≥6（层1 矩阵在册 6 工具），实得 \(String(describing: item.toolCount))")
         XCTAssertTrue(item.serverInfo?.contains("dsh-crew") == true, "serverInfo 应含上游 serverName dsh-crew")
         XCTAssertTrue(vm.tools.contains { $0.name.contains("dsh_run_worker") }, "工具注册表应含 dsh_run_worker")
         // ④ 卸载 = 配置移除 + 子进程断开（不留孤儿进程）
         await vm.removeMCPServer(item)
-        XCTAssertTrue(vm.mcpServers.isEmpty)
+        XCTAssertTrue(vm.userMCPServers.isEmpty)
         XCTAssertTrue(MCPDiscovery.loadConfigs(url: mcpURL).isEmpty)
     }
 
@@ -91,14 +91,14 @@ final class MCPCommunityAppFlowTests: XCTestCase {
         // ① 旧版装载：serverInfo 必须是 rc.6（前置断言，防两路径同包假绿）
         await vm.importMCPServer(name: "dsh-crew-upgrade", command: node,
                                  arguments: p6, environment: "HOME=\(sandboxHome)")
-        let old = try XCTUnwrap(vm.mcpServers.first)
+        let old = try XCTUnwrap(vm.userMCPServer(named: "dsh-crew-upgrade"))
         XCTAssertTrue(old.isAvailable && old.serverInfo?.contains("0.1.0-rc.6") == true,
                       "前置：rc.6 装载应可用且 serverInfo 含 rc.6，实得 \(String(describing: old.serverInfo))")
         // ② 同名导入 = 更新 → 重连激活新代码路径：serverInfo 翻到 rc.7（同名 id 不变在 AppViewModelMCPServerTests 在册）
         await vm.importMCPServer(name: "dsh-crew-upgrade", command: node,
                                  arguments: p7, environment: "HOME=\(sandboxHome)")
-        let upgraded = try XCTUnwrap(vm.mcpServers.first)
-        XCTAssertEqual(vm.mcpServers.count, 1, "同名更新不得产生第二条目")
+        let upgraded = try XCTUnwrap(vm.userMCPServer(named: "dsh-crew-upgrade"))
+        XCTAssertEqual(vm.userMCPServers.count, 1, "同名更新不得产生第二条目")
         XCTAssertTrue(upgraded.isAvailable && upgraded.serverInfo?.contains("0.1.0-rc.7") == true,
                       "升级回路：serverInfo 应翻至 rc.7（新包激活铁证），实得 \(String(describing: upgraded.serverInfo))")
         XCTAssertGreaterThanOrEqual(upgraded.toolCount ?? 0, 6)

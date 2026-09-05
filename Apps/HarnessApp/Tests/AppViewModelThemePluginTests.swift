@@ -102,9 +102,9 @@ struct AppViewModelThemePluginTests {
         await vm.importMCPServer(name: "theme-mcp", command: "/usr/bin/env",
                                  arguments: "python3 \(script)", environment: "")
         // importMCPServer 内部已完成 refreshThemes + refreshMCPServers
-        #expect(vm.mcpServers.count == 1)
-        #expect(vm.mcpServers.first?.isAvailable == true)
-        #expect(vm.mcpServers.first?.isTheme == true, "MCP 列表应打主题徽章")
+        #expect(vm.userMCPServers.count == 1)
+        #expect(vm.userMCPServers.first?.isAvailable == true)
+        #expect(vm.userMCPServers.first?.isTheme == true, "MCP 列表应打主题徽章")
 
         let ids = Set(vm.themeOptions.map(\.id))
         #expect(ids.contains("mcp-mint"))
@@ -119,9 +119,13 @@ struct AppViewModelThemePluginTests {
         // 并行 CI 高负载下 removeMCPServer 卸载后刷新超 2.5s → 直接读值已被清；sink 对发射时点不敏感）
         var toasts: [String] = []
         let sink = vm.$toastMessage.compactMap(\.self).removeDuplicates().sink { toasts.append($0) }
-        if let item = vm.mcpServers.first {
-            await vm.removeMCPServer(item)
+        // 选卸载对象按名取（"theme-mcp" 按名排序在内置演示服务器 "local" 之后，
+        // 用 .first 会随时取到 "local" ⇒ 卸载错对象、主题不回落，即 D-16 的另一条症状）
+        guard let item = vm.userMCPServer(named: "theme-mcp") else {
+            Issue.record("前置未成立：列表里没有 theme-mcp（实得 \(vm.userMCPServers.map(\.name))）")
+            return
         }
+        await vm.removeMCPServer(item)
         sink.cancel()
         #expect(vm.activeThemeSpec == .systemBaseline)
         #expect(toasts.contains { $0.contains("回落") }, "卸载回落应通知，实际 toasts=\(toasts)")
@@ -139,9 +143,9 @@ struct AppViewModelThemePluginTests {
         await vm.importMCPServer(name: "bad-theme-mcp", command: "/usr/bin/env",
                                  arguments: "python3 \(script)", environment: "")
         // 服务器本身连通正常，但 spec 越界 = 视为非主题服务器（与文件包口径一致）
-        #expect(vm.mcpServers.count == 1)
-        #expect(vm.mcpServers.first?.isAvailable == true)
-        #expect(vm.mcpServers.first?.isTheme != true, "越界 spec 不应打主题徽章")
+        #expect(vm.userMCPServers.count == 1)
+        #expect(vm.userMCPServers.first?.isAvailable == true)
+        #expect(vm.userMCPServers.first?.isTheme != true, "越界 spec 不应打主题徽章")
         #expect(!vm.themeOptions.map(\.id).contains("mcp-mint"))
         #expect(vm.activeThemeSpec == .systemBaseline)
     }
