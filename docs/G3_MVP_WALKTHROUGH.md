@@ -7,8 +7,8 @@
 
 | # | 项 | 判据 | 状态 |
 |---|----|------|------|
-| P1 | HEAD 四门禁全绿 | pr rc=0 / leaks 0 / xcode TEST SUCCEEDED / main rc=0（QUALITY_REPORT 末段对账行） | ✅ 预检 09-04 ＋ **09-05 18:09 四门 marker 齐**：pr@12:54:34／main@11:45:08／xcode@12:19:54／**leaks rc=0@18:09:07（`0 leaks for 0 bytes`）**；走查时 @最终HEAD 复验 |
-| P2 | 镜像 MATCH | `git push --mirror swift-harness-backup.git` 后 `git ls-remote` HEAD 一致 | ✅ 预检 09-04：深夜轮双次 ls-remote diff 空（e576dc6→1b7045c 链）；走查时复验 |
+| P1 | HEAD 四门禁全绿 | pr rc=0 / leaks 0 / xcode TEST SUCCEEDED / main rc=0（QUALITY_REPORT 末段对账行） | ✅ 预检 09-04 ＋ **09-05 18:09 四门 marker 齐**：pr@12:54:34／main@11:45:08／xcode@12:19:54／**leaks rc=0@18:09:07（`0 leaks for 0 bytes`）**；走查时 @最终HEAD 复验 **⁽⁰⁹⁻⁰⁵ᵈ⁾ docs-only 豁免的机械证明（新机制首次自用）**：HEAD 已因两枚 docs/工具提交前移（`4431fb9`→`5947e65`，改动仅 `docs/`·`QUALITY`·`P1_STAGE`·`tools/`，`git diff --name-only e5c6c37..HEAD` 零 `.swift`）；`git rev-parse "${H}:Apps"`/`:Packages` 两枚子树指纹与 @e5c6c37 **逐位相同**（Apps `6ba1b52c6197`／Packages `1c495203e2a1`）⇒ 三门 marker（pr@12:54:34／main@11:45:08／xcode@12:19:54）与 leaks@18:09:07 对**当前编译面与二进制**依然成立，非按提交标题推断。**口径固化**：今后凡 docs-only 轮，沿用 marker 须附此二指纹比对；一旦任一指纹变化即须重跑该门（且受 idle≥60min 门控）。 |
+| P2 | 镜像 MATCH | `git push --mirror swift-harness-backup.git` 后 `git ls-remote` HEAD 一致 | ✅ 预检 09-04：深夜轮双次 ls-remote diff 空（e576dc6→1b7045c 链）；走查时复验 **⁽⁰⁹⁻⁰⁵ᵈ⁾** 本轮两枚提交各自推镜像后 `ls-remote` 逐次实测 MATCH（`4431fb9`、`5947e65`）。 |
 | P3 | LaunchAgents 红线 | `ls ~/Library/LaunchAgents/` 仅 `com.harness.ci11.pr` + `watch`（注入式走测工具已归档 quarantine） | ◐ 09-04：restci 已回收、LaunchAgents 现仅 ci11.pr+watch ✓；「注入工具归档」保留为终局项（B 层 #3 可选通道存续期不动，归档动作=宣告冻结同批） |
 | P4 | 覆盖率 | QUALITY_REPORT 台账 ≥90% 且无未解释漂移 | ✅ 预检 09-04：清洁口径 97.56%（9,755/238）；唯一漂移疑云（main2 假高）根因实锤+源头治理闭环（QUALITY 深夜补记） |
 | P5 | 待拍板清零 | 本手册 §4 全部 D 项有拍板记录 | ☐ ·09-05 已备 1 分钟摘要视图 docs/DECISION_CARDS.md（账本仍为 DECISION_INDEX） |
