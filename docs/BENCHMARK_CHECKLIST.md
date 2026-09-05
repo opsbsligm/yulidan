@@ -770,3 +770,76 @@ curl -sS "https://developer.apple.com/tutorials/data/documentation/<path>.json" 
 
 已入册官方引文 **29 条**，分布：§1.8 4／§1.9 3／§1.10 1／§1.11 3／§1.12 4／§17.2 2／§18.2 8／§19.1 4。
 ⇒ 一句话提醒：**同一篇文章的引文可能同时存在于 §1.8 与 §19.1 两处**，检索必须以工具为准，别按小节回忆。
+
+## §21 代码注释「官方」引用全量审计（09-05，A 层静默；§20.2 检索门首次全仓执行）
+
+> 动机：§18.5 那种「注释里写官方、实际无原文」的过度归属已发生过一次。本轮不再抽查，改为**全量**：
+> `grep -rn "官方" --include='*.swift' Apps Packages` ＝ **54 行**，按目录现算三分（口径闭合，脚本可复跑）：
+> **玻璃类源码 29 行**（`Styles/`＋`Views/`＋`HarnessApp.swift`）＝本审计主体｜**LLM／提供商语境 15 行**（`Packages/`＋`LLMConfigStore.swift`＋`ViewModels/`）｜**测试代码 10 行**。
+> ⇒ §21.2 的 11 条 B/C 档全部落在玻璃类源码内；玻璃类**测试**注释只有 1 行（`GlassMorphTabBarTests.swift:116`「interactive 需 Add 非默认自带」）＝A 档，与 §1.10 逐字原文相符，**摘要里欠的「同名测试用例名复核」就此结**（该用例与注释均有原文支撑，无需改名）。
+
+### 21.1 判定口径（三档）
+
+| 档 | 含义 | 处置 |
+|---|---|---|
+| **A 有原文** | 能在 §1/§17/§18/§19 逐字表或 `.swiftdoc`/SDK 签名中找到支撑 | 保留，注上锚点 |
+| **B 归纳冒充** | 方向对，但把「我方推论／不完整条件」写成官方判据 | 加限定语（`.swift` 注释批次） |
+| **C 负结论无门** | 写「官方无 X」但未走 §20.2 四步 | 补跑门并挂证据，或撤销 |
+
+### 21.2 B/C 档清单（＝G2 首轮 `.swift` 注释批次，idle 时一次跑完门禁）
+
+| # | 位置 | 现状表述 | 问题 | 改法 |
+|---|---|---|---|---|
+| 1 | `GlassSurface.swift:16` | 官方 `Glass` **仅两变体**（regular/clear） | **签名层实测有三个静态成员**：26.5 SDK `SwiftUICore.swiftinterface` L5753–5762 依次 `regular`／`clear`／**`identity`** | 「HIG 明文材质变体＝regular/clear（§1.9）；SDK 另有 `Glass.identity` 单位值（签名实测在册，HIG 未描述）」 |
+| 2 | `GlassSurface.swift:112` | 「官方 Glass 变体；仅开放两档」 | 同上；「仅开放两档」是我方策略 | 拆成「官方变体（HIG 两个）＋我方仅开放两档＝策略」 |
+| 3 | `GlassMorphTabBar.swift:136` | 「morph/union 官方约束：同变体 ＋ 同型 shape」 | **合并归因＋漏条件**：官方 union 三同是 similar shape／Liquid Glass effect／**and ID**（§1.8），且 union 与 morph 是两套机制 | 拆开写：union 三同（挂原文）／morph 判据＝最近边 ≤ spacing（挂 §1.8） |
+| 4 | `GlassMorphTabBar.swift:132` | 「官方 morph 语义＝同 identity 面在不同位置间形变」 | 官方 ID 原文只保证「同一 shape 在**层级增删**时被正确动画」（§19.1-3），**无「位移形变」明文**；官方示例反而是两面**不同** ID（§18.2） | 标「我方构造：借官方 ID 语义推得；位移形变未官方明文」 |
+| 5 | `GlassMorphTabBar.swift:133` | 「❌不得改为每段一个 ID——那会让官方示例式双胶囊形态取代流体高亮」 | 后果是**我方预测且未实测**，却挂在「官方示例」名下 | 标「我方预测（未实测）」；反例证据＝§18.2 示例形态 |
+| 6 | `GlassMorphTabBar.swift:28` | 「已被官方原文证否（补面反而制造静止态融合与噪声）」 | 官方只说明 add/remove 即可 morph；「补面→at-rest 融合」是我方依 §19.1-2 的**推论** | 拆两半并各挂锚点（官方说明／我方推论） |
+| 7 | `GlassMorphTabBar.swift:23` | 「正是官方 morph 构造」 | 官方描述触发方式，未规定唯一构造 | 改「符合官方描述的 morph 触发方式」 |
+| 8 | `GlassMorphTabBar.swift:60` | 「取整即覆盖全部切换距离」 | 我方保守取整，官方无此保证（§18.5 更正后仍成立） | 标「我方保守取整」 |
+| 9 | `SidebarView.swift:455` | 「满足官方 morph 约束」 | 只提变体，官方还要求同 shape 与同 ID | 补全三同或改「满足官方 union 的变体条件」 |
+| 10 | `GlassMorphTabBar.swift:205`／`:226` | 「官方文档模式」「官方模式」 | 轻度归纳、无锚点 | 挂 §1.8 具体句（glassEffect 施加顺序／容器内 behind it） |
+| 11 | `HarnessApp.swift:143` | 「官方无透窗采样明文」（C 档） | 结论**成立但零证据在册** | 已补门（§21.3），注释改挂 §21.3 与新补录原文 §21.5 |
+
+### 21.3 负结论检索门首次完整执行（对象＝`HarnessApp.swift:143`「官方无透窗采样明文」）
+
+| 步 | 命令／通道 | 结果 | 自证（防「检索失败冒充阴性」） |
+|---|---|---|---|
+| ① | `tools/qa/apple-quote-index.sh --query` | 「透窗／behindWindow／sampling」命中项**全是我方自己的表述**（NSWindow 能力在册），非官方明文 | 命中行逐条读过 |
+| ② | `grep -rn` 于 Sources | 仅该注释本身 | — |
+| ③ | `.swiftdoc`（26.5） | `behindWindow`=**0**；`backdrop` 7 处均属私有 `_backdropEffect`；`sampl` 73 处经逐条抽检**全属 `GraphicsContext.BlendMode` 等无关符号**；`behind` 51 处属 background/shadow 类 | 命中项内容已打印并归类 ⇒ 非通路失效 |
+| ④ | 在线 JSON 四页（container／Glass／教程页副本） | `sampl` 命中经 key 路径定位为 `…Landmarks-Building-an-app-with-Liquid-Glass.role = "sampleCode"` 与图片 alt 文本 ⇒ **全部是「示例代码」不是「采样」**；`behind` 命中全为「玻璃位于内容／其他面背后」 | 用 key 路径打印，非全文 grep |
+
+⇒ **判定：C 档负结论成立**，且现在有可复现的四步证据。官方对此的正面明文见 §21.5 第 1 句（只说 blurs content behind it）。
+
+### 21.4 另一语境（不入本批次）
+
+`AppViewModel.swift:1564`／`LLMConfigStore.swift:12,30,135`／`SettingsSubPages.swift:402,411` 的「官方」＝**提供商**默认地址语境，非 Apple 断言 ⇒ 无需原文。
+⚠️ 但 `SettingsSubPages.swift:424,426` 是 **Ollama API 语义**断言（同语境总量按现算＝**23 行**：源码 15 ＋ 测试 8，含 `/api/ps` 的 `context_length`、`tool_calls.arguments` 为 JSON 对象、`tool_name`、`done_reason` 取值集、非推理模型不下发 `reasoning_effort` 否则 400）（「官方：medium 映射 high，默认 high」「官方：仅思考模型生效」）⇒ 属跨领域铁律 1，需 Ollama 官方文档支撑 ⇒ 本轮已完成**首轮核验**（结论见 §21.6：关键断言全部准确，不新增 B/C 档，也不占拍板位）。其中两行已挂**实测**日期（`ConfigPersistenceIntegrationTests.swift:66`、`OllamaNativeIntegrationTests.swift:34` 标「2026-08-27 实证」）＝证据强于文档转述；优先审的是**无实证日期**的那批（如「medium 映射 high，默认 high」「官方会 400」）。
+
+### 21.5 审计过程中新补录的官方明文（此前缺录，直接关联 A15「折射源缺失」）
+
+1. 教程页开篇：
+   > "Liquid Glass is a material that **blurs content behind it**, reflects color and light of surrounding content, and reacts to touch and pointer interactions in real time."
+2. 同页 `glassEffect` 用法：
+   > "By default, the modifier uses the [regular] variant of [Glass] and applies the given effect **within a [Capsule] shape behind the view's content**."
+3. 容器内渲染次序：
+   > "Inside a container, each view with the [glassEffect] modifier renders with the effects **behind it**."
+
+⇒ 三句共同的官方口径上限是「**blurs content behind it**」——即玻璃采样的是**其身后内容**；**没有任何一句**授权采样「窗口之外的内容」⇒ 与 A15 现有结论（透窗采样非官方明文、`window.backgroundColor` 置清空是双刃剑）一致，且首次有了逐字锚点。
+⚠️ 引用提醒（§19.1 同款坑）：以上方括号内符号名在 JSON 里是 topic 链接，正文文本位置为空，须回查 `references` 还原（regular／Glass／Capsule／glassEffect(_:in:)）。
+
+### 21.6 跨领域断言首轮核验（DeepSeek ＋ Ollama，均为在线文档通道，A 层静默）
+
+| 我方断言（位置） | 官方原文（逐字） | 出处 | 判定 |
+|---|---|---|---|
+| 「官方：medium 映射 high，默认 high」（`SettingsSubPages.swift:424`；同义注释 `LLMProvider.swift:14-15`） | "Thinking mode is enabled by default, with the **default effort being high**" ＋ 映射表 "Requested effort / Actual mapped effort：low→low、**medium→high**、high→high、xhigh→high、max→max"；参数集 "{\"reasoning_effort\": \"low/high/max\"}" | DeepSeek `api-docs.deepseek.com/guides/thinking_mode`（本轮实拉） | **A 准确** |
+| 「官方：仅思考模型生效，如 qwen3 系」＋原生字段取值（`SettingsSubPages.swift:426`、`LocalAdapter.swift:77`、`OllamaNativeChat.swift:14`） | "`think`: (for **thinking models**) should the model think before responding? Can be a boolean or a thinking level (`\"low\"`, `\"medium\"`, `\"high\"`, or `\"max\"`)." | Ollama 官方 `docs/api.md` L48（`docs.ollama.com/api/chat.md` 同文；`reasoning` 一词全文 **0 命中**） | **A 准确**（字段名 `think` 与取值集均与官方一致） |
+
+⚠️ **顺带查出的产品级观察（不是缺陷，但需你知情）**：两家官方都支持 **`max`** 档（DeepSeek 参数集 low/high/**max**；Ollama think 取值含 **max**），
+而我方 `ThinkingLevel` 只有 `off/low/medium/high` ⇒ ① **缺 max 档**；② 在 DeepSeek 侧我方「中」经官方映射实际得到**「高」**（UI 文案已如实告知，用户不会误解为更弱）。
+⇒ 是否补 max 档属**产品决策**，登记为 G2 候选（与玻璃批次无关，`.swift` 一行枚举＋文案），**不占拍板位**，等你一句话即可做或永久不做。
+
+**审计净产出诚实申报**：本轮全量审计 54 行，**跨领域部分未抓出新 B/C 档**（4 条关键断言全部有原文支撑，此前只是没把原文挂上）；
+玻璃类新增 B 档 10 条＋C 档 1 条（§21.2）。同时补入三段此前缺录的官方原文（§21.5 三段 ＋ 本节两段）。
