@@ -100,6 +100,30 @@ public actor StdioMCPClient: MCPClient {
         process.standardOutput = stdoutPipe
         process.standardError = stderrPipe
 
+        // 进程终止通知＝官方 `Process.terminationHandler`（Apple 原文抽象：
+        // 「A completion block the system invokes when the task completes.」；正文：
+        // 「The system passes the task object to the block to allow access to the task parameters,
+        //  for example to determine if the task completed successfully.」）。
+        // ⚠️ 被替换的原实现：`Task.detached { process.waitUntilExit(); await client.handleProcessExit() }`。
+        //   两条官方明文说明它为什么危险：
+        //   ① `waitUntilExit()`「Blocks the process until the receiver is finished.」——同步阻塞；
+        //      写在 Task 体里即跑在 Swift 协作线程池上 ⇒ 每个在册 stdio 客户端长期占死一条协作线程
+        //      直到子进程退出。多服务器 + CI 高负载时协作池饥饿，症状正是「互不相干的断言同时超时」
+        //      的 flake 家族（D-16 附带项；量化对照见 QUALITY_REPORT 09-06 补记㉕）。
+        //   ② 同页下一句：「This method first checks to see if the receiver is still running using
+        //      isRunning. Then it polls the current run loop using NSDefaultRunLoopMode until the
+        //      task completes.」（官方原文该处 isRunning 为链接）——协作线程池线程没有运行循环，
+        //      即该等待方式在我们的执行器上没有官方保证的语义。
+        //   回调体因此只做一次 actor hop，不含任何阻塞调用。
+        // 取位说明：官方未明文「run() 之后再赋值 handler 是否仍保证回调」，故按我方保守取位放在
+        //   run() 之前（这是我们的选择，不是官方要求）。本机实测（macOS 26.5 SDK，探针 /tmp/probe_zombie）：
+        //   置 handler 后即使**不持有 Process 强引用**且**不调用 waitUntilExit**，5/5 回调全部触发，
+        //   子进程由 Foundation 回收（kill(pid,0) 全部 ESRCH，ps 无残留 ⇒ 无僵尸、无孤儿）。
+        let client = self
+        process.terminationHandler = { _ in
+            Task { await client.handleProcessExit() }
+        }
+
         do {
             try process.run()
         } catch {
@@ -109,11 +133,10 @@ public actor StdioMCPClient: MCPClient {
         self.process = process
         stdinHandle = stdinPipe.fileHandleForWriting
 
-        // 后台读取 stdout（阻塞读在独立线程，避免卡住 actor）
+        // 后台读取 stdout/stderr（阻塞读在独立线程 Thread.detachNewThread 内，不占协作线程池）
         let stdoutHandle = stdoutPipe.fileHandleForReading
         let stderrHandle = stderrPipe.fileHandleForReading
         let maxStderr = config.maxStderrBytes
-        let client = self
         Task.detached {
             Self.pumpStdout(stdoutHandle) { line in
                 await client.handleStdoutLine(line)
@@ -121,10 +144,6 @@ public actor StdioMCPClient: MCPClient {
             Self.pumpStderr(stderrHandle, limit: maxStderr) { chunk in
                 await client.appendStderr(chunk)
             }
-        }
-        Task.detached {
-            process.waitUntilExit()
-            await client.handleProcessExit()
         }
 
         // initialize 握手 + 能力协商
@@ -397,6 +416,10 @@ public actor StdioMCPClient: MCPClient {
         failAllPending(MCPError.transportClosed)
         started = false
         toolsCache = nil
+        // 不清 `process` 引用：一是子进程已由 Foundation 回收（实测无僵尸），留着只是一枚已终止的
+        //   Process 对象；二是若在「子进程死亡 → 本回调排队中 → 调用方已 relaunch」的窗口里清空，
+        //   会把**新**进程的连接断掉（stop() 就不再 terminate 它 → 真孤儿）。生命周期随客户端注销
+        //   （deinit 兜底 terminate）即可，正确性优先于省一枚对象。
     }
 
     /// 诊断用：最近 stderr 输出
