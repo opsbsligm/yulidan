@@ -18,6 +18,9 @@
 取证命令模板（全部 A 层只读）：
 - AX 结构：`tools/r1walk/bin/axdump <Harness pid> [depth]`（零动作、零 TCC）
 - 窗帧：`screencapture -o -l<windowID> out.png`（⚠️27beta 仅解锁有效；坐标以 AX pos 为权威）
+- windowID 只读发现：`tools/r1walk/bin/wl`（`CGWindowListCopyWindowInfo` 枚举，输出 `WID= layer= owner= name= x= y= w= h=`；仅列 owner 含 Harness/System Settings 或 name 非空者；零动作、零 TCC，09-05 实跑 rc=0）。
+  主窗判据沿 `r1walk4.sh` v4.7.3（L39–41）：取 `owner=Harness` **且** `name=Harness` 者；`name=` 空的幻影缩略行据此自动排除；仅当无 name 行时才用 `w=1[0-9]{3}`（1000–1999）兜底。坐标仍以 **AX pos 为权威**（幻影边界只污染 wl，不污染 AX）。
+  09-05 归因自纠：对**屏上真实窗口** `screencapture -o -x -l<wid>` 在 exec 会话 **rc=0 / 约 1s / 正常产物**；旧「无限挂起」只出现在窗口被移出显示边界、等不到表面的探针场景，与 G3 走查无关（详见 QUALITY_REPORT 09-05 自纠条）。
 - A12 运行时面数口径（BENCHMARK §15-A12 附产）：axdump 快照统计玻璃面**运行时实例数**时，
   sessionRow 的 `.thin` 为**线性项**（随会话行数增长），须单列、不与静态 12 调用点混判；
   判定 = 线性项 × 当前可见行数 + 固定项 与快照实例数同量级，超限（数量级偏差）才记缺陷。
