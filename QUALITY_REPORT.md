@@ -592,3 +592,10 @@ cf0e230  docs(quality): 刷新质量报告 — 前端阶段1/2 基线
 > ⑥ **账本完整性审计**：全量 ID 扫描发现 **D-7/D-8/D-9**（设置容器形态／概览页去留／记忆-工作区可编辑性）只活在 `SETTINGS_IA_PROPOSAL §七`、从未入权威账本 → G3 手册 P5 按 §4 副本走查会整组漏掉设置页决策簇；已补登账本 + §4 副本，并立口径「新设 D-x/A-x 编号必须同批入账本」。A 系列 19 项交叉比对无孤儿。另自纠一处：我从 grep 片段误判 G4 两个 ❌ 为"我方脚本 bug"，读 §11/§12 权威段后确认 3✅+2❌ 的根因是宿主未发布服务／façade 语义边界（生态侧限制，非我方可修），未据此误动代码。
 > ⑦ **教训入档（可复用）**：轮询"状态回到 idle"类等待**必须锚定新工作确实起跑**（turn 计数／请求计数），"启动前 idle"是结构性假收敛；调试器 attach 禁用 SIGKILL 打断；门禁工具一律有界化；测量基线勿取冷启动首采样（RSS 增量伪值，已改峰值对绝对阈值）；结论禁基于 grep 片段，须读权威段。
 > ⑧ **@HEAD 门禁汇总**：pr ✅ 新鲜（lint 0/255、format 0、0 警告、788/170）／main ✅ 新鲜／xcode ✅ 新鲜／**leaks ❌ 工具不可用（D-13）**。镜像 MATCH。待用户侧：拍板池 8 项（原 7 + D-13）+ 轴2 取证 + RSS 可见态 + G3 走查。
+
+> **2026-09-05（G1a 文档轴收口轮 · A3 原文终裁 + 表格漂移自纠 · 全程静默）**：
+> ① **A3 由 ❓ 终裁为 ✅**（本目标 G1a 最后一个未证实审计项）。经官方文档端点实拉（HTTP 200，逐字入册 §1.14）：`GlassEffectTransition` abstract＝「changes to apply when a glass effect is **added or removed from the view hierarchy**」，`.matchedGeometry` 段＝「geometries of glass shapes during an **appearance or disappearance phase** of a transition … derived from the geometry of a nearby shape within the glass container」。**判据主体是"玻璃效果"的增删**，不是容器视图增删；而我方 `TileFaceMode.resolve` 首行 `guard isSelected else { return .plain }` ⇒ 非选中面完全无玻璃 ⇒ 选中切换在视图层级上正是「旧面 remove ＋ 新面 add」，**原 ❓ 的"常驻面"前提不成立**；原文第三段另覆盖「identity 不变而内容变化」情形，两种读法皆在语义内。机制层真值表测试本已在册（`GlassMorphTabBarTests` L40–45），无需新增代码。
+> ② **顺带修一处文档自相矛盾**：A7 在 §1.10 已判「❓ 转 ✅（有原文）」，但 §2 表格行仍挂 ❓——属表格漂移（结论已定、表格未跟），已改并标明漂移性质。**§2 审计表 14 项状态列 ❓/⏳ 清零**。
+> ③ **D-1 语义增益（不改变待拍板性质）**：A3 终裁移除了「morph 可能因常驻面而根本不生效」这一疑虑，结构证据链（8 判据）因此更硬；但"流体感"仍是你的观感判据，D-1 照旧待拍。
+> ④ **leaks 通道二次探测**：以 `sample <pid>` 作金丝雀（2 秒成本，同依赖 task 端口）复测，仍 **无输出 rc=142** ⇒ 本机 task-inspection 通道未自愈。已停止周期性空试，恢复条件＝用户侧重启登录会话或通道自然恢复；届时再补 leaks 原判据（D-13 仍待拍板）。
+> ⑤ 方法论：官方 JSON 端点里以符号链接呈现的符号，纯文本抓取会渲染为空——**按空位如实标注、不按猜测补全**（本轮 §1.14 已如此处理）。镜像 MATCH。
