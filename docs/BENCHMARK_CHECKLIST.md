@@ -527,3 +527,131 @@ G2 的运行时面数护栏必须把此调用点列入统计口径（静态计�
 
 - **D-1 (c) 案**：若 A1 改造让 Tab 条 6 面常驻，spacing 立刻成为决定「何时开始融合」的主参数，且应与侧栏/设置页取值口径统一（集中常量，禁止三处各写魔数）。
 - **A12 效果总量/性能护栏**：A1 改造＋侧栏多面常驻会抬高运行时玻璃面数，spacing 越大融合域越宽 ⇒ 实施时须与 A12 口径、RSS/帧率护栏**同批复测**。
+
+## §18 本机 SDK `.swiftdoc` 官方全文通道 ＋ 玻璃 API 原文全录与 D-1 根因重估（09-05，全程静默 A 层）
+
+### 18.1 新证据通道（此前多轮漏用）＋ 入仓提取工具
+
+Xcode 附带的 `.swiftdoc` 里含 Apple 为每个公开符号写的 **DocC 文档正文与官方示例代码原文**，
+比在线文档更贴合本机 SDK，且零网络、零前台、锁屏可跑（静默铁律 A 层）。
+本轮把提取动作固化为工具：`tools/qa/swiftdoc-extract.py`（已入仓，实测可用）。
+
+```bash
+# 只列命中偏移（复现本节引用位置）
+tools/qa/swiftdoc-extract.py --offsets-only "A view that combines multiple glass shapes"
+# 输出该处官方正文（含示例代码）
+tools/qa/swiftdoc-extract.py --window 2600 "A view that combines multiple glass shapes"
+# 指定 SDK（默认优先 xcrun 解析到的 SDK＝门禁实际编译用的那一个）
+tools/qa/swiftdoc-extract.py --sdk /Applications/Xcode-beta.app/Contents/Developer/Platforms/\
+MacOSX.platform/Developer/SDKs/MacOSX27.sdk --offsets-only "GlassEffectContainer(spacing: 10.0)"
+```
+
+**顺带钉住一条此前无人写明的环境事实（对铁律 1 很关键）**：
+`xcode-select -p` = `/Applications/Xcode.app/Contents/Developer`，
+`xcrun --sdk macosx --show-sdk-path` → **MacOSX26.5.sdk** ⇒ **门禁与 `swift build` 的编译期 SDK 是 26.5**；
+而 §17.1 的签名引文取自 **Xcode-beta 的 MacOSX27.sdk**，运行时 OS 才是 27 beta。
+⇒ 三者要分开记：**编译期 SDK＝26.5／运行时 OS＝27 beta／在线文档＝可能已漂移**。
+两 SDK 对该 API 的核对结果（本轮实测）：
+
+| 项 | MacOSX26.5.sdk（=编译期） | MacOSX27.sdk（Xcode-beta） |
+|---|---|---|
+| `GlassEffectContainer.init` | `init(spacing: CoreFoundation.CGFloat? = nil, @SwiftUICore.ViewBuilder content:)` | 同语义；渲染为 `@SwiftUICore::ContentBuilder`（模块限定名写法不同） |
+| 容器文档正文（39 行 `///`） | 与 27 **逐字一致**（`diff` 空，`TEXT-IDENTICAL-BOTH-SDK`） | 同左 |
+| 文档 byte offset（**短语起点**，工具实测） | `A view that combines…`＝**1,556,068**／`the sooner blending begins…`＝**1,557,026**／`GlassEffectContainer(spacing: 10.0)`＝**350,596** | **1,605,077**／**1,606,035**／**367,456** |
+| `.swiftdoc` 大小 | 1,771,624 B | 1,826,328 B（2026-05-30 mtime） |
+
+⇒ 结论：**引用正文对两个 SDK 同时成立**，但 **offset 是 per-SDK 的**，故今后引用一律「正文逐字＋工具命令」，
+raw offset 只作辅助；**且 offset 必须是「短语起点」**（本节统一用 27 SDK 的短语起点，由 `swiftdoc-extract.py --offsets-only` 量得）。
+【09-05 自纠】本节初稿曾写 1,605,149——那是同句内 `morph` 一词的位置（早期检索脚本按词打的点），**不是短语起点**，正确值 1,605,077；教训：offset 只能现量现用，禁止从别的检索结果借数。
+文件路径：`<SDK>/System/Library/Frameworks/SwiftUICore.framework/Versions/A/Modules/SwiftUICore.swiftmodule/arm64e-apple-macos.swiftdoc`。
+
+⚠️ 铁律 1 查证顺序据此固定为**三通道**：① 编译期 SDK 的 `.swiftinterface` 签名 → ② 同 SDK `.swiftdoc` 全文（含官方示例）→ ③ 在线文档。
+（27 beta 玻璃实体仍在 **SwiftUICore**，`SwiftUI.swiftinterface` 内搜不到 ⇒ 两个 framework 都要查，否则假阴性。）
+
+### 18.2 官方原文逐字（offset 取自 Xcode-beta MacOSX27.sdk，正文已实测与 26.5 逐字一致）
+
+> 引文精度声明：`.swiftdoc` 内官方正文是**每行 ≤80 字符硬换行**存储的，本节为便于阅读按行合并成整句——**未改词、未改标点、未增删内容**；如需原始逐行形态，用 §18.1 命令去掉合并即可看到（`grep -F "///"` 输出）。
+
+- **`GlassEffectContainer` 类型文档（offset 1,605,077）**：
+  > "A view that combines multiple glass shapes into a single shape that can morph individual shapes into one another."
+  > "You use a glass effect container with the `View/glassEffect(_:in)` modifier. Each view with a glass effect contributes a shape rendered with the physical glass material to a set of shapes. SwiftUI renders the glass effects together, improving rendering performance and allowing the effects to interact with and morph into one another."
+  > "**Configure how the glass shapes interact with one another by customizing the default spacing value provided to the container.** As shapes near one another, their paths start to blend into one another. The higher the spacing, the sooner blending begins as glass approaches each other."
+  > "In the example below, the two shapes render as if they are a single continuous shape as their geometries overlaps."
+- **`GlassEffectContainer.init(spacing:content:)` 文档（offset 790,352）**：
+  > "Creates a glass effect container with the provided spacing, extracting glass shapes from the provided content."
+- **`glassEffectID(_:in:)`（offset 399,207）**：
+  > "Associates an identity value to glass effects defined within this view. … When used together, **SwiftUI will use the provided identifier to animate shapes to and from each other during transitions.**"
+- **同文档另一处（offset 403,233）**：
+  > "You can combine glass effects by using a `GlassEffectContainer`, which supports morphing glass shapes into each other **based on the geometry of their associated views**."
+- **`glassEffectTransition(_:)`（文档头 offset 366,575；示例内 `spacing: 10.0` 在 367,456）官方示例——逐字**：
+  > "Associates a glass effect transition with any glass effects defined within this view. … In the example below, **the notepad image will transition into and out of the pencil image when the `isExpanded` variable changes.**"
+
+```swift
+// Apple 官方示例（逐字，出处 offset 366,575 起，示例容器 spacing 在 367,456）
+private var namespace: Namespace.ID
+var isExpanded: Bool
+var body: some View {
+    GlassEffectContainer(spacing: 10.0) {
+        HStack(spacing: 10.0) {
+            Image(systemName: "pencil")
+                .frame(width: 20.0, height: 20.0)
+                .glassEffect()
+                .glassEffectID("pencil", in: namespace)
+
+            if isExpanded {
+                Image(systemName: "note")
+                    .frame(width: 20.0, height: 20.0)
+                    .glassEffect()
+                    .glassEffectID("note", in: namespace)
+                    .glassEffectTransition(.matchedGeometry)
+            }
+        }
+    }
+}
+```
+
+**由此得三条可核事实（不含推断）**：
+- F-a 官方示例的 morph 配对形态是「**一个常驻面（pencil）＋一个条件增删面（note，带 `.matchedGeometry`）**」，且两面 **ID 不同**；
+  与我方现状（唯一面随选中态跨 tile 迁移、同 ID）不是同一形态。
+- F-b 官方对 spacing 的表述只有「越大越早 blend」＋示例值 `10.0`（且示例里**容器 spacing == 内部布局 spacing**）；
+  仍**未公布默认值数值** ⇒ §17 的「禁写默认 = X pt」不变，但现在**有可引用的官方示例值与 1:1 比例先例**。
+- F-c 官方对 morph 触发条件的表述是「based on the **geometry** of their associated views」＋身份用于
+  「animate shapes **to and from each other**」⇒ 配对需要容器在同一事务里同时认得两端；官方**未写明**
+  「同 ID 跨子树 remove+insert 是否仍能配对」——此点属官方空白，只能实测。
+
+### 18.3 我方现状数值对算（A 层静态推导，非像素实测）
+
+| 量 | 我方值 | 出处 |
+|---|---|---|
+| 网格 | 3 列 × `LazyVGrid`，列/行间距 6 pt | `GlassMorphTabBar.swift` L126–128、L154 |
+| tile | 高 46 pt，宽上界 80 pt（实侧 ≤76） | L36–40 |
+| 容器 spacing（native 态） | `MorphTabGeometry.fullGridSpacing` = `containerSpacing()` = 最坏最近边距离上取整 ≈ **179 pt** | L48–80、L162 |
+| 相邻面净距 | 6 pt（网格间距） | L42 |
+| 官方示例对照 | 容器 10.0 / 布局 10.0（**1:1**） | §18.2 |
+
+**推导（标注为推导，非实测）**：我方容器 spacing 约为相邻净距的 **30 倍**，按官方「越大越早 blend」，
+若配对成立，6 pt 相距的两面应「极早」融合——而实机在册观感是**淡变**（P1 注记①）。
+⇒ **spacing 提前量大概率不是瓶颈，瓶颈在「配对两端未被同时认得」**（F-a/F-c）。
+这**推翻了我本轮先前设想的「A2-first 便宜修法」**：显式 spacing 已存在且极为宽松，调它不构成对根因的动作。
+A2 仍按原口径只对 `SidebarView` L97／`SettingsView` L160 两处未 customize 成立，与 morph 根因不同题。
+
+### 18.4 由 F-a/F-c 得出的三架构案（补进 D-1 菜单，性价比自低到高）
+
+| 案 | 做法 | 改动量 | 官方贴合度 | 是否连带 D-11 |
+|---|---|---|---|---|
+| **Ⅰ（新·最低成本，Apple 示例原型）** | 常驻一个底面（tab 条整体或首格）＋现有选中条件面（`.matchedGeometry` 保留），二者 ID 不同 | 最小（+1 个常驻玻璃面） | 与 §18.2 官方示例同形态 | 底面若抢视觉则需 tint 弱化 |
+| **Ⅱ** | 选中面提为**单一常驻面**，位置随选中 tile 移动（identity 恒存，morph 由几何变化驱动） | 中（面从 tile 内提到独立层＋位移动画） | 贴合「geometry 驱动」表述 | 不需要（面本身即选中指示） |
+| **Ⅲ（＝原 D-1 推荐 (c)）** | 6 面常驻，选中改 tint/前景区分 | 最大（材质常驻×6＋tint 体系＋性能护栏复测） | 贴合「多面共存」容器语义 | **必须** |
+
+- 三案的 A 层可断言部分相同（结构断言：常驻面数/ID 关系/容器归属），**观感仍各自需 1 次目检**（§0 结论 1b 材质层边界不变）。
+- 建议次序：Ⅰ → 不行再 Ⅱ → 仍不行才 Ⅲ（每步四门禁＋入册，一次只动一处）。
+
+### 18.5 顺带纠出一处过度归属（登记，随下轮 `.swift` 改动合并修，避免为注释单跑门禁）
+
+`GlassMorphTabBar.swift` 两处注释把「最近边 ≤ 容器 spacing」写成**官方条件**：
+- L60 附近：`/// 容器 spacing = 最坏最近边距离向上取整（官方条件为「≤」，取整即覆盖全部切换距离）`
+- L88 附近：`/// 判定：某对面距离是否落在 matchedGeometry 适用域（官方：最近边 ≤ 容器 spacing）`
+
+本轮 §18.2 全量提取后确认：官方原文只有「越大越早 blend」，**不存在**「≤ 即适用 matchedGeometry」这一判据表述。
+⇒ 该 `≤` 模型是**我方保守启发式**，注释应改为「我方启发式模型（非官方判据）」；`qualifiesForMatchedGeometry` 的行为不必改（保守无害），
+但**不得再以「官方」名义引用**。属铁律 1 类过度归属，登记为 G2 首轮 `.swift` 批次的附带项（含 `MorphTabGeometry` 注释与同名测试用例名复核）。
