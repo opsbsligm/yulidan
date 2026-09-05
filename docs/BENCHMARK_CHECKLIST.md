@@ -11,7 +11,12 @@
 | 通道 | 静默级别 | 玻璃/morph 像素可见性 | 实测证据 |
 |---|---|---|---|
 | `ImageRenderer` 离屏位图 | A 层 | **❌ 完全不渲染玻璃** | `tools/qa/glass-fidelity-probe.swift`：spacing 10/30/60 × 间隙 8/10/40 三组，「有玻璃 vs 无玻璃」**24000 像素逐点差异 = 0** |
-| `NSView.cacheDisplay` | A 层（真窗口） | ❓ 未取证（CLI 建窗在本机 SIGTRAP，需在测试宿主内重试） | 探针未跑通，不下结论 |
+| `NSView.cacheDisplay`（不上屏无边框窗口） | A 层 | **❌ 不渲染玻璃** | 09-05 `tools/qa/glass-capture-channel-probe.swift`：玻璃差异 **0/96000**，控制组 **1291 色**（通路活性自证，非整体捕获失败）|
+| `NSView.displayIgnoringOpacity(_:in:)` | A 层 | **❌ 不渲染玻璃** | 同探针：差异 0/96000，控制组 613 色 |
+| `CALayer.render(in:)` | A 层 | **❌ 不渲染玻璃** | 同探针：差异 0/96000，控制组 611 色（SwiftUI 内容宿主 layer 路径亦不含玻璃）|
+| `dataWithPDF(inside:)` | A 层 | **❌ 不捕获 SwiftUI 内容** | 同探针含**正对照**：不透明色块与无玻璃控制组体积同为 836B（远小于编码渐变+点阵所需）→ 通道本身不产出内容，与玻璃无关 |
+| 显示边界外窗口（`setFrameOrigin(-12000,-12000)` + `orderFront`）+ `screencapture -l` | 名义 A 层，**实测不可用** | ❌ 不可用 | `screencapture` 子进程需屏幕录制授权（TCC）→ **无限挂起**且可能向用户弹权限窗 = 违反铁律 8；探针已将该通道置 `HARNESS_CH5_SCREENSHOT=1` 显式开关，默认关闭 |
+| `NSApplication`/建窗可用性（前置事实） | — | — | **纠正旧记录**：CLI/脚本进程在本机可创建不上屏 `NSWindow`（不再 SIGTRAP）；09-03「CLI 建窗 SIGTRAP」的真因推测为 `NSApp` 隐式解包未初始化（本轮同类错误精确复现 `EXC_BREAKPOINT` 于 `main`，标注为推测）|
 | `CGWindowListCreateImage` | — | **❌ API 已从 macOS 27 SDK 移除** | 编译期报错「'CGWindowListCreateImage' is unavailable in macOS: Please use ScreenCaptureKit instead」 |
 | `screencapture -o -x -l<wid>`（进程外只读） | A 层（不动焦点/不 activate） | ✅ 对**已存在的真实窗口**有效 | 本次截到 Harness 窗 3840×2100 真实像素 |
 | 同上，对**离屏/其他 Space 窗口** | A 层 | ⚠️ 不可靠 | Codex 主窗（WID 554，在其他 Space）仅截回 274×318 畸变缩略 |
@@ -21,6 +26,7 @@
 **判据不成立**（上表第 1 行）。玻璃效果只能靠①结构性静态断言（A 层，能证"接线正确"）
 ＋②真机目检（用户 1 分钟，或用户认可"结构证据即满足该子句"）双轨核销。
 此条不修正就继续执行 = 制造无效证据，故先登记再报告。
+> **09-05 补强（同表 CH1–CH5 全普查）**：`cacheDisplay` / `displayIgnoringOpacity` / `CALayer.render` 三条位图通道均**通路活性成立但玻璃差异 0**（控制组 611–1291 色排除整体捕获失败），`dataWithPDF` 连正对照内容都不捕获，`边界外窗口+screencapture` 因 TCC 挂起不可用。**结论：A 层不存在任何可见玻璃的像素通道**——「①结构静态断言 + ②真机静态帧/用户目检」双轨是唯一可核销口径，D-1 选项 (b)「认可 A 层结构证据即满足该子句」的证据基础至此闭合（原 ❓ 未取证项已全部消除）。
 
 ## §1 轴1 官方口径基线（逐字摘录，全部经 `tutorials/data/documentation/**.json` 通道复核）
 
