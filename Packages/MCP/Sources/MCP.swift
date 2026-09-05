@@ -318,8 +318,9 @@ public actor MCPServerManager {
         return try await client.callTool(name: name, arguments: arguments)
     }
 
-    /// 断开并注销（stdio 客户端终止子进程）；提供注册表时同步移除该服务器的
-    /// mcp_<name>_* 工具（卸载/重连失败后 Agent 工具注册表即时清理，防陈旧工具残留下发）
+    /// 断开并注销（stdio 客户端终止子进程）；提供注册表时同步移除**归属该服务器**的工具
+    /// （归属按工具对象自带的 client.name 判定，见 unregisterTools；卸载/重连失败后
+    /// Agent 工具注册表即时清理，防陈旧工具残留下发）
     ///
     /// ⚠️ **顺序即用户语义**（D-16(a)，09-06）：先摘注册表与在册登记，再断开子进程。
     ///   原实现是「先 await client.stop() → 再清注册表」，把「卸载即消失」排在子进程回收之后；
@@ -334,10 +335,7 @@ public actor MCPServerManager {
         let client = clients[name]
         unregister(name: name)
         if let registry {
-            let prefix = "mcp_\(name)_"
-            for oldName in await registry.names() where oldName.hasPrefix(prefix) {
-                await registry.unregister(named: oldName)
-            }
+            await Self.unregisterTools(ofServer: name, from: registry)
         }
         if let stdio = client as? StdioMCPClient {
             await stdio.stop()
@@ -385,6 +383,26 @@ public actor MCPServerManager {
         }
     }
 
+    /// 摘除注册表中**归属该服务器**的全部工具（卸载/重装配共用）。
+    ///
+    /// 归属判据＝工具对象自带的 `client.name`（`MCPToolAdapter` 注册时即携带该元数据），
+    /// ❌ 不按 `mcp_<name>_` 前缀匹配 —— 前缀匹配存在**跨服务器误删面**（D-18，09-06 实测复现）：
+    /// 服务器 `my`（工具 `server_x`）与 `my_server`（工具 `y`）共存时，
+    /// 卸载 `my` 用前缀 `mcp_my_` 会连带命中 `my_server` 的 `mcp_my_server_y`
+    /// ⇒ before=["mcp_my_server_x","mcp_my_server_y"] → after=[]，后者被**静默误删**。
+    /// 判据取自对象而非字符串，故与「该名恰为另一名的下划线前缀」这一命名巧合彻底解耦；
+    /// 且不需要子进程存活（disconnect 场景下 client 可能已不可响应 listTools）。
+    private static func unregisterTools(ofServer name: String, from registry: ToolRegistry) async {
+        for toolName in await registry.names() {
+            guard let adapter = await registry.tool(named: toolName) as? MCPToolAdapter else {
+                continue // 非 MCP 工具（内置/Knowledge/Skill）一律不碰
+            }
+            if adapter.client.name == name {
+                await registry.unregister(named: toolName)
+            }
+        }
+    }
+
     // MARK: - 本地工具注册表自动装配
 
     /// 把全部 MCP 工具注册进本地 ToolRegistry；返回注册数量
@@ -400,10 +418,7 @@ public actor MCPServerManager {
     /// 重新装配某客户端的工具：先移除旧的 mcp_<name>_*，再按最新清单注册
     @discardableResult
     public func refreshTools(for clientName: String, into registry: ToolRegistry) async -> Int {
-        let prefix = "mcp_\(clientName)_"
-        for oldName in await registry.names() where oldName.hasPrefix(prefix) {
-            await registry.unregister(named: oldName)
-        }
+        await Self.unregisterTools(ofServer: clientName, from: registry)
         guard let client = clients[clientName] else { return 0 }
         guard let specs = try? await client.listTools() else {
             await updateDescriptor(client, toolCount: nil, available: false)
