@@ -39,6 +39,7 @@
 		16537295450345A4A7658F59 /* WelcomeAreaView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 133B6D39D2027C20463E9A93 /* WelcomeAreaView.swift */; };
 		17AE2E4685E88CC1D23A2EE7 /* libServiceContainer.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 61C6CA6563030BB3744F87F3 /* libServiceContainer.a */; };
 		182317553C8745634BDAA90B /* SkillVersioning.swift in Sources */ = {isa = PBXBuildFile; fileRef = B82A5358EF3602ED4AE924FE /* SkillVersioning.swift */; };
+		1899BEB252A0068CF111E955 /* MCPProcessDeathTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CC46084B3A08A9D682A93B8 /* MCPProcessDeathTests.swift */; };
 		1AC4D66BDB6B65F2771A1594 /* libTerminal.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A46E124774A36A19EC3DE5AA /* libTerminal.a */; };
 		1C81067601BA7E91F0ACBC01 /* libLLM.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 0614A9CD104A5A1E12602FF0 /* libLLM.a */; };
 		1C85FE59C289C838C5130844 /* libServiceContainer.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 61C6CA6563030BB3744F87F3 /* libServiceContainer.a */; };
@@ -1503,6 +1504,7 @@
 		46666E44C906E58F75C7D37F /* SessionEvent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionEvent.swift; sourceTree = "<group>"; };
 		47F3D34AE0408283CE439EFA /* MemoryTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MemoryTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		4CBD1E033FE0F0D3CB120E14 /* WorkspaceRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceRouter.swift; sourceTree = "<group>"; };
+		4CC46084B3A08A9D682A93B8 /* MCPProcessDeathTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPProcessDeathTests.swift; sourceTree = "<group>"; };
 		4CD86EC53B7F53FD32CE4FD3 /* SkillRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkillRegistry.swift; sourceTree = "<group>"; };
 		4E2A71E04142C3E72BBEBABC /* SignificanceScorer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignificanceScorer.swift; sourceTree = "<group>"; };
 		4E9E981F844A252E38AEAD38 /* ToolExecutor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolExecutor.swift; sourceTree = "<group>"; };
@@ -2588,6 +2590,7 @@
 				2784389E93A0D8027EB402FD /* CordisBridgeLiveTests.swift */,
 				D6830F389E28D96A126D8FDC /* MCPCommunityLiveTests.swift */,
 				5993134C6556F8DFB359BB52 /* MCPGapCoverageTests.swift */,
+				4CC46084B3A08A9D682A93B8 /* MCPProcessDeathTests.swift */,
 				8FC4EFA19E0779A4626E286D /* MCPProtocolExtensionTests.swift */,
 				E32B63BA4E52F8DDB5D0A8F5 /* MCPR17GapCoverageTests.swift */,
 				5E0D7E63453CFF501A89952B /* MCPTests.swift */,
@@ -4376,6 +4379,7 @@
 				E744D696BBBFBAF56EE4DBD3 /* CordisBridgeLiveTests.swift in Sources */,
 				E3135E9D639DAE80B0C60A11 /* MCPCommunityLiveTests.swift in Sources */,
 				01A017D8E9C03DB3D0096CCD /* MCPGapCoverageTests.swift in Sources */,
+				1899BEB252A0068CF111E955 /* MCPProcessDeathTests.swift in Sources */,
 				153AF64649FA50B6ED299C59 /* MCPProtocolExtensionTests.swift in Sources */,
 				62AE6C88FA9ABEC78AC38926 /* MCPR17GapCoverageTests.swift in Sources */,
 				06ECD4B28BB6B81E51CC33FB /* MCPTests.swift in Sources */,

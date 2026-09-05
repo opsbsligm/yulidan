@@ -320,17 +320,28 @@ public actor MCPServerManager {
 
     /// 断开并注销（stdio 客户端终止子进程）；提供注册表时同步移除该服务器的
     /// mcp_<name>_* 工具（卸载/重连失败后 Agent 工具注册表即时清理，防陈旧工具残留下发）
+    ///
+    /// ⚠️ **顺序即用户语义**（D-16(a)，09-06）：先摘注册表与在册登记，再断开子进程。
+    ///   原实现是「先 await client.stop() → 再清注册表」，把「卸载即消失」排在子进程回收之后；
+    ///   全量门禁高负载下同一断言分别在 5.098s / 20.215s 撞上限两次失败（用户看到的即
+    ///   「卸载了，工具还在」）。当时若只把测试上限 5s→20s 与导入侧对齐，只是把缺陷藏进
+    ///   更长的等待里（该试探已实测撤销，见 QUALITY_REPORT 09-06 补记㉕）。
+    ///   注册表与 descriptor 摘除后不存在指向该 client 的工具，故「工具即时下线」不依赖子进程
+    ///   是否已死；stop() 仅做 terminate + 关句柄（不含等待子进程死亡），仍留在关键路径上，
+    ///   以便 retry/import 的「先发起 terminate 再 connect 新实例」次序不变（曾考虑转后台，
+    ///   代价是给重连路径引入「新实例可能先于 terminate 发起」的新次序，故否）。
     public func disconnect(name: String, into registry: ToolRegistry? = nil) async {
-        if let client = clients[name] as? StdioMCPClient {
-            await client.stop()
-        }
+        let client = clients[name]
+        unregister(name: name)
         if let registry {
             let prefix = "mcp_\(name)_"
             for oldName in await registry.names() where oldName.hasPrefix(prefix) {
                 await registry.unregister(named: oldName)
             }
         }
-        unregister(name: name)
+        if let stdio = client as? StdioMCPClient {
+            await stdio.stop()
+        }
     }
 
     /// 某服务器当前是否可连通（stdio：进程在跑；内存客户端：注册即可用）
