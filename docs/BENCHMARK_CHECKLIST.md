@@ -584,7 +584,7 @@ raw offset 只作辅助；**且 offset 必须是「短语起点」**（本节统
 
 ### 18.2 官方原文逐字（offset 取自 Xcode-beta MacOSX27.sdk，正文已实测与 26.5 逐字一致）
 
-> 引文精度声明：`.swiftdoc` 内官方正文是**每行 ≤80 字符硬换行**存储的，本节为便于阅读按行合并成整句——**未改词、未改标点、未增删内容**；如需原始逐行形态，用 §18.1 命令去掉合并即可看到（`grep -F "///"` 输出）。
+> 引文精度声明：`.swiftdoc` 内官方正文是**每行 ≤80 字符硬换行**存储的，本节为便于阅读按行合并成整句——**未改词、未改标点、未增删内容**；如需原始逐行形态，用 §18.1 命令去掉合并即可看到（`grep -F "///"` 输出）。〔09-05 逐字复核轮对该声明的执行纠偏：§18.2 曾有 1 处在硬换行处补了逗号（已改回），声明本身成立但当时**未经机器核验**；现由 `tools/qa/quote-verify.py` 逐句核到归档语料的字节偏移，该声明自此可机器复跑，见 §24。〕
 
 - **`GlassEffectContainer` 类型文档（offset 1,605,077）**：
   > "A view that combines multiple glass shapes into a single shape that can morph individual shapes into one another."
@@ -596,7 +596,7 @@ raw offset 只作辅助；**且 offset 必须是「短语起点」**（本节统
 - **`glassEffectID(_:in:)`（offset 399,207）**：
   > "Associates an identity value to glass effects defined within this view. … When used together, **SwiftUI will use the provided identifier to animate shapes to and from each other during transitions.**"
 - **同文档另一处（offset 403,233）**：
-  > "You can combine glass effects by using a `GlassEffectContainer`, which supports morphing glass shapes into each other **based on the geometry of their associated views**."
+  > "You can combine glass effects by using a `GlassEffectContainer` which supports morphing glass shapes into each other **based on the geometry of their associated views**."〔09-05 逐字复核：官方此处**无逗号**（硬换行正落在 `GlassEffectContainer` 之后），此前多写一个逗号违反本节「未改标点」声明，已改回官方形态，见 §24.4〕
 - **`glassEffectTransition(_:)`（文档头 offset 366,575；示例内 `spacing: 10.0` 在 367,456）官方示例——逐字**：
   > "Associates a glass effect transition with any glass effects defined within this view. … In the example below, **the notepad image will transition into and out of the pencil image when the `isExpanded` variable changes.**"
 
@@ -826,7 +826,7 @@ curl -sS "https://developer.apple.com/tutorials/data/documentation/<path>.json" 
 2. 同页 `glassEffect` 用法：
    > "By default, the modifier uses the [regular] variant of [Glass] and applies the given effect **within a [Capsule] shape behind the view's content**."
 3. 容器内渲染次序：
-   > "Inside a container, each view with the [glassEffect] modifier renders with the effects **behind it**."
+   > "Inside a container, each view with the [glassEffect(_:in:)] modifier renders with the effects **behind it**."〔09-05 占位精确化：官方 references title 为 `glassEffect(_:in:)`〕
 
 ⇒ 三句共同的官方口径上限是「**blurs content behind it**」——即玻璃采样的是**其身后内容**；**没有任何一句**授权采样「窗口之外的内容」⇒ 与 A15 现有结论（透窗采样非官方明文、`window.backgroundColor` 置清空是双刃剑）一致，且首次有了逐字锚点。
 ⚠️ 引用提醒（§19.1 同款坑）：以上方括号内符号名在 JSON 里是 topic 链接，正文文本位置为空，须回查 `references` 还原（regular／Glass／Capsule／glassEffect(_:in:)）。
@@ -972,7 +972,7 @@ bash tools/qa/comment-only-verify.sh          # 注释批次提交前必跑，rc
 
 - 新增归档 `view-glasseffect-in.0905.json`（21,681B，`…/documentation/swiftui/view/glasseffect(_:in:)`）——
   其中一句直接支撑本轮给 `GlassSurface.swift:273` 挂的锚（union 后合并为单一 shape）：
-  > "You typically use this modifier with a [glassEffectUnion] to combine multiple Liquid Glass shapes into a **single shape that can morph into one another**."
+  > "You typically use this modifier with a [GlassEffectContainer] to combine multiple Liquid Glass shapes into a **single shape that can morph into one another**."〔09-05 逐字复核：官方此处链接是 `GlassEffectContainer`，我方错填 `glassEffectUnion`——**这句是「容器价值句」而不是 union 句**，union 三同条件的逐字锚点仍是 §19.1-3，勿混用，见 §24.4〕
   ⚠️ 同页复现 §19.1 已知坑：正文里符号名是 topic 链接、**纯文本位置为空**（该页摘要读起来是 "to add this effect to a :SwiftUI uses the  variant by default along with a  shape"），
   摘句必须回查 `references` 还原（此处三者为 `Text`／`regular`／`Capsule`），否则会摘出缺主语的假原文。
   同页 `blend`／`transparen`／`frost` **0 命中** ⇒ A14 的 API 侧明文只有 `accessibilityReduceTransparency` 那一处，勿以为玻璃 API 页也写过。
@@ -990,3 +990,109 @@ D-4 仍然开放，但它的性质从「危险缺口要不要修」降为「已�
 
 ⚠️ 顺带一条环境坑（本轮实付学费）：`grep -rn … --include='*.json' .` 会灌进 `.build/**.json`（单个覆盖率文件 10MB＋，一次把输出预算打爆）。
 静态审计一律用 `git ls-files` 或显式排除 `.build`；跨大仓检索请优先 `git grep`。
+
+## §24 官方引文逐字复核器 ＋ 两份权威档引文台账全量核销（09-05 静默轮，A 层全程）
+
+### 24.1 起点：「逐字在案」这四个字此前从未被机器核过
+
+§21 审的是**代码注释**有没有挂锚点；而注释所引用的**权威档本身**（`P1_GLASS_API_VERIFICATION.md` §六
+的「原文摘录」表 ＋ 本文 §1/§18.2/§19.1/§21.5 引文表）里的引文，从未有人把它们逐字回核到官方语料——
+「归档」在 09-05 之前也只是 `~/harness-wt/evidence/apple/` 里 8 个文件，且**没有任何清单**：
+`.swiftdoc` 只有路径引用（文件随 Xcode 升级就会漂移，等于不可复证），P1 档 §六 的 5 个 API 页从未归档。
+⇒ 本轮不再「再人工核一遍」，而是把逐字复核做成**有退出码、可复跑**的门，顺带补齐归档。
+
+### 24.2 归档扩展（一名一 URL ＋ sha256 入 `evidence/MANIFEST.txt`，共 18 件）
+
+| 新归档 | 字节 | 通道与来源 | 为什么必须补 |
+|---|---|---|---|
+| `apple/glasseffect-glass.0905.json` | 22,762 | ③ `…/swiftui/glass` | P1 §六 `Glass` 行的引文页 |
+| `apple/view-glasseffectid-in.0905.json` | 20,948 | ③ `…/swiftui/view/glassEffectID(_:in:)` | P1 §六 `glassEffectID` 行的引文页 |
+| `apple/view-glasseffectunion-id-namespace.0905.json` | 21,890 | ③ `…/view/glassEffectUnion(id:namespace:)` | P1 §六 union 行的引文页（slug 两次试错才对，404 页 15,658B 是识别特征） |
+| `apple/glasseffecttransition.0905.json` | 19,197 | ③ `…/swiftui/glasseffecttransition` | 同上，transition 行 |
+| `apple/hig-materials.0905.html` | 17,748 | ③ HIG `/design/human-interface-guidelines/materials`（HTML 壳） | 承载 §23 那句「This page requires JavaScript」——不归档就永远核不到 |
+| `apple/wwdc2025-323.0905.html` | 184,857 | ④ WWDC25 Session 323 视频页（逐字稿内嵌） | §1.12 整节 4 条引文此前只有 Session 219 归档，323 一条都没有 |
+| `sdk/SwiftUICore-26.5-…swiftdoc` | 1,771,624 | ② 编译期 SDK（`xcrun` 解析） | §18 整节 offset 声明的权威源，此前只有路径 |
+| `sdk/SwiftUICore-27-…swiftdoc` | 1,826,328 | ② Xcode-beta（＝运行时 27 beta 同版） | §18.2 offset 声明约定取 27 的短语起点 |
+
+### 24.3 `tools/qa/quote-verify.py` 与十二条匹配口径（每条都是本轮实测踩出来的）
+
+归因 → 逐字 → 偏移 三段判定，语料缺失一律 `rc=2`（拒绝把「读不到」读成判定）。十二条口径：
+
+1. **分通道归因**：先判定引文自称来自 ②`.swiftdoc` 还是 ③在线 JSON，再要求命中**声明的那条**；只在另一条命中＝归因错（`CHANNEL`），不算通过（§18.5 误判的机制化）。
+2. **归因取最近标记**：把上文 12 行拼成一坨再判，会让同时讨论两条通道的章节里所有在线引文被判成 ②（本轮实测造出 11 条假 `CHANNEL`）。
+3. **〔…〕旁注不参与归因**：给引文追加更正注记（注记里必然提到 `.swiftdoc`）后，出处行被旁注带偏，凭空造出 6 条假 `CHANNEL`；旁注**内部**的引文则改按注记自己的出处归因。
+4. **在线 JSON 是逐 run 存的**：一句官方正文常跨两个 paragraph、链接两侧空白自带 ⇒ run 用空格拼会得到 `HStack , VStack`，直接拼会得到 `HStack,VStack`，两者都不等于官方正文 ⇒ `docc_prose()` 的拼接规则（后段以标点开头不补空格／前段以开括号结尾不补），改动必须过 `--self-test`。
+5. **跨段整句降级为 `SENTS`**：我方把两段官方正文拼成一句时逐句核，不冒充「一整句逐字」。
+6. **② 的字节结构**（逐字节量得，非推测）：每行文档正文前置 `\n`＋节类型字节＋3×NUL＋长度字节＋3×NUL＋`/// `，两种变体（首字节 `0x01` 与 `0x05`）在同一文件里并存 ⇒ 对原始字节 `find` 整句必然假阴性。解法＝**正文投影 ＋ 投影下标→原始字节 offset 映射**：包含判定在可读正文上做，offset 仍报原始字节。⚠️ 折叠空白必须在建映射时做，事后 `re.sub` 会让映射整体错位（本轮实测：`context()` 输出与所报 offset 完全不相干）。
+7. **弯引号在字节通道同样要归一**（§23.1 同款）：官方 `’`＝UTF-8 三字节，latin-1 视图下是三个字符，整段替换、偏移记到首字节。
+8. **`[符号]` 占位必须按位置反取官方渲染**：占位是我方照 `references` 手工填的，只核碎片段永远核不到它；而「逐个试配官方 title」也不够——同一句里两个占位同时写错时，改任一个都不能让整句配通（P1 §六 `glassEffectID` 行正是这样漏了 12 天）。解法＝在正文里定位引文，取「相邻字面片段之间」的官方渲染与我方写法直接比对。
+9. **反引号内、中文自述、非 swift 围栏块**内的引号 ＝ 我方代码/命令/自述，不计门禁（但 `swift` 块标注「Apple 官方示例（逐字…）」的照审）。
+10. **offset 作用域**：声明与引文**同行**＝该短语起点，严格核（容差 16B）；声明在**上方小标题**＝整块文档区起点，只能核「引文是否落在区内」（默认 6,000B）。同一句在 ② 里常多处出现（abstract 表＋符号文档区），必须取**离声明最近**的命中——取首个会凭空量出 20 万字节的假偏差。
+11. **历史留档区显式豁免**：专存「我方曾写错的原句」的表（§24.4）按定义必然逐字不命中；若让它判红，作者让它变绿的最省事办法就是**篡改历史**——与本仓「保留历史＋追加更正」的规矩直接对撞 ⇒ 工具反过来逼作者毁台账。解法＝只认精确的 HTML 注释标记 `<!-- quote-verify:archive -->`，**遇第二个 `##`/`###` 小标题自动关闭**，再加 240 行硬上限，超限部分**照常判定**（宁可多报不可假绿）。⚠️ 豁免必须自证不丢判定：本轮用工具自己的函数做了差分审计（§24.7 第 3 段），确认区内 3 条全是错句存档、官方形态在 P1 §六 与本文 L72/L975 处各自照判。
+12. **跳过类绝不占用判定去重键**：分类按**出现位置**判，去重只去**计数**。旧写法一句进 `seen` 就永久免检，于是同一句先出现在中文自述／bash 围栏／留档表里，就把后文真正的官方引文一起放过了（本轮 self-test 当场抓出）。
+
+<!-- quote-verify:archive -->
+<!-- 本节「我方原写法」列是**写错时的原文存档**，逐字复核器按口径 11 豁免；遇下一个 ### 自动关闭。 -->
+### 24.4 本轮查出并修正的 7 处引文缺陷（原句留档于此，正文已改回官方形态）
+
+| # | 位置 | 我方原写法 | 官方实际（逐字） | 性质 |
+|---|---|---|---|---|
+| 1 | P1 §六 L61 | `"anchored to a view's bounds"` | `SwiftUI anchors the Liquid Glass to a view's bounds.` ＋ `…fills the entirety of the frame, which includes the padding.` | 摘句改写（官方无此短语） |
+| 2 | P1 §六 L61 | `"typically used with [glassEffectID] to combine…"` | `You typically use this modifier with a ``GlassEffectContainer`` to combine…` | **改写 ＋ 占位错填符号名**（把容器句说成 ID 句） |
+| 3 | P1 §六 L62 | `"multiple views' geometries to contribute to…"` | `You may want the geometries of multiple views to contribute to a single Liquid Glass effect shape.` | 语序改写 |
+| 4 | P1 §六 L63 | `with the [glassEffect] … and a [Namespace] view` | `with the ``glassEffect(_:in:)`` … and a ``GlassEffectContainer`` view` | **两个占位均还原错**（官方从不要求 `Namespace` 出现在这句） |
+| 5 | 本文 L599 | `using a \`GlassEffectContainer\`, which supports` | 官方此处**无逗号**（硬换行正落在符号名之后） | 加标点，违反本节「未改标点」声明 |
+| 6 | 本文 L829 | `the [glassEffect] modifier` | references title ＝ `glassEffect(_:in:)` | 占位不精确（同页 L832 自己已列正确写法） |
+| 7 | 本文 L975 | `with a [glassEffectUnion] to combine…` | `with a ``GlassEffectContainer`` to combine…` | **占位错填**：该句是「容器价值句」而非 union 句，union 三同锚点仍是 §19.1-3 |
+
+⇒ 影响面复核：#2/#4/#7 都是**符号名层面的错**，但三处由此得出的设计结论（Tab 分段用 `glassEffectID` 挂身份 ＋ 同区域放同一 `GlassEffectContainer` ＋ union 需三同）各自另有独立逐字锚点（§1.8／§19.1-1／§19.1-3），**结论不变**；改的是引文的正确性，不是决策。代码注释 `GlassSurface.swift:272-273` 挂的是 §19.1-3 与 §1.8，未受 #7 牵连（现算复核）。
+
+### 24.5 新登记：② `.swiftdoc` 与 ③ 在线文档**措辞已漂移**（两处实例）
+
+| 句子 | ② 26.5／27 `.swiftdoc` | ③ 在线页（09-05 归档） |
+|---|---|---|
+| union 合并条件 | `All glass effects with the same shape and glass will be combined into a single shape.` | `All Liquid Glass effects with the same shape and Liquid Glass variant will be combined into a single shape.` |
+| ID 动画 | `SwiftUI will use the provided identifier to animate shapes…` | `SwiftUI uses the identifier to animate shapes…` |
+
+⇒ 这是 §18.1「三者要分开记（编译期 SDK／运行时 OS／在线文档）」的**首个带原文的实证**：断言官方语义时，凡②③措辞不一致的，引用处必须写清引的是哪一条，否则「逐字」二字无定义。工具按**声明通道**判定的理由就在这里。
+
+### 24.6 复跑命令与现算结果
+
+```bash
+python3 tools/qa/quote-verify.py --self-test   # 6 条匹配口径回归用例，先于一切
+python3 tools/qa/quote-verify.py               # 两份权威档全量；rc=0 才算核销
+```
+
+现算（本文件与 `P1_GLASS_API_VERIFICATION.md` 两份，去重后进入判定 **52 条**；另有历史留档区豁免 3 条）：
+**整句逐字 41／跨段拼接整句可核 1／仅碎片段可核 7**（碎片段＝引文含省略或占位，其占位已 5/5 经 `references` 反取核验）
+**／MISS 0／CHANNEL 0／OFFSET 0／占位还原错 0**；不计门禁 3（未声明官方出处）＋ 围栏命令 2 ＋ 中文自述 0 ＋ 留档区 3；
+② 偏移跨硬换行量取 7 条，声明 offset 全部落在容差/区域内；语料＝在线 16 份＋`.swiftdoc` 2 份。
+
+⚠️ 本工具**不进 PR 门禁**：它依赖仓外归档 `~/harness-wt/evidence/`（含 1.7MB×2 的 Apple 二进制，不宜入库）。
+归档缺失时它 `rc=2` 报错而非静默通过；引文归档清单与取法在 `evidence/MANIFEST.txt`。
+
+### 24.7 复核器自身的两处判定缺陷（同一轮自查发现，全部固化为 `--self-test` 用例）
+
+**缺陷一：把「写错时的原句」判成 MISS（→ 口径 11）**。§24.4 落盘后首跑，工具报出
+`docs/BENCHMARK_CHECKLIST.md:1036/1037/1038` 三条 MISS——正是那张表「我方原写法」列。
+性质不是文档错，而是**审计器与历史存档天然冲突**：留档的错句按定义逐字不命中，
+而本仓规矩是「保留历史＋追加更正」。此时若把错句改写或删表让工具变绿，等于用工具逼作者销毁审计痕迹，
+比漏判严重 ⇒ 新增口径 11 的显式留档标记（三条防泄漏边界见 §24.3 第 11 条）。
+
+**缺陷二：跳过类占用判定去重键（→ 口径 12）**。读 `scan()` 时发现更隐蔽的一条放行路径：
+去重 `seen` 在 CJK 自述／bash 围栏判定**之前**就写入，于是同一句只要先出现在留档位置，
+后文正文里自称官方的同一句就永远不会被核。第一版补丁我用 `if key in skip_seen: continue`
+「修」它，**新写的两条 self-test 当场把这一版判成 FAIL**（实测 `(1, 0)`、期望 `(1, 1)`）——
+那把它复刻成了同一个漏洞。最终形态＝分类按出现位置判、去重只去计数、判定只看 `judged`；
+改完 6/6 PASS。**这条同时是「工具改动必须先有反例用例」的又一次实证（同 §22.4 一族）。**
+
+**第三段：豁免不丢判定的差分审计**（现算，用工具自身的 `attribute()`/`archive_flags()` 复算，非人工断言）：
+留档区内「本可判定」的引文共 **3 条**，全部是 §24.4 的错句存档（L1038 `anchored to a view's bounds`、
+L1039 `typically used with [glassEffectID] to combine…`、L1040 `multiple views' geometries to contribute to…`），
+**区外判不到的＝0 条**——三条官方形态各自另有在册判定处：`SwiftUI anchors the Liquid Glass to a view…` 与
+`You may want the geometries of multiple views…` 在 `P1_GLASS_API_VERIFICATION.md:61/62`，
+`You typically use this modifier with a …` 在 P1:61 与本文 L72、L975 三处照判。
+⇒ 本轮 `MISS 0` 不是靠豁免换来的：豁免前后进入判定的条数同为 52，被移出的 3 条全是错句。
+
+**净收益**：一台「核官方引文」的机器，先被自己的用例抓到两处**只会漏判不会误判**的缺陷——
+这类缺陷比误判更危险，因为它让门禁绿得没有依据。现在两条都带回归用例，改豁免规则或去重顺序都会先红。
