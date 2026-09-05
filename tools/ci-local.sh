@@ -145,5 +145,11 @@ echo
 echo "✅ 本地 CI 模拟（${MODE}）全部通过"
 
 # 成功收尾：原子落完成标记后解除失败清理 trap（标记内容含时间与模式，供跨轮次对账）
-printf '%s mode=%s rc=0\n' "$(date '+%F %T')" "${MODE}" > "${DONE_MARKER}.tmp" && mv -f "${DONE_MARKER}.tmp" "$DONE_MARKER"
+# 09-05 增强：同日曾靠 git log --name-only 人工推断「旧 marker 对当前 HEAD 是否仍适用」——那种推断易错，
+#   故把判据面指纹写进标记：复用旧 marker 前只比一项——`git rev-parse HEAD:Apps HEAD:Packages` 是否与标记内
+#   swiftTree 逐字相同；不同即判据面已变更，必须重跑该门禁，禁止凭提交标题或记忆沿用（旧格式标记无该字段 ⇒ 除非另有「判据面零变更」的直接证据，否则一律按不可沿用处理）。
+head_sha=$(git rev-parse --short HEAD)
+swift_tree=$(git rev-parse HEAD:Apps HEAD:Packages | tr '\n' ' ' | sed 's/ $//')
+dirty=$(git status --porcelain | wc -l | tr -d ' ')
+printf '%s mode=%s rc=0 head=%s dirty=%s swiftTree=%s\n' "$(date '+%F %T')" "${MODE}" "$head_sha" "$dirty" "$swift_tree" > "${DONE_MARKER}.tmp" && mv -f "${DONE_MARKER}.tmp" "$DONE_MARKER"
 trap - EXIT
