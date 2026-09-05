@@ -59,7 +59,7 @@
 |---|------|------|------|------|
 | C-a | 轴2 取证（二选一）：你从 Codex 各观察窗丢截图 / 你择时允许只读截自己另开的观察窗 | BENCHMARK §16 W1-W8 取证齐 → UI_CODEX_ALIGNMENT 行为列回正 | 取证方式拍板 | ☐ |
 | C-b | G1a 轴1 清单终查 | BENCHMARK_CHECKLIST 全项 ✅ 或 N/A 有论证 | — | ☐（09-04 Agent 预检：BENCHMARK ☐=0 全闭合/N-A 有论证，待你终查） |
-| C-c | （D-5 已批层2）社区插件实装载：G4c C4 CLI 层实跑后，设置→MCP 面复核呈现（B 层可选） | 装载成功、工具可见、禁用即卸载无残留 | D-5→G4c | ◐ C4 CLI 层已闭环（矩阵 3✅+2❌ 含真实 create_skill；S-4 双向实测在册）；残余=设置→MCP 面呈现复核（B 层可选，你择时） |
+| C-c | （D-5 已批层2）社区插件实装载：G4c C4 CLI 层实跑后，设置→MCP 面复核呈现（B 层可选） | 装载成功、工具可见、禁用即卸载无残留 | D-5→G4c | ◐ C4 CLI 层已闭环（矩阵 3✅+2❌ 含真实 create_skill；S-4 双向实测在册）；残余=设置→MCP 面呈现复核（B 层可选，你择时）。**走查须知（09-05 层3 普查）**：社区**主题/UI 类**插件（`dsh-theme-kit`／`@guillaumemeyer/dsh-themes`）经上游机制证据判定**结构性不适用**（`dsh.client.platform` 全仓 39/39 仅 `"web"`，实现为浏览器 DOM/CSS），不计入层2 通过率、也不构成缺陷——我方主题插件化走自有 ThemeSpec＋MCP 通道 |
 | C-d | 兼容矩阵引用 | CENSUS 层1 矩阵（dsh-crew/filesystem/everything）无回归 | — | ✅ Agent 预检 09-04 深夜 **3/3 复现**：crew=751ms/6 工具/rc.7（同码同令，依赖闭包借用 cb-c4 已装环境——口径偏差注记见 QUALITY 深夜二轮补记）/ fs=4.9s/14 工具 0.2.0 / everything=3.0s/13 工具 2.0.0，与矩阵逐项吻合 |
 
 ## 4. 终拍板检查点（G3 开始前须全部有记录）

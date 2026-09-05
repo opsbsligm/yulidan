@@ -210,3 +210,29 @@ HARNESS_G4_LIVE=1 swift test --filter MCPCommunityAppFlowTests
 | `@michengai/dsh-skills-manager@0.1.38` | ✅ | **3 工具**含真实 `create_skill`（通用 registrar 采集面收割 `skills.registerProvider`+`webServer.register`；元数据投影口径，执行面仅条目自带可执行字段才接通） |
 
 **矩阵更新（同日 collector 轮）**：3✅+2❌=五样本正式实跑；`@zseven-w/dsh-crew` 随采集面扩展升至 3 工具。失败分类学：①宿主未发布服务（结构性）；②façade 未实现真实语义（可评估扩展，但每服务真实实现=无限工程，收益按 CENSUS 四形态总表已论证≈0）。成功样本的 call 面=bridge selftest 在册（`impl:execute echo:hi`）；真实包 call 一律不实测（外部副作用红线）。矩阵基线：cordis 4.0.2 + loader 1.0.3 + node v26.6.0 @09-04。
+
+### 层3 主题类社区插件普查（09-05 新增，回答「DSH 社区**主题**插件能不能拿来即用」）
+
+> 为什么单列一层：层1 测的是「标准 MCP server 能否被宿主连上」，层2 测的是「宿主注入型 cordis 插件能否装载出工具面」。
+> 而 DSH 社区还有一整类**主题/UI 插件**（与本项目"主题全插件化"直接同名），此前矩阵未覆盖 ⇒ 不能拿层1/层2 的结论外推它。
+
+| 样本（npm 实查） | 声明字段（逐字） | client 入口实际技术栈 | 判定 |
+|---|---|---|---|
+| `dsh-theme-kit@0.1.2`（`/tmp/g4pkgs3/dsh-theme-kit-0.1.2/package/package.json`） | `"dsh": { "client": { "platform": "web", "inject": ["@deepseek-ai/dsh-client-runtime", "@deepseek-ai/dsh-client-locale", "@deepseek-ai/dsh-client-ui-slots", "@deepseek-ai/dsh-client-ui-settings", "@deepseek-ai/dsh-client-ui-theme", "@deepseek-ai/dsh-api-gateway"] }（6 项按 `package.json` 原文全列）, "bundle": { "patch": "./cordis.patch.yml" } }` | `lib/client.js` 浏览器 API 命中 **186 行**（`grep -c`＝行数）：`document.body`×15、`document.createElement`×9、`getElementById`×5、`querySelector`×4、`removeEventListener`×4 | ❌ **结构性不适用**（浏览器 DOM/CSS 主题域） |
+| `@guillaumemeyer/dsh-themes@0.1.1`（`/tmp/g4pkgs3/guillaumemeyer-dsh-themes-0.1.1/package/package.json`） | `"dsh": { "client": { "platform": "web" } }` | `client.js` 命中 **11 行**：`document.querySelector`、`document.head`、`document.createElement` | ❌ 同上 |
+
+**宿主机制侧的决定性证据（上游 @`47f9438`，非包名推断）**：
+- 官方子系统文档逐字（`./docs/subsystems/client-modules.md` L49，中英双版同文）：
+  > "A package joins the table by declaring `dsh.client` (**`platform: 'web'`**, optional `inject` edges, optional `immediately`) in its package.json and exporting its built bundle at `exports["./client"]`."
+  （`client-modules.zh.md` L49 同义中文：「包加入这张表的方式，是在自己的 package.json 中声明 `dsh.client`（`platform: 'web'`…）」）
+- 装载发现逻辑逐字（`./scripts/dev-web.ts` L30/L42）：注释「whose package.json carries `dsh.client` with platform "web" is a client…」，代码 `if (manifest.dsh?.client?.platform === 'web') dirs.push(…)` ⇒ **发现条件是字符串严格等于 `'web'`**。
+- **全仓取值普查**：`packages/` 下 `package.json` 内 `"platform"` 共 **39 处，全部 = `"web"`，零例外**（含上游自家 `registry`／`ui-cordis`／`api-gateway`／`cordis-client-runner` 等）。
+
+**结论（三句，不含外推）**：
+1. DSH 的「client 插件」机制**只有 web 一个平台取值**，主题/UI 类插件＝浏览器 DOM/CSS 层实现；
+2. ⇒ **「社区主题插件在原生 macOS 客户端拿来即用」是机制上不可能**，属**生态结构边界**（失败分类学新增第③类：**宿主平台枚举不含我方平台**），非我方桥/宿主缺陷；
+3. ⇒ 本项目"主题全插件化"只能也确实走**自有通道**（ThemeSpec + MCP 主题插件，tint 实时切换已核销 R1⑥），
+   与不变基线「纯原生 UI／❌WebView」及既有条款「明确不做：Cordis UI 注入界面兼容」三处一致，不产生新决策项。
+
+**矩阵计数口径（防注水）**：层2 正式实跑仍为 **5 样本 3✅+2❌**（未变）；层3 主题类 **2 样本＝结构性不适用**，
+**不计入层2 通过率**，只作为「覆盖面已普查到」的证据。合计已普查社区包 **9 个**（层1 3 ＋ 层2 5，二者去重＝7；层3 新增 2 个均为首次入册）。
