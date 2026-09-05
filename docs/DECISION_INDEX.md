@@ -31,6 +31,7 @@
 - **D-5** ✅ = 做（G4c 启动）2026-09-04：用户 chat 答复「1」，双位落位记录（blocked#6 报告后列项首位 = D-5 × 选项首位 =「做」；如属误读一条 revert 即回退，代码面尚未开跑、回退成本最低）。Agent 材料立场如实留档：层2 增量收益 ≈0（CENSUS 总表：形态①②层1 已成立、③④不适用），但用户历史立场（社区插件拿来即用）明确，**做=用户裁决非材料推导**。执行口径 = docs/G4C_SIDECAR_DESIGN.md（S-1~S-4 默认策略可否决；C0–C4 全 A 层验收；安全红线含「JS=任意代码执行」授权声明）。
 
 - **G1-SCOPE** ✅ 2026-09-04：用户追认现行双轴审计范围（轴1 A1–A19 + 材质提案 F3/F4 系列；轴2 W1–W8 观察窗清单），无增删。拍板载体：chat 答复「1」（对应 Agent 列项「认可池 B + G1-SCOPE」）。DoD「范围经确认」条闭合。
+- **DoD「G1 双轴 checklist 入册且范围经确认」格 · 双口径核销（09-05）**：**字面 ✅**（轴1 checklist=BENCHMARK §2 A1–A19 全册；轴2 checklist=§16 W1–W8 观察窗清单；范围=G1-SCOPE 09-04 追认）；**实质 ⏳**（W1–W8 的「Codex 侧观察」列全空，缺你截图 ⇒ `UI_CODEX_ALIGNMENT` 无法刷新，该项挂在 DoD 的 G3 格上）。⇒ 申报口径：**G1 格勾，但不得据此宣称「Codex 对标已完成」**——与 G4「DoD 达成≠诉求达成」同一处理规则。
 - **池 B（R1 #3/#6a/#6b/#7/#8 真机视觉帧补证，㉔ 二选一）** ✅ 2026-09-04：用户选第二项=「认可 A 层进程内证据即满足该子句」→ 静默核销（证据：#3 源码共享+溢出 10 项实测；#6a ThemeLiveRenderTests；#6b FileThemePackageTests；#7 SidebarDropHighlightRenderTests+noChange 单测；#8 GlassSurfaceTests 降级链+测试缝——均在册含 02:26 xcresult 867 项）。#7「用户手动拖一次」子句按 ㉓ 第二分支（认可在册）闭环，A-f 转 G3 可选观察项。**R1 八项全 ✅**。落点 HEAD：本提交（tag `g0-baseline-20260904`）。
 
 - **D-10** ✅ = (a) 窗口透明底 2026-09-04：用户 chat 答复「1」，双位落位记录（G0 收口报告「下一步」第 1 项 = D-10 × 其选项首位 = (a) 透明窗底案；如属误读一条 revert 即回退）。执行=@`ee1da43` 三处联动（makeWindow 透明装配测试缝 / 实底只贴主区 / 侧栏 GlassSurface(.regular) 底）+ WindowGlassSamplingTests 结构测试。**透窗采样实况终裁 = G3 A-d 目检**（㊹ 风险注记：官方无透窗采样明文，锚定 legacy behindWindow 在册能力）；F5（sheet 自铺底）归 D-12 未拍不动，已知其同窗下仍挡 sheet 区折射。
