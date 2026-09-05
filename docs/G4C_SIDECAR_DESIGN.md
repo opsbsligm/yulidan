@@ -54,8 +54,8 @@ DoD（G4c 子集）：C0–C4 全过 + 四门禁（bridge 不在 Swift 门禁面
 1. **✅已落定｜cordis 宿主 API**：npm 实包 `@deepseek-ai/cordis@4.0.2`（time.modified 2026-08-30）自带 `bin.js` 官方 bootstrap 范式，逐字：
    `new Context()` → `ctx.baseUrl = pathToFileURL(cwd)+'/'` → `ctx.plugin(Loader)` → `ctx.loader.create({ name: '@deepseek-ai/cordis-plugin-include', config: { path: './cordis.yml' } })`
    （deps 仅 `@standard-schema/spec` + `@deepseek-ai/cosmokit`，依赖面极小；类型面=context/events/fiber/logger/registry/service/utils，registry.d.ts 经 `declare module './context.ts'` 扩展 ctx）。
-2. **◐半结｜loader 与工具枚举**：`@deepseek-ai/cordis-plugin-loader@1.0.3` registry 可达 ✅（C0）；「插件注册工具如何从 ctx 枚举」仍待查——bridge selftest 阶段用 fixture 插件实调落定（读 fiber/registry.d.ts + 实跑），❌脑补签名。
-3. **☐未启动｜façade 最小集排序**：依赖 CENSUS import 面统计产物重跑（/tmp/g4pkgs* 状态实施时确认），C2 轮前置。
+2. **✅已落定（09-05 核销，原标 ◐）｜loader 与工具枚举**：`@deepseek-ai/cordis-plugin-loader@1.0.3` registry 可达 ✅（C0）；「插件注册工具如何从 ctx 枚举」**已实测定型三个注册面**：① `ctx.tools.register`（C2 直采）② `ctx.web.registerSearchProvider`（C2 web 采集）③ `skills.registerProvider`（§12 collector 轮实证）；②③ 由通用 registrar 采集（register/add 前缀→元数据投影，执行面仅条目自带 handler 字段才接通，❌猜语义）。双 fixture selftest 全 PASS 在册。
+3. **✅路径已变更（09-05 核销，原标 ☐未启动）｜façade 最小集排序**：C2 未走「CENSUS import 面统计重跑」这条前置路，而改为**更优的运行时静态读插件自身 `inject` 声明自动铺 stub/tools**（§8「façade v2 落位」＝`provideStub(ctx,name)` + `ctx.reflect.provide`，有 service.d.ts 注释原文自证）⇒ 原前置任务不再需要，登记为**被取代**而非完成。
 
 ## 6 C0 预检实录（09-04，全 A 层只读）
 
@@ -155,3 +155,18 @@ DoD（G4c 子集）：C0–C4 全过 + 四门禁（bridge 不在 Swift 门禁面
   网住，selftest 判别力实证）。
 - crew 随采集扩展 2→3 工具；skills-manager 3 工具（含真实 `create_skill`）。
 - 教训入档：JS 块注释内 `*/` 字样（register*/add*）提前闭合注释——注释文案禁裸 `*/`。
+
+## 13 G4 轨道 DoD 核对（09-05，纯文档核销，A 层）
+
+| v8 DoD 子句 | 达成证据（可复现锚点） | 判定 |
+|---|---|---|
+| G4a 普查（上游源码＋npm 实查，只读） | `docs/DSH_COMMUNITY_PLUGIN_CENSUS.md` 层1／层2／**层3** 三节；层3 决定性证据＝宿主 `client-modules.md` L49 `platform: 'web'` ＋ `dev-web.ts` L42 严格相等 ＋ 全仓 `package.json` 39/39 全 web | ✅ |
+| G4b 路线拍板（D-5） | `DECISION_INDEX` D-5 ＝ ✅ 09-04「做（G4c 启动）」 | ✅ |
+| G4c 实施 | 本文件 §6–§12：C0 预检 → C1 bridge selftest → C2 façade v2 → C3 CLI 全链（`dsh cordis add/list/remove/probe` ＋ `~/.harness/cordis/allowlist.json` 授权门 ＋ env 洗刷）→ C4 矩阵 → collector 轮第三注册面 | ✅ |
+| 「拿来即用」CLI/配置层验收 | §10：`HOME` 隔离下 add→list→probe→remove→probe 复拒全链；probe 实输出「✅ 握手成功：dsh-web-search-zai 暴露 1 个工具」 | ✅ |
+| 兼容矩阵 ≥3 实跑样例 | **双口径达成**：层1 矩阵 3 行（社区 `@zseven-w/dsh-crew` rc.6↔rc.7 升级回路 ＋ 官方 filesystem ＋ everything，含 App 真实链路 `MCPCommunityAppFlowTests`）；层2 矩阵 **3✅**（zai 1 工具／crew 3 工具／skills-manager 3 工具含真实 `create_skill`）＋2❌ 归因入分类学 | ✅ |
+| 安全红线（默认不信任／sidecar 独立进程／最小权限／显式授权） | §2 S 组 ＋ §10：授权清单文件门（未授权 probe 即拒）、`env -i` 白名单、`--ignore-scripts`、只 initialize＋tools/list **零 tools/call**、超时必 kill | ✅ |
+
+⇒ **G4 轨道 DoD 全部达成**，剩余为生态边界而非我方待办：主题/UI 类插件属结构性不适用（层3 第③类失败：宿主平台枚举不含我方平台），
+已在 CENSUS 层3 与「❌不做 Cordis UI 注入界面兼容」一致登记。
+⚠️ 唯一未实测面如实申报：**call 面**（真实第三方执行）按安全红线不驱动，采「selftest 在册＋无副作用样本」口径。
