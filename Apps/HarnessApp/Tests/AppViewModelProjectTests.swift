@@ -247,6 +247,32 @@ struct AppViewModelProjectTests {
         #expect(ok)
     }
 
+    @Test("moveSession：外来记录（不在 sessions 列表）= 防误改，列表与 toast 零变更")
+    func moveSessionIgnoresForeignRecord() async {
+        let dbURL = tempDBURL()
+        let vm = makeVM(dbURL: dbURL)
+        defer { try? FileManager.default.removeItem(at: dbURL) }
+        await waitForReady(vm)
+        vm.createNewSession(silent: true)
+        vm.createProject(name: "P")
+        guard let p = vm.projects.first else {
+            Issue.record("项目缺失")
+            return
+        }
+        let countBefore = vm.sessions.count
+        vm.toastMessage = nil // 清零前置 toast（createProject 弹「已创建项目」），使断言只针对本次动作
+
+        // 构造不在 vm.sessions 内的记录：模拟侧栏快照过期（并发删除后仍持旧记录）
+        let foreign = SessionRecord(metadata: SessionMetadata(cwd: URL(fileURLWithPath: "/tmp")))
+        vm.moveSession(foreign, to: .project(p.id))
+
+        let sameCount = vm.sessions.count == countBefore
+        let foreignAbsent = !vm.sessions.contains { $0.id == foreign.id }
+        let othersIntact = vm.sessions.allSatisfy { $0.metadata.projectId == nil }
+        #expect(sameCount && foreignAbsent && othersIntact, "外来记录不得改动会话列表")
+        #expect(vm.toastMessage == nil, "外来记录不应弹 toast")
+    }
+
     // MARK: - 归档 / 取消归档回落
 
     @Test("项目归档：主区剔除；取消归档回落展示尾部")
