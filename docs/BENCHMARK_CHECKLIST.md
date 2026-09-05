@@ -270,6 +270,7 @@ A11 一并改写注释，消除误导。
   black or white and **highlights them with a contrasting border**."
   → 系统语义 = 玻璃「更霜」；我方 `GlassSurface` 在 reduceTransparency 下走 **solid 纯色**。
   不是 bug（可读性更强、已实机验收），但**与系统语义不同轨** → 登记 A14，交你裁决。
+  ↳ **09-05 补反向原文（§23）**：API 页 `accessibilityReduceTransparency` 的 Discussion 是**给开发者的指令**——"UI (mainly window) backgrounds should **not be semi-transparent; they should be opaque.**" ⇒ 我方 solid 与这条明文同向；WWDC 那句描述的是**系统自家玻璃**的观感，两者不是同一层的口径，故 A14 的正确问法是「要不要为观感放弃 API 明文指令」而非「我方是否违规」。
 - 静止态交叠："In **steady states**, such as when an app first launches, **avoid intersections
   between content and Liquid Glass**. Instead, reposition or scale the content to maintain
   separation."（→ 审计项 A17）
@@ -330,8 +331,8 @@ A3 疑虑（常驻面是否生效）不再成立。
 
 | 项 | 状态 | 证据 / 影响 |
 |---|---|---|
-| **A13 装饰性全局 tint** | ⚠️ **冲突（需裁决）** | 官方：tint 用于**功能性强调**、"use them selectively"、色彩应放内容层。我方 P1.4 把主题 `glassTintHex` 铺到**所有**玻璃面（纯装饰性全局染色）→ 与官方口径冲突，且影响"主题插件"卖点定义（主题该染什么） |
-| **A14 减弱透明度语义** | ⚠️ 不同轨（需裁决） | 系统 = frostier glass（仍折射）；我方 = solid 纯色（可读性更强、已实机验收）。二选一：保 solid / 或新增「frosted」中间态 |
+| **A13 装饰性全局 tint** | ⚠️ **冲突（需裁决）**⁽⁰⁹⁻⁰⁵ᶠ⁾ 出处已核：引文真实但**不在 HIG Materials 页**——"But **use them selectively**. When items or elements serve a **distinct functional purpose**, you can tint them" ＋ "If you want to imbue color into your app, **do it in the content layer instead**." ＝ WWDC25 Session 219 逐字稿（本轮归档 `wwdc2025-219.0905.html`，整句命中；HIG Materials 页 `tint`/`selectively` 均 **0 命中** ⇒ 拿错页面就会误判「官方无此表述」，属 §18.5 同族地理条件） | 我方 P1.4 把主题 `glassTintHex` 铺到**所有**玻璃面（纯装饰性全局染色）→ 与官方口径冲突，且影响"主题插件"卖点定义（主题该染什么） |
+| **A14 减弱透明度语义** | ⚠️ 需裁决（**09-05 改判口径：两条官方原文并列**，不再是「我方无明文」单边） | 原文①（观感描述，WWDC25-219 逐字，本轮已归档并整句复核）："Reduced Transparency, makes Liquid Glass **frostier and obscures more of the content** behind it."；原文②（**对开发者的指令**，本机在线 API 页 `environmentvalues/accessibilityreducetransparency` Discussion 逐字，此前全仓缺录）："If this property’s value is true, UI (mainly window) backgrounds should **not be semi-transparent; they should be opaque.**" ⇒ 我方 reduceTransparency → **solid 不透明**＝与原文②同向；「frosted 中间态」＝向原文①的系统自家观感靠。二选一仍由你裁，但**保 solid 一侧现已有 API 级明文支持** ⁽⁰⁹⁻⁰⁵ᶠ⁾ |
 | **A15 玻璃折射源缺失** | ❌ **根因级（比 morph 更根本）** | 代码事实链：`HarnessApp.swift:136` `window.backgroundColor = NSColor.windowBackgroundColor`（**不透明窗底**）＋ `ContentView.swift:11` `HStack(spacing:0)`（侧栏与内容**并排**，非浮于其上）＋ `HarnessTheme.swift:8` surface=不透明窗口色 → 侧栏玻璃**身后既无内容也无桌面**，按 §1.12「sidebar floats above your content / refracting against the sidebar」的材质前提，**必然呈现扁平灰片**。讽刺点：legacy 降级分支用 `VisualEffectMaterial(blendingMode: .behindWindow)` 真采桌面，**采样能力反而强于原生态路径**（`GlassSurface.swift:224/229`） |
 | **A16 滚动边缘效果** | ✅ 已审·结构性 N/A（§15） | 侧栏会话列表/消息滚动进入玻璃下方时是否有 dissolve 效果；`scrollEdgeEffectStyle` 本 SDK 可用（§1.13），我们未使用 |
 | **A17 静止态内容交叠** | ⚠️ 折叠 rail 命中（§15） | 官方要求启动静止态避免内容与玻璃交叠（§1.11）；需审 composer/顶栏与消息流初始位置 |
@@ -919,3 +920,61 @@ bash tools/qa/comment-only-verify.sh          # 注释批次提交前必跑，rc
 ② bash 里 `$rc_cmt）` 这种**变量后紧跟全角字符**会把该字符首字节并入变量名 ⇒ `unbound variable`，一律写 `${rc_cmt}`。
 另两条本轮新坑：③ 校验器若不限定路径就扫整个工作区 diff，会把同期未提交的 `tools/` 改动误报成「非注释行」⇒ 必须 `comment-only-verify.sh -- Apps`；
 ④ `cmd | tail -2` 之后取 `$?` 取到的是 `tail` 的码（本仓第 N 次撞上，已在检查器里改成先落文件再取码，并在注释里点名防复发）。
+
+## §23 证据加固轮：三条通道首次入档 ＋ A13/A14 原文复核 ＋ 台账漏计纠偏（09-05，全程 A 层 curl/只读）
+
+> 动机：G1a 在 v8 里被明确写成「原文复核用浏览器/文档通道，与键鼠无关」＝静默可跑，是本轮唯一不需你出场的轨道。
+> 结果分三类：**复核通过**（不改变结论但补上可复现锚）、**新入册原文**（改变 A14 取舍权重）、**纠出我方台账与工具缺陷**。
+
+### 23.1 三条通道首次归档（此前只有 1 份副本，§1.9/§1.11 的引文一直**无归档、无通道记录**）
+
+| 归档文件（`~/harness-wt/evidence/apple/`） | 可复现通道 | 复核结果 |
+|---|---|---|
+| `hig-materials.0905.json`／`.txt`（76,600B） | `https://developer.apple.com/tutorials/data/design/human-interface-guidelines/materials.json`（**HIG 有 JSON 通道**；HTML 页是 JS 壳，四条在册句在 HTML 里全 0 命中） | §1.9 **五句全部逐字命中**；⚠️ 其中一句须用**全角撇号** `Don’t use Liquid Glass…` 才命中，写成直引号 `Don't` ＝ 0 命中（假阴性的现实来源之一）。该页 `tint`／`selectively`／`frost*` **均 0 命中** |
+| `wwdc2025-219.0905.html`／`.txt`（157,439B；正文 18,030 字符／323 句块） | `https://developer.apple.com/videos/play/wwdc2025/219/`，正文在 `<span class="sentence"><span data-start="…">` 内（页面顶层同样是 "This page requires JavaScript" 壳 ⇒ **必须按 raw 偏移定位**） | §1.11 抽 5 句做**整句**复核＝**5/5 逐字命中**（含 A13 的 "use them selectively…"、A14 的 "frostier…"、A17 的 "avoid intersections…"、F1 的 "Instead of fading,"） |
+| `environmentvalues-accessibilityreducetransparency.0905.json`（8,298B）＋`glass-tint.0905.json`（5,435B） | `…/tutorials/data/documentation/swiftui/environmentvalues/accessibilityreducetransparency.json` 等 | 见 §23.2；`Glass.tint(_:)` API 页**只有声明与 abstract，无任何「用途/克制」表述** ⇒ A13 的权威只能是设计指南（WWDC219），不得冒充 API 约束 |
+
+### 23.2 新入册官方原文（此前全仓缺录，直接改变 A14 取舍权重）
+
+> "If this property’s value is true, UI (mainly window) backgrounds should **not be semi-transparent; they should be opaque.**"
+> — `accessibilityReduceTransparency` 的 Discussion 全文（该页 Discussion 仅此一句，已整页归档）
+
+⇒ 这是**对开发者的指令**；而 §1.11 引用的 "makes Liquid Glass frostier" 描述的是**系统自家玻璃**的观感。两者不同层，故 A14 的正确问法是
+「要不要为了向系统观感靠而放弃 API 明文指令」，**不是**「我方 solid 是否违规」。**A14 仍由你裁决**，但保 solid 一侧现已有明文支持（§12/§1.11/DECISION_INDEX/DECISION_CARDS 四处同步改口径）。
+
+### 23.3 A13 复核结论：引文真、行内未标出处 ⇒ 已补（含一条差点发生的误判）
+
+本轮一度以为 `"use them selectively"` 无官方原文（HIG Materials 与 Color 两页均 0 命中），
+**动手前跑了 §20.2 步骤①**，`apple-quote-index.sh --query selectively` 命中 **BENCHMARK §1.11 L277 早已入册该句更长版本**（出处 WWDC219）⇒
+**这是 §18.5 型误判的第二次**，且这次被门在**落笔之前**拦住（上次是写完之后才推翻）。教训固化：
+**「引文在哪个页面」与「引文是否存在」是两个独立问题**，检索门第一步查我方已入册引文之所以强制，正因为它同时防这两类错。
+
+### 23.4 台账纠偏：`decision-pending.sh` 旧口径漏计非 D 段（**对外曾报 10 项，实为 13 项**）
+
+同一张总账表里 `A14`、`轴2`、`RSS 可见态组` 三项状态也是 ☐，而旧工具只匹配 `^| **D-` ⇒ 少报 3 项。
+现工具同时输出 D 段／非 D 段／合计，并加**两条防空转守卫**：文件缺失 rc=2、表内零 ID 行 rc=2（**拒绝把「读不到」读成「0 项」**）。
+本轮独立交叉核对（不经工具）：`ID 行 19 ＝ ☐13 ＋ ◐1 ＋ ✅5` ✓ 与工具输出逐位一致。
+⇒ 你的拍板清单实际是 **13 项**：D 段 10 项 ＋ A14 ＋ 轴2 取证方式 ＋ RSS 可见态组基线。
+
+### 23.5 本轮为「同类错误」新增的两道机械防线 ＋ 三条环境坑
+
+- **防线①** `$VAR` 紧跟全角字符：本仓第三次撞上（本轮在 `decision-pending.sh` 又犯一次，表现为 `unbound variable` 把 rc=2 降级成 rc=1）。
+  改为**全仓扫描**而非逐个修：`tools/**/*.sh` 扫出 **4 个脚本 13 处**（含 `ci-local.sh` 的未知模式分支、`rebuild-app.sh` 的 bundle 落后失败路径、`r1walk4.sh` 三条日志行）——
+  这些恰好都长在「最需要在失败时正确说话」的位置。已全部加花括号，并复测两条退出码路径（0/2 正确）。
+- **防线②** 语法检查必须**按 shebang 选解释器**：`r1walk4.sh` 与 `rebuild-app.sh` 是 `#!/bin/zsh`，
+  用 `bash -n` 检查时**HEAD 原版同样报 `unexpected end of file`（rc=2）**——本轮差点据此判定「我的改动改坏了脚本」并回掉好改动。
+  正确做法：`zsh -n` 现版 rc=0；全量 `git ls-files '*.sh'` 按 shebang 复检零 FAIL。
+- **环境坑（新）** 多条 curl 在同一个循环里写**同一个临时文件** ⇒ 后一个响应覆盖前一个证据：
+  本轮实际把 219 页的 404 页（15,658B）当成逐字稿归档，靠「归档后 `ls -l` ＋ 关键词回检」才暴露（真实页 157,439B，抓取当时五项关键词各命中 1 次是**真实观测**，未被推翻）。
+  ⇒ 取证规则：**一名一 URL，归档后必须回验字节数＋关键词**；`grep` 计数与整句命中是两件事，后者才算逐字复核。
+
+### 23.6 附记：第 4 条通道 ＋ 一条被标记的取证残骸（同日补）
+
+- 新增归档 `view-glasseffect-in.0905.json`（21,681B，`…/documentation/swiftui/view/glasseffect(_:in:)`）——
+  其中一句直接支撑本轮给 `GlassSurface.swift:273` 挂的锚（union 后合并为单一 shape）：
+  > "You typically use this modifier with a [glassEffectUnion] to combine multiple Liquid Glass shapes into a **single shape that can morph into one another**."
+  ⚠️ 同页复现 §19.1 已知坑：正文里符号名是 topic 链接、**纯文本位置为空**（该页摘要读起来是 "to add this effect to a :SwiftUI uses the  variant by default along with a  shape"），
+  摘句必须回查 `references` 还原（此处三者为 `Text`／`regular`／`Capsule`），否则会摘出缺主语的假原文。
+  同页 `blend`／`transparen`／`frost` **0 命中** ⇒ A14 的 API 侧明文只有 `accessibilityReduceTransparency` 那一处，勿以为玻璃 API 页也写过。
+- **残骸处理示范（§23.5 第三条坑的自我执行）**：首轮误把 404 响应存成 `glasseffect.0905.json`（15,658B），
+  已改名 `REJECTED-glasseffect-404.0905.json` 保留现场（不删，防「删了就没人知道错在哪」），正确页另行归档。

@@ -44,7 +44,7 @@ log "PID=$PID WID=$WID"
 WINX=$(./ax $PID dump 4 2>/dev/null | grep -m1 'AXWindow' | sed -nE 's/.*pos=(-?[0-9]+),.*/\1/p')
 [ -z "$WINX" ] && WINX=$(./wl | grep 'owner=Harness' | grep 'name=Harness' | awk '{for(i=1;i<=NF;i++) if($i ~ /^x=/){sub(/^x=/,"",$i); print $i; exit}}')
 [ -z "$WINX" ] && WINX=0
-log "窗口左缘 WINX=$WINX（顶栏/侧栏过滤改用相对坐标）"
+log "窗口左缘 WINX=${WINX}（顶栏/侧栏过滤改用相对坐标）"
 DB=~/Library/Application\ Support/Harness/sessions.sqlite
 dbc(){ sqlite3 -readonly "$DB" "select count(*) from sessions;" 2>/dev/null }
 BASE=$(dbc); log "DB 基线 = $BASE"
@@ -125,7 +125,7 @@ BASE_LABEL=$(grep -o "[^']基准[^']*主题[^',]*" $OUT/settings_theme.txt | hea
 # —— 6a 实渲染验证：社区包=全套玻璃参数包（accentHex+glassTintHex+glassMaterial，见 spec.json）
 #     切 Tahoe Teal → shot 11 → 还原基准 → shot 12（11/12 像素差 = 强调色+玻璃 tint 即时生效证据） ——
 if grep -q "Tahoe Teal" $OUT/settings_theme.txt && [ -n "$BASE_LABEL" ]; then
-  log "#6a 基准项实标签 = 「$BASE_LABEL」"
+  log "#6a 基准项实标签 = 「${BASE_LABEL}」"
   ./ax $PID press "Tahoe Teal" >/dev/null 2>&1; sleep 1.5; shot 11_theme_teal_live
   ./ax $PID press "$BASE_LABEL" >/dev/null 2>&1; sleep 1.2; shot 12_theme_restored
   log "#6a 已切 Tahoe Teal 并还原（11/12 = 即时生效+还原像素证据；玻璃参数变化为预期）"
@@ -186,7 +186,7 @@ if [ -n "$SPID" ]; then
       shot 22_transparency_off
       V2=$(defaults read com.apple.universalaccess reduceTransparency 2>/dev/null || echo 0)
       if [ "$V2" = "0" ]; then _TB_DONE=1; trap - EXIT; fi   # 正常拨回成功→解除兜底（防二次拨回反而拨开；zsh 解除语法=trap 空格- ）
-      log "#8 自动开关完成（on=$V1 off=$V2；20/21/22 三帧 = 开→solid、关→恢复证据）"
+      log "#8 自动开关完成（on=$V1 off=${V2}；20/21/22 三帧 = 开→solid、关→恢复证据）"
     else
       log "#8 拨动后未读到 1（可能命中非开关控件），留 syssettings.txt 判定，不重试不乱拨"
     fi
@@ -197,6 +197,6 @@ else
   log "#8 系统设置进程未出现，跳过自动开关"
 fi
 
-log "DB 终值 = $(dbc)（基线 $BASE；SKIP_N=1 应相等，否则 = $((${BASE:-0}+1)) 为走测临时会话）；产物在 $OUT"
+log "DB 终值 = $(dbc)（基线 ${BASE}；SKIP_N=1 应相等，否则 = $((${BASE:-0}+1)) 为走测临时会话）；产物在 $OUT"
 
 touch $OUT/.done_v43 && log "WALK-DONE 标记已写"

@@ -142,7 +142,7 @@ case "$MODE" in
   xcode) run_xcode ;;
   main)  run_main ;;
   all)   run_pr; run_leaks ;;
-  *)     echo "未知模式: $MODE（可选 pr|leaks|xcode|main|all）"; exit 2 ;;
+  *)     echo "未知模式: ${MODE}（可选 pr|leaks|xcode|main|all）"; exit 2 ;;
 esac
 echo
 echo "✅ 本地 CI 模拟（${MODE}）全部通过"

@@ -46,6 +46,7 @@
 
 ### A14 · 减弱透明度语义
 - (a) 保 solid 纯色（现状，已验收）／(b) 增加 frosted 中间态。(a) 与现有降级不变量最诚实。
+- **09-05 新增事实（会改变你的取舍权重）**：官方 API 页 `accessibilityReduceTransparency` 逐字写着「UI (mainly window) backgrounds should **not be semi-transparent; they should be opaque.**」——这是**给开发者的指令**；而常被引用来批评我方的一句「makes Liquid Glass frostier」出自 WWDC25-219，描述的是**系统自家玻璃**的观感，两者不同层。⇒ 选 (a) 并非「违反官方」，选 (b) 才是需要额外论证的观感取向。两句原文与归档路径在 BENCHMARK §23。
 
 ### D-15 · 玻璃容器 spacing 取值（09-05 新立，与 D-1 解耦）
 - **一句话事实**：官方原话——容器 spacing 只要大于内部布局（HStack/VStack/LazyVGrid）间距，玻璃就会在**静止态**融合；我方 tab 容器 **179pt** vs 内部 **6pt ＝ 29.8 倍**（三句原文与算式在 BENCHMARK §19，此前全仓缺录）。⇒ 静止态糊成一片不是偶然，是官方口径下的必然，注释 L24 说明我方原本就是「知情选择」。

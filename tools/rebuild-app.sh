@@ -22,7 +22,7 @@ sync_bundle() {
   local a b
   a="$(sha256 "$SRC")"; b="$(sha256 "$BUNDLE_BIN")"
   if [ "$a" != "$b" ]; then
-    echo "❌ bundle 同步失败：cp 后 sha 不一致（src=$a bundle=$b）"; exit 1
+    echo "❌ bundle 同步失败：cp 后 sha 不一致（src=$a bundle=${b}）"; exit 1
   fi
   cat > "$APP/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -46,13 +46,13 @@ PLIST
   codesign --force --sign - --entitlements Apps/HarnessApp/HarnessApp.ci.entitlements "$APP" >/dev/null 2>&1 || true
   # 同步戳：pre-sign sha + git HEAD + 时间（verify 用；签名会改写二进制 sha，故以 pre-sign 值对拍）
   printf 'src_sha=%s\nhead=%s\ntime=%s\n' "$a" "$(git rev-parse --short HEAD 2>/dev/null || echo unknown)" "$(date '+%Y-%m-%d %H:%M:%S')" > "$STAMP"
-  echo "OK: $APP（sha ${a:0:12}… @ $(git rev-parse --short HEAD 2>/dev/null || echo no-git)）"
+  echo "OK: ${APP}（sha ${a:0:12}… @ $(git rev-parse --short HEAD 2>/dev/null || echo no-git)）"
 }
 
 verify_bundle() {
   local symbol="${1:-}"
   if [ ! -f "$STAMP" ]; then
-    echo "⚠️ 无同步戳（$STAMP）：bundle 未经验证，先跑 tools/rebuild-app.sh"
+    echo "⚠️ 无同步戳（${STAMP}）：bundle 未经验证，先跑 tools/rebuild-app.sh"
     if [ -n "$symbol" ]; then probe_symbol "$symbol"; fi
     exit 1
   fi
@@ -63,10 +63,10 @@ verify_bundle() {
   local cur lagged=0
   cur="$(sha256 "$SRC")"
   if [ "$cur" != "$stamp_sha" ]; then
-    echo "❌ bundle 落后：构建产物已变化（stamp $stamp_sha → 现 $cur，同步于 $time_ @ $head）— 启动前必须先 tools/rebuild-app.sh"
+    echo "❌ bundle 落后：构建产物已变化（stamp $stamp_sha → 现 ${cur}，同步于 $time_ @ ${head}）— 启动前必须先 tools/rebuild-app.sh"
     lagged=1
   else
-    echo "✅ bundle 与构建产物一致（$time_ @ $head）"
+    echo "✅ bundle 与构建产物一致（$time_ @ ${head}）"
   fi
   if [ -n "$symbol" ]; then probe_symbol "$symbol"; fi
   # 09-05 修复：原实现在「落后」分支只打印 ❌ 不改退出码 ⇒ 调用方按 rc 判定必然假绿。
@@ -79,7 +79,7 @@ probe_symbol() {
   local symbol="$1" n
   n="$(nm -U "$BUNDLE_BIN" 2>/dev/null | grep -c "$symbol" || true)"
   if [ "$n" -gt 0 ]; then
-    echo "✅ 符号 $symbol 在位（×$n）"
+    echo "✅ 符号 $symbol 在位（×${n}）"
   else
     echo "❌ 符号 $symbol 不在 bundle 二进制（源码已改但 bundle 未同步？）"
     exit 1
