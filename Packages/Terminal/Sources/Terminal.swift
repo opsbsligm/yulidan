@@ -102,11 +102,30 @@ public enum TerminalError: Error, Sendable, CustomStringConvertible {
 /// - stdout/stderr 在两个独立线程并行分块读取，避免管道缓冲区写满导致死锁；
 /// - 主循环每 50ms 轮询一次：命中超时或取消信号即 terminate；
 /// - 捕获字节数超过 maxCaptureBytes 后停止读取（进程会在超时/取消时被终止）。
+/// `TerminalRunner.runThreadProbe` 的签名：收到「执行阻塞体的线程标识」与「调用 `run` 时所在的
+/// 线程标识」。用 `ObjectIdentifier` 而非 `Thread` 传递，以满足 `@Sendable` 的 Sendable 要求。
+public typealias TerminalRunThreadProbe = @Sendable (
+    _ blockingThreadID: ObjectIdentifier,
+    _ callerThreadID: ObjectIdentifier
+) -> Void
+
 public struct TerminalRunner: Sendable {
     public let configuration: TerminalConfiguration
 
-    public init(configuration: TerminalConfiguration = TerminalConfiguration()) {
+    /// 测试缝（D-17 判别器专用）：非 nil 时，`run` 在**执行阻塞体的线程**上回调一次，
+    /// 并附带「调用 `run` 时所在线程」的标识，供测试断言两者**不是同一条线程**。
+    ///
+    /// 为什么需要缝而不是墙钟判据：本项要证的是「三处同步等待不发生在调用方的 Swift 协作线程上」。
+    /// 墙钟/并发度判据在门禁高负载（Release + 覆盖率插桩 + 795 测试并行）下会漂——09-06 实测
+    /// 同一用例在 `main` 门内墙钟 0.814s 压过 0.800s 阈值而**假红**；放宽阈值又直接削弱判别力
+    /// （原实现变异实测值仅 1.045s，离阈值太近）。线程同一性判据与机器负载无关，且变异后必红。
+    /// 生产路径恒为 nil ⇒ 零行为影响（不新增任何等待、轮询或分配）。
+    public let runThreadProbe: TerminalRunThreadProbe?
+
+    public init(configuration: TerminalConfiguration = TerminalConfiguration(),
+                runThreadProbe: TerminalRunThreadProbe? = nil) {
         self.configuration = configuration
+        self.runThreadProbe = runThreadProbe
     }
 
     /// 执行命令并等待结束（带超时与取消）
@@ -114,12 +133,14 @@ public struct TerminalRunner: Sendable {
     /// - Parameter signal: 可选取消信号；已取消时立即返回 cancelled 结果
     public func run(_ command: String, signal: (any TerminalCancellationToken)? = nil) async throws -> TerminalRunResult {
         let started = Date()
+        // 调用方所在线程＝「阻塞体若留在原地会跑在哪条线程」；D-17 判别的基准侧
+        let callerThreadID = Self.currentThreadID()
         if signal?.isCancelled == true {
             return TerminalRunResult(command: command, stdout: "", stderr: "", terminationStatus: -1,
                                      timedOut: false, cancelled: true, duration: 0)
         }
 
-        return try await withCheckedThrowingContinuation { cont in
+        return try await withCheckedThrowingContinuation { (cont: CheckedContinuation<TerminalRunResult, any Error>) in
             let process = Process()
             let outPipe = Pipe()
             let errPipe = Pipe()
@@ -129,39 +150,66 @@ public struct TerminalRunner: Sendable {
                              errPipe: errPipe,
                              group: group,
                              maxCaptureBytes: configuration.maxCaptureBytes)
+            // CheckedContinuation 本身不是 Sendable ⇒ 用显式盒子完成「一次性移交」到执行线程。
+            let handedOff = ContinuationBox(cont: cont)
 
-            startReaders(box: box, group: group)
-            configure(process, command: command, outPipe: outPipe, errPipe: errPipe)
+            // ⚠️ 阻塞体整体投独立内核线程（D-17，09-06）：以下这段含三处**同步等待**——
+            //   `pollUntilExit` 的 50ms `Thread.sleep` 轮询、`process.waitUntilExit()`、`group.wait()`。
+            //   原实现让它们直接跑在调用方的 Swift **协作线程池**上 ⇒ 每条终端命令从发起占到结束，
+            //   而协作线程数 == activeProcessorCount；并发终端工具（母 Agent 并行派发子任务、
+            //   多会话同时跑命令）会把协作线程全部占死，同进程其它 async 工作随之停摆
+            //   （全量门禁高负载 flake 家族的放大器之一）。
+            //   改前实测前提（本机 A 层探针，非推测）：同构阻塞体搬到 `Thread.detachNewThread`
+            //   后，官方所述 waitUntilExit「polls the current run loop」在这类线程上仍然可用——
+            //   正常路径 20/20（含 stdout 完整捕获）、超时 10/10、取消 10/10、残留子进程 0。
+            //   ⇒ 轮询节律 / 超时 / 取消 / 捕获上限 / group 次序**逐字保留**，仅换执行线程。
+            Thread.detachNewThread {
+                // 阻塞体起点上报（缝为空时零开销）：与 callerThreadID 比对即为 D-17 判据
+                runThreadProbe?(Self.currentThreadID(), callerThreadID)
+                startReaders(box: box, group: group)
+                configure(process, command: command, outPipe: outPipe, errPipe: errPipe)
 
-            do {
-                try process.run()
-            } catch {
+                do {
+                    try process.run()
+                } catch {
+                    box.stopped = true
+                    // 关闭管道写端：让读取线程读到 EOF 退出，避免 group.wait() 死锁
+                    try? outPipe.fileHandleForWriting.close()
+                    try? errPipe.fileHandleForWriting.close()
+                    group.wait()
+                    handedOff.cont.resume(throwing: TerminalError.launchFailed(error.localizedDescription))
+                    return
+                }
+
+                // 轮询：超时 / 取消 → terminate
+                let (timedOut, cancelled) = pollUntilExit(process: process, signal: signal, timeout: configuration.timeout)
                 box.stopped = true
-                // 关闭管道写端：让读取线程读到 EOF 退出，避免 group.wait() 死锁
-                try? outPipe.fileHandleForWriting.close()
-                try? errPipe.fileHandleForWriting.close()
+                process.waitUntilExit()
                 group.wait()
-                cont.resume(throwing: TerminalError.launchFailed(error.localizedDescription))
-                return
+
+                let result = TerminalRunResult(
+                    command: command,
+                    stdout: Self.decode(box.outData),
+                    stderr: Self.decode(box.errData),
+                    terminationStatus: process.terminationStatus,
+                    timedOut: timedOut,
+                    cancelled: cancelled,
+                    duration: Date().timeIntervalSince(started)
+                )
+                handedOff.cont.resume(returning: result)
             }
-
-            // 轮询：超时 / 取消 → terminate
-            let (timedOut, cancelled) = pollUntilExit(process: process, signal: signal, timeout: configuration.timeout)
-            box.stopped = true
-            process.waitUntilExit()
-            group.wait()
-
-            let result = TerminalRunResult(
-                command: command,
-                stdout: Self.decode(box.outData),
-                stderr: Self.decode(box.errData),
-                terminationStatus: process.terminationStatus,
-                timedOut: timedOut,
-                cancelled: cancelled,
-                duration: Date().timeIntervalSince(started)
-            )
-            cont.resume(returning: result)
         }
+    }
+
+    /// 取当前内核线程的标识（仅供 `runThreadProbe` 使用）。
+    ///
+    /// 为什么包一层**同步** helper：Swift 明确禁止在 async 上下文直接取 `Thread.current`
+    /// （编译器报 `class property 'current' is unavailable from asynchronous contexts`，
+    /// 理由是协作线程可能在两次 await 之间变化）。本项只做**瞬时观测一次**——比较阻塞体
+    /// 执行线程与调用线程是否同一条，不跨 await 持用该标识，故不受该理由影响。
+    /// （09-06 实测：`bitPattern(of: pthread_self())` 在本机 SDK 不存在，故此路为唯一可行方案。）
+    private static func currentThreadID() -> ObjectIdentifier {
+        ObjectIdentifier(Thread.current)
     }
 
     /// UTF-8 解码（失败时 lossy 兜底）
@@ -241,6 +289,14 @@ public struct TerminalRunner: Sendable {
     }
 
     /// @unchecked Sendable 盒子：把 Process/Pipe 传给 @Sendable 闭包
+    /// `CheckedContinuation` 不是 Sendable，而续体必须在执行线程上恢复 ⇒ 显式盒子完成移交。
+    ///
+    /// 安全性：`run` 全程只有**一条**路径会 resume（启动失败 resume(throwing) 后立即 return；
+    /// 否则 resume(returning)），且线程只创建一次 ⇒ 不存在双续体（双续体会 trap）。
+    private struct ContinuationBox: @unchecked Sendable {
+        let cont: CheckedContinuation<TerminalRunResult, any Error>
+    }
+
     private final class RunBox: @unchecked Sendable {
         let process: Process
         let outPipe: Pipe
