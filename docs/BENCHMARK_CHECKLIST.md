@@ -85,8 +85,8 @@
 |---|---|---|---|---|
 | **A1 容器内单玻璃面** | **P0（D-1 根因）** | 让未选中 tile 也持玻璃面（同 variant/同型 shape），选中态改用 tint/前景强调区分 → 容器内 6 面共存，融合才有对象 | 纯函数改造后单测断言「native 态下参与 morph 的玻璃面数 == segments.count」 | 需要（切换时是否出现"液体颈"连接） |
 | **A2 spacing=nil** | P1 | 容器 spacing 显式化，取值 ≥ 网格间距并做 3 档对比（6 / 12 / 20pt） | 单测断言 spacing 非 nil + 值来自集中常量 | 需要（融合提前量） |
-| A3 常驻面挂 transition | P2 | 按 A1 改造后重估：若改为"所有面常驻"，则 `.matchedGeometry` 可能应移除（文档语义=增删） | 结构断言（是否仍挂 transition） | 需要 |
-| A7 interactive 口径 | P2 | 二选一：改注释为"未证实"或删除该宣称 | 文档一致性 | 悬停需目检 |
+| A3 常驻面挂 transition | P2 | 按 A1 改造后重估：若改为"所有面常驻"，则 `.matchedGeometry` 可能应移除（文档语义=增删）。**与 §2 A3「✅ 达标」不矛盾**：✅ 指官方语义已终裁正确理解（§1.14 原文＝玻璃效果被增删，我方现态下选中切换确为 remove+add，故现状成立）；本行指 **若** A1 改常态驻玻璃，则该理解结论会反转为「应移除 matchedGeometry」，属 A1 的必做后续，非本项未决 | 结构断言（是否仍挂 transition） | 需要 |
+| ~~A7 interactive 口径~~ | ~~P2~~ | **已闭环（09-05 · F2）**：按 §1.10 官方原文撤销「材质自带」未证实宣称，改为显式 `Add`——纯函数 `selectedGlass(from:isSelected:)`（源码 `GlassMorphTabBar.swift` L180–181，调用点 L231）+ `SelectedGlassTests` 3 条在册（`GlassMorphTabBarTests.swift` L119 起）。**本行原「二选一：改注释为未证实或删除宣称」是表格漂移残留，勿再作待办读**（09-05 审计发现：§2 状态列与 §9 已登记修复，唯 §3 GAP 表漏同步） | 已闭环，无判据 | 悬停观感 → 归 D-2 / G3 走查 A-h |
 | A6 manifest 假参数 | P3 | manifest 未支持字段显式拒绝 + 提示 | 单测：未知/不支持 key 不产生效果 | 不需要 |
 
 ## §4 取证判据（修订版，替代 v8 G2 的离屏像素判据）
