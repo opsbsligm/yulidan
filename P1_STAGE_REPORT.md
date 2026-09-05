@@ -330,6 +330,7 @@
 > - **#7**：A 层=`SidebarDropHighlightRenderTests`（两级 0.14/0.06 高亮+比例锁定）+ `onMoveSession` noChange 单测；旧真机帧有污染史（第八轮）。→ 建议：手感类判据**保留给你手动拖一次最有价值**，或直接 A 层核销。
 > - **#8**：见总表勘误行（旧 heartbeat 载体口径作废）。→ 建议：拨「降低透明度」那一下你顺手做（顺带覆盖 27beta 新文案实测），或直接 A 层核销。
 > 裁决模板：「D-1：#3 结构核销；#6/#7 A 层核销；#8 我顺手拨」／「全 A 层核销」／「#X 我要真机帧（另约）」。
+> **09-05 通道穷尽补强（选 (b) 前请先读本条）**：`cacheDisplay` / `displayIgnoringOpacity` / `CALayer.render` / `dataWithPDF` / 「边界外窗口 + `screencapture`」五条候选静默像素通道已实测穷尽（`tools/qa/glass-capture-channel-probe.swift`，四路位图/矢量全盲 + 一路因 TCC 挂起不可用），**「过渡态无静默通道」已从推测升级为穷尽实证**——选 (b) 不会漏掉任何本可自动化的证据。
 
 > 2026-09-03 R1 第十一轮补记⑩（**解锁轮质量三修 + 编排重启幸存 @2aa5cf3**）：① **v4.6 修 #6b 自违原则缺陷**——自动导入 Tahoe Teal 后仅留「手动收尾」提示（违反 walk「不写用户数据」）→ 增自动卸载段（插件页→选中→卸载→alert 内 destructive「卸载」用新增 `press … last` 树尾定位 + dump 双确认，弹窗未出现不乱点、失败如实告警）；② **⌘.→Esc 口径修正**——#6b 尾部 `ev key cmd .` 与补记②实锤（cancelAction=Esc）冲突，即 22:01 轮「#7 悬停帧被残留 sheet 污染」根因之一，统一 Esc 分层关闭；③ **编排迁稳定路径 ~/harness-wt**——/tmp/wt 整链（脚本+二进制+产物）重启即灭属重大缺口，plist 已 re-arm 单实例，工具链源码归档 `tools/r1walk/`（README 含授权口径），产物完成即 `walk3_final_<ts>` 快照冻结（教训②机制化）。
 
@@ -415,6 +416,7 @@
 > ScreenCaptureKit 需 TCC 弹窗＝打扰用户不采用。**修订判据三轨**（`BENCHMARK_CHECKLIST.md` §4）：
 > A 层结构断言（每次修复默认回归）＋ A 层真机静态帧（`screencapture -o -x -l<wid>`，不 activate）
 > ＋ 过渡态 morph 感**无静默通道** → 归用户二选一（顺手 1 分钟目检 / 认可结构+静态帧即满足）。
+> **09-05 更新**：该「无静默通道」结论已由五通道普查穷尽实证（BENCHMARK §0 表 ❓ 项清零），非仅 ImageRenderer 单点证据。
 > ⑦ **轴2 Codex 界面证据源当前不可静默获取**（实证）：主窗在其他 Space 时 `screencapture -l`
 > 仅回畸变缩略（`/tmp/g1b/codex_554.png` 274×318），宠物浮层窗截回 1544×4138 白底——
 > 按铁律 5，在拿到真实截图前**不写任何"Codex 有 X"条款**。取证方式待你择一（置前我只读截 /
