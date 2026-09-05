@@ -191,13 +191,25 @@
 |---|---|---|---|---|---|
 | **3** | 顶栏会话标题右键＝溢出菜单同动作集 | `ChatAreaView.swift:70-78` 标题 `Text(sessionTitle)` 挂 `.contextMenu { sessionMenuActions }`；`:96` 溢出菜单引用同一符号；`:133` 唯一定义 | 双入口**同源恒等**＝编译期结构事实，不依赖运行时巧合 | 菜单**真的弹出**（属 B 层 `ax showmenu`，改变可见状态，仅你择时同意才跑） | 认可 A 层即核销 ／ 或择时补 B 层 |
 | **6** | MCP 主题 tint 实时切换 → 还原 | `ThemeLiveRenderTests.swift:85`：`applyTheme(落日渐橙)` 后**不重启不刷新**，ImageRenderer 位图**主通道蓝→橙翻转**＋还原后与初始基准**逐点一致** ⇒ **0.069s 实跑通过** | 即时生效＝**像素级**可证（口径修正在册：内置主题 `glassTintHex=nil`，载体＝社区包 Tahoe Teal） | 真机玻璃折射下的色准观感（§0 无玻璃像素通道） | 认可即核销 ／ 或另做真机色准抽样 |
-| **7** | 会话拖拽落位原生反馈动画 | `SidebarProjectSections.swift:35` `.draggable(payload)` ＋ `:162` `.dropDestination(for: SessionDragPayload.self)`。**⚠️ Tests 侧 `onMove/dropDestination/draggable` 零命中 ⇒ 本项无任何测试覆盖** | 仅「走的是 SwiftUI 原生拖放 API」（基线合规面） | **落位动画观感**——A 层完全不可证，**本项是四项中唯一必须你出场的**（与 v8 预设「用户手动拖一次」一致） | 你手动拖一次 ／ 或明示「采用原生 API 即视为满足」 |
+| **7** | 会话拖拽落位原生反馈动画 | **✅ 09-06 二次实测：本项在册 18 项测试，是四项中覆盖最强的一条**（上表旧口径「零命中」＝我方假阴性，见下方更正块）。分层锚点＝① 载荷层 `WorkspaceTests.swift:90 @Suite("拖拽放置解析")` 4 分支（全局→项目／项目→全局／A→B／同源 noChange）＋ `:136 dragPayloadRoundTrip` JSON 编解码往返 ＋ `:292 @Suite("SessionDragPayload Transferable")` 表示构造；② 状态层 `AppViewModelProjectTests.swift:176 moveSessionNoOpBoundary`（同源落点 no-op 不弹 toast）／`:208 moveSessionMatrix`（全局→A→B→全局 + DB 落库）／`:251 moveSessionIgnoresForeignRecord`（**本轮新增**：过期快照外来记录防误改，带变异判别器）；③ 像素层 `SidebarDropHighlightRenderTests.swift:13`（ImageRenderer 离屏：非悬停无高亮、悬停 accent 着色且项目头 0.14 > 全局区 0.06）；④ 基线合规层 `SidebarProjectSections.swift:35 .draggable` ＋ `:162`/`:306` 双落点走 SwiftUI 原生拖放 API | **落位语义的正确性**：目标归属解析、同址 no-op、跨项目迁移、持久化、外来记录防误改、悬停高亮规则与强度序——全部 18 项 09-06 现场跑绿（Apps 侧 11 tests/4.53s ＋ Workspace 侧 6 tests ＋ Transferable 1 test） | 仅剩 `.smooth(duration: 0.22)` **动画时间曲线的观感**（以及真机玻璃折射下的落位过渡观感）——A 层无帧时序采样通道，属 v8 预设「用户手动拖一次」的正解范围 | 认可 A 层即核销（口径＝原生 API＋语义正确）／ 或你手动拖一次补观感 |
 | **8** | 减弱透明度注销式降级回归 | `GlassSurfaceTests` **19 条通过**，含 `:191`「`currentMode(envReduceTransparency: true)` 直接落 solid（**不依赖测试 override**）」＋ `:22/:29` 测试缝双向断言 | 降级链入口选择与合成规则＝纯函数可证；环境键单独即可决定入口（已去 override 依赖） | **真实系统开关闭合环**（辅助功能›显示›降低透明度 开→solid、关→恢复）属系统态切换 | 认可即核销 ／ 或你顺手拨一次系统开关 |
 
 **本轮实跑记录**：`swift test --filter ThemeLiveRenderTests`＝1 test passed（0.069s）；
 `--filter GlassSurfaceTests`＝19 tests passed（0.004s）；两者合计 20/20 @`a53adac`。
-**如实申报**：#7 的 A 层证据显著弱于其余三项（无测试），我不试图用「原生 API 已采用」
-替它背书观感结论；其余三项若你认可 A 层，我可当场把 §10.3 对应行改判核销。
+**如实申报（09-06 当日两处，性质不同）**：① 上表 #6/#8 的 A 层证据我按实跑值给出，
+不以「原生 API 已采用」替观感结论背书；② **上表 #7 原写「Tests 侧零命中 ⇒ 无任何测试覆盖」，
+是我在同一轮内写入的假阴性，已就地改判，原文如下留档以便追责**——
+
+> 【更正留档 @`7192ecc` 造成的失真，本轮 `HEAD+1` 修正】原句：「⚠️ Tests 侧
+> `onMove/dropDestination/draggable` 零命中 ⇒ 本项无任何测试覆盖」。**错在两步**：
+> (a) 搜的是**修饰符字面量**，而测试从**不重复**这些 token——它测的是被修饰行为所调用的
+> 下层（`moveSession` / `dropTargetFill` / `SessionDragPayload.resolution`），
+> 故 token 级零命中毫无「无覆盖」的含义；(b) 即便 token 真为 0，也推不出「无测试」，
+> 中间缺一次「按行为反查测试」的动作。**实测反查结果**：#7 在册 **18 项测试全绿**，
+> 覆盖载荷编解码、归属解析四分支、no-op 防护、跨项目迁移 + 落库、外来记录防误改、
+> 悬停高亮像素规则——**它不是四项中最弱的，是覆盖最强的**。教训已入 QUALITY_REPORT ㉘。
+
+其余三项若你认可 A 层，我可当场把 §10.3 对应行改判核销。
 
 **走查副作用（待清理）**：走查期间 AXPress「新对话」创建了 1 个测试会话（侧栏「新对话」行），解锁后核销时一并删除。
 > 2026-08-30 核销更新（锁屏内 DB 只读核验）：`sessions.sqlite` 中**已无 08-29 任何会话行**（该测试会话应已被用户在其短暂解锁窗口内删除，核销完成）；另发现 3 个 **08-30 19:11** 新建的空会话（0 事件，疑似用户自行测试「新对话」所建）——**未动**，待用户确认是否清理。
