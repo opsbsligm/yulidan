@@ -27,6 +27,9 @@ RSS_GUARD_MAX_KB=${RSS_GUARD_MAX_KB:-524288}   # MemProbe RSS 增量护栏阈值
 step() { echo; echo "===== $1 ====="; }
 
 run_pr() {
+  step "PR-0 代码注释「官方」引用断言门（门禁：0 违规；BENCHMARK §22）"
+  # 09-05 新增：反过度归属从人工抽查变成常驻门。rc=1 有未挂锚断言；rc=2 口径不闭合（须重审并更新 §22.5 基线）。
+  python3 tools/qa/official-claim-lint.py --root .
   step "PR-1 SwiftLint（门禁：0 违规）"
   swiftlint lint --strict --config .swiftlint.yml
   step "PR-2 SwiftFormat（门禁：0 文件需格式化）"
