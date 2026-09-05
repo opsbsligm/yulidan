@@ -568,6 +568,19 @@ raw offset 只作辅助；**且 offset 必须是「短语起点」**（本节统
 ⚠️ 铁律 1 查证顺序据此固定为**三通道**：① 编译期 SDK 的 `.swiftinterface` 签名 → ② 同 SDK `.swiftdoc` 全文（含官方示例）→ ③ 在线文档。
 （27 beta 玻璃实体仍在 **SwiftUICore**，`SwiftUI.swiftinterface` 内搜不到 ⇒ 两个 framework 都要查，否则假阴性。）
 
+**⁽⁰⁹⁻⁰⁵ᵉ⁾ 三通道各有覆盖面，任一单通道的阴性都不构成「官方不存在 X」（§18.5 误判的直接产物）**：
+
+| 通道 | 承载内容 | **不承载**（→ 假阴性来源） |
+|---|---|---|
+| ① `.swiftinterface` 签名 | 声明/可用性/默认参数 | 任何解释性文字、判据、示例 |
+| ② `.swiftdoc` 全文 | **API 符号级** DocC 正文＋官方示例代码 | **教程文章**（如《Applying Liquid Glass to custom views》）、HGI/HIG 正文、WWDC 逐字稿 |
+| ③ 在线 JSON（`developer.apple.com/tutorials/data/documentation/<path>.json`；HIG 走 `/design/human-interface-guidelines/<slug>`） | 教程文章、HIG、示例说明文字（本文 §1 全部引文来源） | 本机 SDK 差异（可能已相对 26.5/27 漂移） |
+| ④ WWDC 逐字稿（视频页 HTML 内嵌 `<span data-start>`，§11） | 设计意图与口径 | 逐字稿是**叙述**，不可当 API 判据 |
+
+⇒ **新固化规则（铁律 1 的操作细则）**：断言「官方**存在** X」= 任一通道逐字命中即可；
+断言「官方**不存在** X」= ①全仓检索我方已入册引文（同篇官方文章可能被不同批次分节摘过）＋ ②③两通道皆阴性，二者缺一即不得下负结论。
+本轮就是拿通道②的阴性去否证 §1.8 已入册的通道③引文，方向完全反了（详见 §18.5 更正）。
+
 ### 18.2 官方原文逐字（offset 取自 Xcode-beta MacOSX27.sdk，正文已实测与 26.5 逐字一致）
 
 > 引文精度声明：`.swiftdoc` 内官方正文是**每行 ≤80 字符硬换行**存储的，本节为便于阅读按行合并成整句——**未改词、未改标点、未增删内容**；如需原始逐行形态，用 §18.1 命令去掉合并即可看到（`grep -F "///"` 输出）。
@@ -655,3 +668,21 @@ A2 仍按原口径只对 `SidebarView` L97／`SettingsView` L160 两处未 custo
 本轮 §18.2 全量提取后确认：官方原文只有「越大越早 blend」，**不存在**「≤ 即适用 matchedGeometry」这一判据表述。
 ⇒ 该 `≤` 模型是**我方保守启发式**，注释应改为「我方启发式模型（非官方判据）」；`qualifiesForMatchedGeometry` 的行为不必改（保守无害），
 但**不得再以「官方」名义引用**。属铁律 1 类过度归属，登记为 G2 首轮 `.swift` 批次的附带项（含 `MorphTabGeometry` 注释与同名测试用例名复核）。
+
+**⁽⁰⁹⁻⁰⁵ᵉ⁾ 本条结论被本轮推翻——我方才是一次误判，代码注释维持「官方」名义为正确（铁律 1 反向自纠）**
+本轮按 §18.5 去改注释前的最后一道核验（在线教程文章 JSON 通道实取）证明：**官方确有该判据句**。原文逐字：
+> “This morphs the eraser image into the pencil image when the eraser’s nearest edge is less than or equal to the container’s spacing.”
+
+复现（A 层，纯 curl，与键鼠无关）：
+```bash
+curl -sS "https://developer.apple.com/tutorials/data/documentation/swiftui/applying-liquid-glass-to-custom-views.json" \
+  | python3 -c "import json,sys; t=json.dumps(json.load(sys.stdin),ensure_ascii=False); print(t.count('nearest edge'), t.count('less than or equal'))"
+# 实测输出：1 1（09-05 命中）
+```
+**误判成因（这是本轮真正的教训）**：`.swiftdoc` 只承载**API 符号级**注释，**不覆盖教程文章与 HGI/HIG 正文**；
+我拿单一通道的阴性结果去断言「官方无此表述」，且**未回检本文档 §1.8 早在 09-03 就已逐字入册的同篇引文**（同篇官方文章被两批通道各摘一次，内部一致性检查缺失）。
+⇒ **固化新规则**：断言「官方不存在 X」之前必须同时满足 ① **全仓检索我方文档已入册引文**（`grep` §1 各节，含同篇不同小节）；
+② **≥2 通道皆阴性**（在线教程/HIG JSON **且** `.swiftdoc`）。这与 §0「负结论须自证捕获通路活性」同族，此处形态是**负结论须自证检索覆盖面**。
+
+**仍成立的合理内核（G2 首轮 `.swift` 附带项据此缩小）**：`GlassMorphTabBar.swift` L60 后半句「取整即覆盖全部切换距离」是**我方推论**（官方只给判据方向，未给「取整即覆盖」的保证）⇒ 该半句应标「我方保守取整」；
+L32/L88/L160 以「官方」名义引用**正确，保留**；`MorphTabGeometry` 注释与同名测试用例名复核照旧。
