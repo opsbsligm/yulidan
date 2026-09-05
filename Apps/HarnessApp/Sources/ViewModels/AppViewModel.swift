@@ -1051,7 +1051,39 @@ final class AppViewModel: ObservableObject {
         }
     }
 
+    /// 「读注册表 → 写展示快照」的串行链尾（只在 MainActor 上读写，无需额外锁）
+    private var toolsRefreshTail: Task<Void, Never>?
+
+    /// 刷新工具展示快照（**串行化**：并发调用排成链，见下面丢失更新防线注释）
+    ///
+    /// ⚠️ 丢失更新防线（D-16 真因，09-06）：本函数是「`await toolRegistry.schemas()` → 写 `tools`」
+    ///   的**跨 actor-hop 读-改-写**。本仓至少 8 处会调用它，其中三处天然在后台 Task 里
+    ///   （启动期 MCP 发现 L621 / MCP `tools/list_changed` L1050 / 沙箱根变更 L1050 同型 Task），
+    ///   与用户触发的导入·重启·卸载（L2206 / L2225 / L2242）可以并发。并发时先读的那次可能后写，
+    ///   用**旧快照覆盖新快照** ⇒ 已卸载的工具重新出现在列表里，且此后无人再刷就**永不消失**。
+    ///   这与 D-16 记录的两条失败签名完全一致：5.098s 撞上限、把上限对齐到 20s 后又在
+    ///   20.215s 失败——「让多久都不会消失」是丢失更新的典型特征，而不是子进程回收慢。
+    ///   （L2484 早已留有注释承认「并发 refreshTools() 可能重建/重排展示数组」，本次把该
+    ///   并发从「靠按身份回写兜底」升级为「根本不重叠」。）
+    /// 语义保证：`await refreshTools()` 返回时，展示快照至少包含本次调用之前已发生的注册表变更。
     func refreshTools() async {
+        let previous = toolsRefreshTail
+        let current: Task<Void, Never> = if let previous {
+            Task { [weak self] in
+                await previous.value
+                await self?.applyToolsSnapshot()
+            }
+        } else {
+            Task { [weak self] in
+                await self?.applyToolsSnapshot()
+            }
+        }
+        toolsRefreshTail = current
+        await current.value
+    }
+
+    /// 一次真正的「读注册表 → 写展示快照」（只允许在 refreshTools 的串行链上调用）
+    private func applyToolsSnapshot() async {
         let schemas = await toolRegistry.schemas()
         let current = tools
         tools = schemas.map { schema in
