@@ -52,12 +52,39 @@ struct AppViewModelSessionLifecycleTests {
     }
 
     /// 轮询等待 DB 中该会话持久化事件数达到 minCount（persistSession 为异步 Task）
+    /// 目标事件是否齐备：user 与 assistant 两条都已落库。
+    /// 只等「条数 ≥ 2」不构成该判据（turnStart 会先落库）——这就是本用例 flake 的根因。
+    private func hasUserAndAssistant(_ events: [SessionEvent]) -> Bool {
+        var sawUser = false
+        var sawAssistant = false
+        for event in events {
+            if case .userMessage = event {
+                sawUser = true
+            }
+            if case .assistantMessage = event {
+                sawAssistant = true
+            }
+        }
+        return sawUser && sawAssistant
+    }
+
     private func waitForDBEvents(_ db: SessionDB, _ id: SessionID, minCount: Int,
-                                 timeout: TimeInterval = 10) async -> [SessionEvent]? {
+                                 timeout: TimeInterval = 10,
+                                 until: (([SessionEvent]) -> Bool)? = nil) async -> [SessionEvent]? {
+        // 退出条件必须是「等到目标事件」而不是「等到条数够」：事件表里 turnStart/stepStart
+        // 会先于 assistantMessage 落库，条数>=2 可能只是 (turnStart, userMessage)，
+        // 于是同一条断言在高负载下时有时无（2026-09-06 全量门禁实测 flake：
+        // assistantCount 0 != 1，两条不同测试在两次复跑中各中一次）。
+        // until 缺省时行为与旧版逐字相同；超时仍返回现有事件 ⇒ 真实回归照样失败，只是等满超时。
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
-            if let rec = try? await db.load(id), rec.events.count >= minCount {
-                return rec.events
+            if let rec = try? await db.load(id) {
+                // 先算成普通 Bool 再判：if 条件里塞内联闭包会被 swiftformat 拆成非法语法
+                let enough = rec.events.count >= minCount
+                let matched = until?(rec.events) ?? true
+                if enough, matched {
+                    return rec.events
+                }
             }
             try? await Task.sleep(for: .milliseconds(50))
         }
@@ -100,7 +127,8 @@ struct AppViewModelSessionLifecycleTests {
 
         // 3. DB 持久化：user + assistant 两条事件已落库
         if let db = try? SessionDB(dbURL: dbURL) {
-            let events = await waitForDBEvents(db, s1.id, minCount: 2)
+            let events = await waitForDBEvents(db, s1.id, minCount: 2,
+                                               until: hasUserAndAssistant)
             let userCount = events?.filter { event in
                 if case .userMessage = event {
                     return true
