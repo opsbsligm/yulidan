@@ -13,8 +13,12 @@ import SwiftUI
 // 无障碍：除减弱透明度降级外，玻璃表面保持完整对比度（文字始终走 textPrimary 等语义色）。
 
 /// 玻璃**语义**层级（对应不同表面用途），⚠️ 非「玻璃厚度」——
-/// 官方 `Glass` 仅两变体（regular/clear，HIG Materials 原文在案 docs/BENCHMARK_CHECKLIST.md §1.9），
-/// 不存在 thin/prominent 材质档：本枚举在 macOS 26 **原生态下不改变 Glass**（三档同走
+/// HIG 明文材质变体＝regular/clear 两档（HIG Materials 原文在案
+/// docs/BENCHMARK_CHECKLIST.md §1.9），不存在 thin/prominent 材质档。
+/// ⚠️ SDK 签名层另有第三个静态成员 `Glass.identity`（编译期 26.5 SDK
+/// `SwiftUICore.swiftinterface` L5753–5762 实测；HIG 未描述该值 ⇒ 非设计意义上的
+/// 材质变体，详见 BENCHMARK §21.2 第 1 条）。
+/// 本枚举在 macOS 26 **原生态下不改变 Glass**（三档同走
 /// `resolvedGlass` 单点），仅在降级路径生效——legacy → NSVisualEffectView 材质（hudWindow/
 /// popover/sidebar），solid → 三档不同实色。故命名口径 = 「用途分层」，勿理解为强度差异。
 /// 待办 BENCHMARK_CHECKLIST A11：是否改名为 SurfaceRole 以彻底消除误导。
@@ -109,7 +113,8 @@ struct GlassSurfaceModifier: ViewModifier {
         }
     }
 
-    /// P1.4 玻璃材质档位（manifest 值 → 官方 Glass 变体；仅开放 regular/clear 两档）
+    /// P1.4 玻璃材质档位（manifest 值 → HIG 官方 Glass 变体；开放 regular/clear 两档，
+    /// `Glass.identity` 不开放——HIG 未描述，见 BENCHMARK §21.2 第 1 条）
     enum GlassMaterial {
         case regular
         case clear
@@ -265,10 +270,11 @@ extension View {
 // MARK: - P1.1 同区域玻璃容器（GlassEffectContainer 容器化）
 
 /// 同区域玻璃表面容器：同一区域内的多个玻璃表面放入同一 `GlassEffectContainer`
-/// → 光学采样一致 + 渲染性能（官方语义：组合为单一 shape、效果可相互 morph）；
+/// → 光学采样一致 + 渲染性能（官方：union 三同后合并为单一 shape ＋ 容器内可相互 blend/morph，
+///   union 三同条件见 §19.1-3、容器价值句见 §1.8 逐字在案）；
 /// 降级模式（solid/legacy）no-op 不包裹（容器为 macOS 26+ API）。
 struct GlassSurfaceContainerModifier: ViewModifier {
-    /// 融合提前量（官方语义：spacing 越大越早开始融合）；nil = 系统默认
+    /// 融合提前量（官方：spacing 越大越早融合，§19.1-1 逐字在案）；nil = 系统默认
     var spacing: CGFloat?
 
     /// 系统「减弱透明度」：与 GlassSurfaceModifier 同源，保证容器与表面的降级判定一致且即时

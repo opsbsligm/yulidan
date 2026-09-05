@@ -20,12 +20,15 @@ import SwiftUI
 //   判据尺寸 = 最近边："morphs ... when the eraser's **nearest edge is less than or equal to the
 //     container's spacing**"
 //   "Animating views in or out causes the shapes to **morph apart or together as the space in the
-//     container changes**." → 我们的「移除旧选中面 + 插入新选中面」正是官方 morph 构造，❌无需补面
+//     container changes**." → 我们的「移除旧选中面 + 插入新选中面」**符合官方描述的 morph
+// 触发方式**（＝我方解读：官方示例 §18.2 给的是其中一种构造，非唯一规定）⇒ 无需补面
 //   spacing 过大的唯一代价 = "causes Liquid Glass effects to **blend together at rest** because the
 //     views are too close"；本容器静止态恒 1 面 → 该代价结构性不可达 → 放心取覆盖全网格的值
 //   interactive = **显式开启**："**Add** interactive(_:) to custom components to make them react to
 //     touch and pointer interactions"（旧注释「材质自带」属未证实宣称，本轮纠偏 → 见 F2）
-// 上一轮 A1「需给未选中面补玻璃」的推断已被官方原文证否（补面反而制造静止态融合与噪声），已撤销。
+// 上一轮 A1「需给未选中面补玻璃」的推断已撤销：官方原文说明 add/remove 本身即触发
+// morph（上方逐字引文）⇒ 补面并非必要。⚠️ 而「补面会制造静止态融合与噪声」是**我方
+// 推论**（据官方 at-rest 告警推出，原文见 §19.1 第 2 句），非官方明文（§21.2 第 6 条）。
 
 /// Morph 几何判据（纯函数，可单测；F1 核心）
 ///
@@ -57,7 +60,8 @@ enum MorphTabGeometry {
         return (horizontal * horizontal + vertical * vertical).squareRoot()
     }
 
-    /// 容器 spacing = 最坏最近边距离向上取整（官方条件为「≤」，取整即覆盖全部切换距离）
+    /// 容器 spacing = 最坏最近边距离向上取整。官方判据为「最近边 ≤ 容器 spacing」（逐字见
+    /// §1.8）；⚠️「取整即覆盖全部切换距离」＝**我方保守取整**，非官方承诺（§21.2 第 8 条）
     static func containerSpacing(
         tileWidth: CGFloat = tileWidthCap,
         tileHeight: CGFloat = tileHeight,
@@ -85,7 +89,7 @@ enum MorphTabGeometry {
         max(tileHeight, gridSpacing) + gridSpacing
     }
 
-    /// 判定：某对面距离是否落在 matchedGeometry 适用域（官方：最近边 ≤ 容器 spacing）
+    /// 判定：某对面距离是否落在 matchedGeometry 适用域（官方：最近边 ≤ 容器 spacing，§1.8 逐字）
     static func qualifiesForMatchedGeometry(
         nearestEdgeDistance: CGFloat,
         containerSpacing: CGFloat
@@ -129,11 +133,15 @@ struct GlassMorphTabBar: View {
     ]
 
     /// 统一选中 ID：切换时旧段移除/新段插入 → 触发原生 morph（官方文档语义）
-    /// 单一 ID 是「高亮在分段间流动」的正确构造（官方 morph 语义 = 同 identity 面在不同位置间形变）；
-    /// ❌ 不得改为每段一个 ID —— 那会让官方示例式的「A 面消亡 + B 面新生」双胶囊形态取代流体高亮
+    /// 单一 ID ＝**我方构造**：官方对 ID 的明文只到「保证同一个 shape 在**层级增删**时被正确
+    /// 动画」（§19.1 第 3 句逐字），**未**明文「同 ID 面位移即形变」；官方示例反而是常驻面＋
+    /// 条件面**不同 ID**（§18.2）⇒ 本构造的流体观感待目检，不得当作官方结论引用。
+    /// ❌ 不得改为每段一个 ID —— 我方预测（**未实测**）：会退化成官方示例那种
+    /// 「A 面消亡 + B 面新生」双胶囊形态（§21.2 第 4/5 条）
     static let selectionID = "harness-sidebar-selection"
 
-    /// 分段面 shape（morph/union 官方约束：同变体 + 同型 shape）
+    /// 分段面 shape。union 官方三同＝similar shape / Liquid Glass effect / **and ID**（§1.8 逐字）；
+    /// morph 判据是另一件事＝最近边 ≤ 容器 spacing ⇒ 两套机制各自成立，勿合并引用（§21.2 第 3 条）
     private static let tileShape = RoundedRectangle(cornerRadius: 10, style: .continuous)
 
     /// 系统「减弱透明度」环境键（与 GlassSurface 同源；true → 非 native，solid 选中块且无 morph）
@@ -202,12 +210,14 @@ struct GlassMorphTabBar: View {
     /// 旧实现把 `Color.clear.glassEffect` 挂 `.background`（非标准构造）——macOS 27 beta 下
     /// 玻璃层合成在 tile 内容之上，选中 tile 图标/文字被折射采样洗淡不可见
     /// （证据：窗口截图 3x 放大空 tile + 内部像素直方图 min 亮度 118 = 内容在玻璃后）。
-    /// 改官方文档模式：glassEffect 直接施加于内容 view
+    /// 改按官方模式：glassEffect 直接施加于内容 view（锚点＝下方逐字引文，另见 §1.8
+    /// 「Apply the `glassEffect(_:in:)` modifier after other modifiers…」）
     /// （"Renders a shape anchored behind a view ... Applies the foreground effects of
     /// Liquid Glass over a view"，docs/P1_GLASS_API_VERIFICATION.md §六逐字在案）
     /// → 玻璃锚定内容 bounds，内容保持锐利（与 P1.1 composer / 项目卡同模式互证）。
     /// morph 不变量不变：同 glassEffectID + 同 @Namespace + 同 Glass 变体 + 同型 tileShape
-    /// → 旧面移除 / 新面插入仍触发原生 morph 配对（官方 glassEffectID 语义在案）。
+    /// → 旧面移除 / 新面插入按官方口径处理（同 ID 保证形状增删时正确动画，§19.1-3）；
+    ///   「位移即流体融合」＝我方构造，实况待 D-1 终裁（与上方 §21.2 第 4 条同口径）。
     @ViewBuilder
     private func tileContent(_ seg: MorphTabSegment, isSelected: Bool, glass: Glass) -> some View {
         let base = VStack(spacing: 3) {
@@ -223,7 +233,8 @@ struct GlassMorphTabBar: View {
         .contentShape(Self.tileShape)
         switch Self.TileFaceMode.resolve(isSelected: isSelected, isNative: isNative) {
         case .glassMorph:
-            // 原生 morph 选中玻璃面：内容直接入玻璃（官方模式）
+            // 原生 morph 选中玻璃面：内容直接入玻璃（官方容器内语义＝each view … renders with
+            // the effects behind it，逐字见 §21.5 第 3 句）
             // F2：interactive 须**显式添加**（官方原文 "Add interactive(_:) to custom components
             // to make them react to touch and pointer interactions"）——旧注释称「材质自带」无依据，
             // 已撤销；本面为导航功能层自定义件，符合 HIG「sparingly」边界（仅选中面加）

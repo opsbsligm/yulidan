@@ -140,7 +140,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         window.titleVisibility = .hidden
         window.minSize = NSSize(width: 800, height: 500)
         // D-10(a)/BENCHMARK §13-F4：透明窗底——让玻璃获得「窗后」（桌面）采样源，恢复 macOS 侧栏传统。
-        // 透窗采样实况成败仅 G3 A-d 目检裁决（补记㊹：官方无透窗采样明文，锚定 legacy behindWindow 在册能力）；
+        // 透窗采样实况成败仅 G3 A-d 目检裁决（补记㊹）。官方正面明文只到「blurs content
+        // behind it」＝其**身后内容**（§21.5 第 1 句）；「可采样窗口之外的内容」经 §21.3 四步检索门
+        // 确认**无官方明文** ⇒ 锚定 legacy behindWindow 在册能力，不宣称官方支持；
         // 可读性兜底 = 侧栏 GlassSurface(.regular) 底（native 玻璃 / legacy 材质 / solid 回落）+ 主区 bgPrimary 实底。
         Self.applyGlassSampling(to: window)
         return window

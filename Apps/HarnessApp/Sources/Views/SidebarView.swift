@@ -452,7 +452,8 @@ struct SidebarView: View {
         }
         .frame(width: 52)
         // P1.3：与展开面同 ID 同 namespace（level 仅影响 legacy/solid fallback 材质，原生 Glass 值恒为
-        // resolvedGlass .regular+tint → 两态同变体，满足官方 morph 约束）
+        // resolvedGlass .regular+tint → 两态同变体＝满足官方 union 三同中的「同 effect」一项；
+        // 另两同＝同 shape／同 ID（§1.8 逐字，§21.2 第 9 条）
         .glassSurface(
             .prominent,
             cornerRadius: 0,
