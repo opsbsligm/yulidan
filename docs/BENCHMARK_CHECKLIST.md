@@ -15,7 +15,7 @@
 | `NSView.displayIgnoringOpacity(_:in:)` | A 层 | **❌ 不渲染玻璃** | 同探针：差异 0/96000，控制组 613 色 |
 | `CALayer.render(in:)` | A 层 | **❌ 不渲染玻璃** | 同探针：差异 0/96000，控制组 611 色（SwiftUI 内容宿主 layer 路径亦不含玻璃）|
 | `dataWithPDF(inside:)` | A 层 | **❌ 不捕获 SwiftUI 内容** | 同探针含**正对照**：不透明色块与无玻璃控制组体积同为 836B（远小于编码渐变+点阵所需）→ 通道本身不产出内容，与玻璃无关 |
-| 显示边界外窗口（`setFrameOrigin(-12000,-12000)` + `orderFront`）+ `screencapture -l` | 名义 A 层，**实测不可用** | ❌ 不可用 | `screencapture` 子进程需屏幕录制授权（TCC）→ **无限挂起**且可能向用户弹权限窗 = 违反铁律 8；探针已将该通道置 `HARNESS_CH5_SCREENSHOT=1` 显式开关，默认关闭 |
+| 显示边界外窗口（`setFrameOrigin(-12000,-12000)` + `orderFront`）+ `screencapture -l` | 名义 A 层，**实测不可用** | ❌ 不可用 | 探针内该子进程**无限挂起**（探针已置 `HARNESS_CH5_SCREENSHOT=1` 显式开关，默认关闭）。**归因修正（09-05 自纠）**：曾写作「需屏幕录制授权 TCC」——后续实测 `screencapture -o -x -l<屏上窗>` 在 exec 会话 **rc=0 / 1s / 151KB 正常**，故 TCC 归因撤回（未证实）；现判为**目标窗口在显示边界外 → 等待永不出现的表面**。屏上真实窗口截帧仍可用（本表下方第 4 行不变）|
 | `NSApplication`/建窗可用性（前置事实） | — | — | **纠正旧记录**：CLI/脚本进程在本机可创建不上屏 `NSWindow`（不再 SIGTRAP）；09-03「CLI 建窗 SIGTRAP」的真因推测为 `NSApp` 隐式解包未初始化（本轮同类错误精确复现 `EXC_BREAKPOINT` 于 `main`，标注为推测）|
 | `CGWindowListCreateImage` | — | **❌ API 已从 macOS 27 SDK 移除** | 编译期报错「'CGWindowListCreateImage' is unavailable in macOS: Please use ScreenCaptureKit instead」 |
 | `screencapture -o -x -l<wid>`（进程外只读） | A 层（不动焦点/不 activate） | ✅ 对**已存在的真实窗口**有效 | 本次截到 Harness 窗 3840×2100 真实像素 |
