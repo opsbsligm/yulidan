@@ -72,11 +72,11 @@
 |---|---|---|---|
 | A1 | **参与 morph 的玻璃面需 ≥2 且同处一个容器**（§1.1 语义前提） | ❌ **GAP（根因级）** | `GlassMorphTabBar.swift` L132-138：仅**选中** tile 走 `glassEffect`，`TileFaceMode.resolve` 未选中 → `.plain`（无玻璃）。容器内**恒为 1 个玻璃面** → 官方"形状靠近时路径融合"无对象，视觉上只能是淡变。这解释 P1.2 实机"交叉淡变"（注记①），且与动画曲线无关 |
 | A2 | **容器 spacing 是融合提前量的显式调参项**（§1.1 末句） | ⚠️ GAP | 全仓 4 处 `.glassSurfaceContainer()`（GlassMorphTabBar L76 / SidebarView L97 / SettingsView L160 / ChatInputArea L135）**均传 nil**=系统默认（官方未公布默认值，❌不猜数值） |
-| A3 | **`.matchedGeometry` 面向"视图增删"场景**（§1.3） | ❓ 未证实 | 我们把 `.glassEffectTransition(.matchedGeometry)` 挂在**常驻**选中面上（L138）。文档语义针对增删；常驻面是否生效无文档保证 → 需真机目检，不下结论 |
+| A3 | **`.matchedGeometry` 适用场景**（§1.14 原文终裁） | ✅ 达标（09-05） | 文档判据=「**玻璃效果**被加/移出视图层级」；我方 `TileFaceMode.resolve` 使非选中面无玻璃 ⇒ 选择切换即 remove+add，并非"常驻面"（原 ❓ 前提不成立），且原文第三段覆盖 identity 不变情形。真值表测试在册 L40–45 |
 | A4 | **玻璃锚定内容 bounds，内容保持锐利**（§1.4） | ✅ 达标 | 08-29 已按官方模式重构（`glassEffect` 直施于内容，弃 `background` 挂法），入册 GlassMorphTabBar L110-119 注释 + 像素直方图证据 |
 | A5 | **默认 shape = Capsule**（§1.4）→ 自定义形状须同型才能 union/morph（§1.5） | ✅ 达标 | 统一 `tileShape = RoundedRectangle(10, .continuous)`；union 同变体约束在 SettingsView L159 注释在册 |
 | A6 | **材质参数只有 3 变体 + tint + interactive**（§1.6）→ 不存在"曲率/模糊/高光"可调 | ✅ 已知天花板 | 已在 `P1_GLASS_API_VERIFICATION.md` §四登记；残留 GAP：主题 manifest 若仍暴露"曲率/模糊"字段=**假参数**，应显式声明不支持（D-4 相关） |
-| A7 | **interactive 语义/默认值**（§1.7 未记载） | ❓ 未证实 | 代码注释声称「悬停/按压反馈 = Glass.interactive 材质自带」**无官方依据** → 要么实测，要么改注释口径（D-2） |
+| A7 | **interactive 语义/默认值**（§1.7→§1.10 原文复核） | ✅ 达标（09-05 表格跟结论） | §1.10 官方原文＝**显式开启非默认自带**；旧注释宣称已撤销并按原文补 `.interactive()`（F2 在册 §9）。**表格此前仍挂 ❓ 与 §1.10 自相矛盾，属表格漂移，非结论未定**。残余仅悬停反馈目检（归 D-2/G3 A-h） |
 | A8 | **无障碍降级**（减弱透明度 → 非玻璃表面） | ✅ 达标 | `GlassSurface` 三态 `resolveMode` + 容器 `shouldWrap` 同源门控，测试在册（867 项 xcresult） |
 
 ## §3 GAP 汇总与修复方向（性价比排序，全部纯原生 API）
@@ -280,6 +280,30 @@ A11 一并改写注释，消除误导。
 | `backgroundExtensionEffect` | **命中 2** | 可用（内容延伸到安全区外 → 玻璃有东西可折射） |
 | `scrollEdgeEffectStyle` | **命中 1** | 可用（滚动边缘效果） |
 | `containerConcentric` / `ConcentricRectangle` | **命中 0** | **本 SDK 无** → 圆角同心（corner concentricity）暂不可落地，❌不得宣称支持 |
+
+### 1.14 `GlassEffectTransition` / `.matchedGeometry` 原文（09-05 实拉文档端点，A3 终裁依据）
+
+页 `tutorials/data/documentation/swiftui/glasseffecttransition`（HTTP 200）abstract 逐字：
+
+> A structure that describes changes to apply when a glass effect is **added or removed from the view hierarchy**.
+
+页 `tutorials/data/documentation/swiftui/glasseffecttransition/matchedgeometry`（HTTP 200）逐字：
+
+> The matched geometry transition allows the geometries of glass shapes during an **appearance or disappearance phase of a transition** to be derived from the geometry of a nearby shape within the glass container.
+>
+> For example, if a newly appearing shape is within the spacing of any existing shape, it will use that shapes geometry to transition out of.
+>
+> When using the ~·~, this transition applies additional scale and offset effects to content **when the identity of the shape does not change but its content does**. Opt out of these additional animations by providing a specific animation like ~·~.
+>
+> （如实注：末段两处 ~·~ 是官方 JSON 中以符号链接呈现、纯文本抓取时为空的位置，**不按猜测补全**。）
+
+**A3 终裁（❓ → ✅）**：文档判据是「**玻璃效果**被加入/移出视图层级」＋「过渡的出现/消失阶段」，
+并非"容器视图增删"。我方 `GlassMorphTabBar.TileFaceMode.resolve(isSelected:isNative:)` 第一行即
+`guard isSelected else { return .plain }` ⇒ **非选中面完全无玻璃**，故选中切换在视图层级上就是
+「旧面玻璃被 remove、新面玻璃被 add」——正落在原文语义内；`.glassEffectID(Self.selectionID, in: morphNS)`
+再以同一 ID + 同一 namespace 构成 morph 配对。机制层真值表测试在册（`GlassMorphTabBarTests` L40–45）。
+第三条原文另示「identity 不变而内容变化」亦有额外 scale/offset 处理 ⇒ 两种读法均被覆盖，
+A3 疑虑（常驻面是否生效）不再成立。
 
 ## §12 新审计项（A13–A19，本轮全部来自官方原文＋本机代码事实）
 
