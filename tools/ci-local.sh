@@ -49,6 +49,51 @@ run_pr() {
     if [ "${attempt}" -eq 2 ]; then echo "❌ 全量测试两轮均失败"; exit 1; fi
     echo "⚠️ 首轮全量失败 — 有限重试一次（环境调度停滞容忍，非代码回归）"
   done
+  step "PR-5 XCTest 覆盖补齐（门禁：XCTest 实执行数 ≥ 下限 且 0 失败）"
+  # 为什么必须有这一段（09-06 决定性 A/B 实测 @8847ccd，同 HEAD 同二进制）：
+  #   swift test --parallel          → Swift Testing 797 ✔ ／ XCTest 标记行数 0（**整块不执行**）
+  #   swift test（默认 --no-parallel）→ 同一 797 ✔ ＋ XCTest Executed 263（7 skipped）0 failures
+  # ⇒ PR-4 的 --parallel 只覆盖 Swift Testing 半边；XCTest 目前仅靠 xcode 门兜住 260/263，
+  #   差的 3 例全在 Apps 目标（project.yml 无 HarnessAppTests target），其中 2 例＝G4 层1
+  #   「拿来即用」证据测试（MCPCommunityAppFlowTests）。本段把 263 全量在门禁内补齐，
+  #   并硬性要求日志里出现 XCTest 执行计数——「静默漏跑」一律判失败，不得当成通过
+  #   （否定性结论必须有正向对照，QUALITY ㉕/㉙ 同源纪律）。
+  XCTEST_FLOOR=${XCTEST_MIN_EXECUTED:-200}   # 09-06 基线 263；留 63 例余量防偶发 skip
+  for attempt in 1 2; do
+    if perl -e 'alarm shift @ARGV; exec @ARGV' "${TEST_TIMEOUT}" swift test --no-parallel \
+         > /tmp/ci_local_xctest.log 2>&1; then
+      break
+    fi
+    pkill -f "swift-harnessPackageTests" 2>/dev/null || true
+    if [ "${attempt}" -eq 2 ]; then
+      echo "❌ XCTest 全量（--no-parallel）两轮均失败（见 /tmp/ci_local_xctest.log）"
+      grep -E "XCTAssert|error:|failed \(" /tmp/ci_local_xctest.log | tail -20
+      exit 1
+    fi
+    echo "⚠️ 首轮 XCTest 全量失败 — 有限重试一次（同上：区分环境停滞与真实回归）"
+  done
+  # 取聚合行里最大的 Executed 数作为「XCTest 实执行数」（swift-testing 与 XCTest 各打一次聚合）
+  XCT_EXEC=$(grep -oE '^[[:space:]]+Executed [0-9]+ test' /tmp/ci_local_xctest.log \
+             | grep -oE '[0-9]+' | sort -rn | head -1 || true)
+  # 聚合行有两种形态：`with N failures` 与复合的 `with A tests skipped and B failures`
+  # ⇒ 两个模式都取，取最大值（只搜前者会整块漏掉复合形态的失败数）
+  XCT_FAIL=$(grep -oE '(with|and) [0-9]+ failures' /tmp/ci_local_xctest.log \
+             | grep -oE '[0-9]+' | sort -rn | head -1 || true)
+  if [ -z "${XCT_EXEC:-}" ]; then
+    echo "❌ 日志内无 XCTest 执行计数 ⇒ 判定静默漏跑（本段存在意义即在此，不放行）"; exit 1
+  fi
+  if [ "${XCT_EXEC}" -lt "${XCTEST_FLOOR}" ]; then
+    echo "❌ XCTest 实执行 ${XCT_EXEC} < 下限 ${XCTEST_FLOOR}（用例被整体挤出门禁面？核对 project.yml/测试目标）"; exit 1
+  fi
+  if [ "${XCT_FAIL:-0}" != "0" ]; then
+    echo "❌ XCTest 存在失败计数 ${XCT_FAIL}"; exit 1
+  fi
+  echo "✅ XCTest 实执行 ${XCT_EXEC}（下限 ${XCTEST_FLOOR}）／失败 ${XCT_FAIL}；Swift Testing 侧见 PR-4"
+  # G4 层1 证据测试为 opt-in（依赖外部社区包，clean 环境不可复现 ⇒ 不得默认挂载）；
+  # 但门禁必须**显式报出它们的状态**，使「在册证据是否真跑过」永不失明的（DoD G4 条款可审计）。
+  G4_STATE=$(grep -oE "MCPCommunityAppFlowTests (passed|failed)|testCommunityServer[A-Za-z]*'?[^)]*(skipped|passed)" \
+             /tmp/ci_local_xctest.log | head -2 || true)
+  echo "ℹ️ G4 层1 证据测试本轮状态：${G4_STATE:-未出现（默认 opt-in skip）}｜实跑凭据见 CENSUS「层1.5」节时间戳"
 }
 
 run_leaks() {
@@ -117,7 +162,10 @@ run_main() {
   step "MAIN Full Test Suite + Coverage"
   # 有界重试：同 PR-4（macOS 瞬态调度停滞容忍，见 QUALITY_REPORT P1）
   for attempt in 1 2; do
-    perl -e 'alarm shift @ARGV; exec @ARGV' "${TEST_TIMEOUT}" swift test --parallel --enable-code-coverage && break
+    # 09-06 修正：覆盖率测量必须含 XCTest。此前 --parallel 使 XCTest 整块不执行
+    # （A/B 实测见 PR-5 注释），其覆盖贡献从未计入 ⇒ 在册行覆盖率为**低估**值。
+    # 并行态回归由 PR-4 承担，此处改 --no-parallel 让 profraw 覆盖全量 263 XCTest。
+    perl -e 'alarm shift @ARGV; exec @ARGV' "${TEST_TIMEOUT}" swift test --no-parallel --enable-code-coverage && break
     pkill -f "swift-harnessPackageTests" 2>/dev/null || true   # 同上：watchdog 孤儿清理，正常失败为 no-op
     if [ "${attempt}" -eq 2 ]; then echo "❌ 全量测试两轮均失败"; exit 1; fi
     echo "⚠️ 首轮全量失败 — 有限重试一次（环境调度停滞容忍，非代码回归）"
