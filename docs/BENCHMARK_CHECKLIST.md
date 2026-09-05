@@ -686,3 +686,54 @@ curl -sS "https://developer.apple.com/tutorials/data/documentation/swiftui/apply
 
 **仍成立的合理内核（G2 首轮 `.swift` 附带项据此缩小）**：`GlassMorphTabBar.swift` L60 后半句「取整即覆盖全部切换距离」是**我方推论**（官方只给判据方向，未给「取整即覆盖」的保证）⇒ 该半句应标「我方保守取整」；
 L32/L88/L160 以「官方」名义引用**正确，保留**；`MorphTabGeometry` 注释与同名测试用例名复核照旧。
+
+## §19 morph 配对身份与 spacing 的双通道复核：三句缺录原文 ＋ 对 D-1/A2 的决策增益（09-05，A 层 curl＋读源码）
+
+> 触发点：§18.5 误判自纠后，按新细则把同一篇官方文章（通道③）与 `.swiftdoc`（通道②）合读一遍，
+> 发现三句与我方 D-1/A2 直接相关的原文**从未入 §1 逐字表**（其中一句其实早已写进 `GlassMorphTabBar.swift` L24 注释，属**文档缺录**而非认知缺失）。
+
+### 19.1 逐字补录（通道③，`applying-liquid-glass-to-custom-views.json`，副本存 `~/harness-wt/evidence/apple/`）
+
+1. spacing 与混合早晚（§1.8 已录同句的另一半，此处补全）：
+   > "The larger the spacing value on the container, the sooner the Liquid Glass effects behind views blend together and merge the shapes during a transition."
+2. **静止态告警（此前全仓缺录）**：
+   > "A spacing value on the container that’s larger than the spacing of an interior HStack, VStack, or other layout container causes Liquid Glass effects to **blend together at rest** because the views are too close to each other."
+3. **morph 的身份前提（此前全仓缺录，对 D-1 三案都关键）**：
+   > "Associate each Liquid Glass effect with a unique identifier within a namespace that the … property wrapper provides. **These IDs ensure SwiftUI animates the same shapes correctly when a shape appears or disappears due to view hierarchy changes.**"
+   > "This combines all effects with a **similar shape, Liquid Glass effect, and ID** into a single shape…"（union 三同条件）
+
+⚠️ **通道③的取证注意项（新坑，已复现）**：该 JSON 的正文里**符号名以 topic 链接形式存在、纯文本位置为空**
+（实测：句子读起来像 "the default transition type is ."），须回查 `references` 表还原符号。本页相关符号：
+`GlassEffectContainer`／`GlassEffectTransition`／`matchedGeometry`／`materialize`／`glassEffectID(_:in:)`／`glassEffectUnion(id:namespace:)`／`Namespace`。
+⇒ 从通道③摘句若不看 references，可能摘出「缺主语的假原文」。
+
+### 19.2 我方实数对算（源码常量现取，非引用旧表）
+
+| 量 | 值 | 来源 |
+|---|---|---|
+| tab 内部布局间距 | **6**（`LazyVGrid(spacing: 6)` ＋ 3 个 `GridItem(.flexible(), spacing: 6)`） | `GlassMorphTabBar.swift` L126–128／L154 |
+| 容器 spacing（现值） | **179** ＝ ⌈√(178²＋6²)⌉，178＝6×3＋80×2（跨 2 列最坏最近边上界） | L38–44 常量＋`worstNearestEdgeDistance` 复算，与 §18.3 在册值吻合 |
+| 已备的收敛值 | **52** ＝ `adjacentSpacing()` ＝ max(tileHeight 46, 6)＋6 | L80–86 |
+| 倍数 | 现值 179/6 ＝ **29.8×**；收敛值 52/6 ＝ **8.7×** | 现算 |
+
+⇒ 按补录句 2：容器 spacing 只需大于内部布局间距即触发 at-rest 融合，我方现值是其 **29.8 倍**，
+**静止态过度融合是官方口径下的必然结果**，而非偶然风险；注释 L24 表明我方是**知情选择**（为覆盖最远切换距离而一次性支付该代价），故这不是缺陷漏看，而是**代价与收益被同一个数绑死了**。
+⚠️ 官方未给「多少倍以内安全」的量化阈值 ⇒ 以上只到定性，观感仍需目检（§0 无玻璃像素通道）。
+
+### 19.3 决策增益（三处，均可指向 D-1／A2 的拍板）
+
+1. **句 1＋句 2 合读推翻了一个隐含假设**：matchedGeometry 只要求「**实际配对的两面**最近边 ≤ spacing」，
+   而 at-rest 融合判的是「**容器 spacing vs 内部布局间距**」⇒ 两者**不必共用一个数**。
+   我方 `fullGridSpacing` 用「网格内最坏距离」给 morph 兜底，顺带把静止态融合代价也一并拉满。
+2. **新增一条此前未进菜单的低成本合规路径（远距对显式 `.materialize`）**：官方原话就是
+   "farther from each other than the container’s assigned spacing" 时**应当**用 materialize ⇒
+   「收敛 spacing 到相邻量级 ＋ 给远距切换显式声明 `.materialize`」是官方推荐的配对表达，
+   改动面仅为 spacing 取值＋一个 transition 修饰符，**远小于三架构案**。
+3. **D-1 三案的性价比需据此重排**：Ⅰ 案（常驻底面＋条件面）除「贴近官方示例形态」外，
+   现在多一条**独立优点**——配对距离恒为相邻量级，spacing 可收敛到 52 一侧，
+   同时消掉 A2 的 at-rest 过度融合；Ⅲ 案（六面常驻）在 179 下静止态必糊，与 D-11 同裁的必要性**上升**。
+   ⇒ 推荐次序维持「Ⅰ → Ⅱ → Ⅲ」，但**先做 2 的 A2-fix 已不必等 D-1 拍板**（见下条）。
+4. **A2 改判（口径修正，非反复）**：A2 此前被标为「D-1 的便宜路径（已作废）」——作废理由（提前量大概率非瓶颈）仍然成立；
+   但据补录句 2，**收敛 spacing 的收益与 morph 成败解耦**：它修的是官方点名的「at-rest 过度融合」这一独立合规项。
+   ⇒ A2 从「D-1 附属」升为**与 D-1 解耦的独立待批项**，取值建议 52 一侧（`adjacentSpacing`），
+   代价＝远距切换按官方口径转 `.materialize`（不再追求远距离 morph）。**仍待你拍板，Agent 不代裁。**
