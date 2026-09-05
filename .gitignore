@@ -20,3 +20,7 @@ coverage/.xcbuild/
 
 # 日志
 *.log
+
+# Python 工具脚本运行产物（tools/qa/*.py）
+__pycache__/
+*.pyc
