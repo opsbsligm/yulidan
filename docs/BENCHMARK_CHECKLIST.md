@@ -71,7 +71,7 @@
 | # | 审计项（官方最佳实践） | 状态 | 证据 / GAP 定位 |
 |---|---|---|---|
 | A1 | **参与 morph 的玻璃面需 ≥2 且同处一个容器**（§1.1 语义前提） | ❌ **GAP（根因级）** | `GlassMorphTabBar.swift` L132-138：仅**选中** tile 走 `glassEffect`，`TileFaceMode.resolve` 未选中 → `.plain`（无玻璃）。容器内**恒为 1 个玻璃面** → 官方"形状靠近时路径融合"无对象，视觉上只能是淡变。这解释 P1.2 实机"交叉淡变"（注记①），且与动画曲线无关 |
-| A2 | **容器 spacing 是融合提前量的显式调参项**（§1.1 末句） | ⚠️ GAP | 全仓 4 处 `.glassSurfaceContainer()`（GlassMorphTabBar L76 / SidebarView L97 / SettingsView L160 / ChatInputArea L135）**均传 nil**=系统默认（官方未公布默认值，❌不猜数值） |
+| A2 | **容器 spacing 是融合提前量的显式调参项**（§1.1 末句 → §17 终裁） | ⚠️ GAP（09-05 精化：仅 2 处成立）| 见 §17.3 逐容器作用域实测——侧栏（多面＋跨态 morph）与设置页（≥2 面异变体共存）用 spacing=nil 未做官方建议的 customize；输入区容器单面 N/A（非 GAP）；Tab 条已显式（F1）|
 | A3 | **`.matchedGeometry` 适用场景**（§1.14 原文终裁） | ✅ 达标（09-05） | 文档判据=「**玻璃效果**被加/移出视图层级」；我方 `TileFaceMode.resolve` 使非选中面无玻璃 ⇒ 选择切换即 remove+add，并非"常驻面"（原 ❓ 前提不成立），且原文第三段覆盖 identity 不变情形。真值表测试在册 L40–45 |
 | A4 | **玻璃锚定内容 bounds，内容保持锐利**（§1.4） | ✅ 达标 | 08-29 已按官方模式重构（`glassEffect` 直施于内容，弃 `background` 挂法），入册 GlassMorphTabBar L110-119 注释 + 像素直方图证据 |
 | A5 | **默认 shape = Capsule**（§1.4）→ 自定义形状须同型才能 union/morph（§1.5） | ✅ 达标 | 统一 `tileShape = RoundedRectangle(10, .continuous)`；union 同变体约束在 SettingsView L159 注释在册 |
@@ -84,7 +84,7 @@
 | GAP | 严重度 | 修复方向 | 静默判据（修复后） | 真机目检 |
 |---|---|---|---|---|
 | **A1 容器内单玻璃面** | **P0（D-1 根因）** | 让未选中 tile 也持玻璃面（同 variant/同型 shape），选中态改用 tint/前景强调区分 → 容器内 6 面共存，融合才有对象 | 纯函数改造后单测断言「native 态下参与 morph 的玻璃面数 == segments.count」 | 需要（切换时是否出现"液体颈"连接） |
-| **A2 spacing=nil** | P1 | 容器 spacing 显式化，取值 ≥ 网格间距并做 3 档对比（6 / 12 / 20pt） | 单测断言 spacing 非 nil + 值来自集中常量 | 需要（融合提前量） |
+| **A2 spacing=nil** | P1 | **范围已精化（§17.3）**：只需给 `SidebarView.swift L97` 与 `SettingsView.swift L160` 两处容器显式 spacing（取值来自集中常量，参照 `MorphTabGeometry.fullGridSpacing` 做法）；`ChatInputArea L135` 容器内单面 → 保持 nil 为正确态，勿改 | **拆两层，勿混判**：① 结构层可 A 层断言（spacing 非 nil ＋ 值来自集中常量）；② 融合提前量合适与否是像素现象，而 §0 已证 A 层无任何玻璃像素通道 ⇒ 只能真机目检，禁止用 ① 冒充 ②（与 D-1 同类边界，见 §17.4）| 需要（融合提前量）|
 | A3 常驻面挂 transition | P2 | 按 A1 改造后重估：若改为"所有面常驻"，则 `.matchedGeometry` 可能应移除（文档语义=增删）。**与 §2 A3「✅ 达标」不矛盾**：✅ 指官方语义已终裁正确理解（§1.14 原文＝玻璃效果被增删，我方现态下选中切换确为 remove+add，故现状成立）；本行指 **若** A1 改常态驻玻璃，则该理解结论会反转为「应移除 matchedGeometry」，属 A1 的必做后续，非本项未决 | 结构断言（是否仍挂 transition） | 需要 |
 | ~~A7 interactive 口径~~ | ~~P2~~ | **已闭环（09-05 · F2）**：按 §1.10 官方原文撤销「材质自带」未证实宣称，改为显式 `Add`——纯函数 `selectedGlass(from:isSelected:)`（源码 `GlassMorphTabBar.swift` L180–181，调用点 L231）+ `SelectedGlassTests` 3 条在册（`GlassMorphTabBarTests.swift` L119 起）。**本行原「二选一：改注释为未证实或删除宣称」是表格漂移残留，勿再作待办读**（09-05 审计发现：§2 状态列与 §9 已登记修复，唯 §3 GAP 表漏同步） | 已闭环，无判据 | 悬停观感 → 归 D-2 / G3 走查 A-h |
 | A6 manifest 假参数 | P3 | manifest 未支持字段显式拒绝 + 提示 | 单测：未知/不支持 key 不产生效果 | 不需要 |
@@ -458,3 +458,51 @@ G2 的运行时面数护栏必须把此调用点列入统计口径（静态计�
 规则重申：取证前本文任何行**不得**写「Codex 有 X」为事实（铁律 5）；截图到达后逐行四件套
 （截图路径+我方行号+原生适配表达+性价比评级）入本节续表。旧 F7 对标断言已按铁律 5 降级，
 见 `docs/UI_CODEX_ALIGNMENT.md` v8 重判节。
+
+## §17 容器 spacing 终裁（09-05：SDK 签名 + 官方原文 + 逐容器作用域实测）
+
+> 触发：A2 原表述「容器 spacing 显式化」过于笼统。若不先定「哪些容器真有融合对象」，执行日会退化成给所有容器硬塞参数（含无对象者），反而背离官方语义。本轮先钉事实，再收窄范围。
+
+### 17.1 本机 SDK 权威签名（27 beta，逐字）
+
+```
+# Xcode-beta.app/.../MacOSX.sdk/System/Library/Frameworks/
+#   SwiftUICore.framework/Versions/A/Modules/SwiftUICore.swiftmodule/arm64e-apple-macos.swiftinterface:10991
+@_Concurrency::MainActor @preconcurrency public struct GlassEffectContainer<Content> : SwiftUICore::View where Content : SwiftUICore::View {
+  public init(spacing: CoreFoundation::CGFloat? = nil, @SwiftUICore::ContentBuilder content: () -> Content)
+```
+
+- **`spacing` 本身就是 `CGFloat? = nil`** ⇒ 我方 `GlassSurface.swift` L284 传 Optional 合法；`nil` 是 Apple 显式提供的默认值，**不是漏传参数**。
+- **类型归属事实（顺带纠正一处潜在误读）**：27 beta 的 `SwiftUI.swiftinterface` 内**搜不到** `GlassEffectContainer`（该 interface 的 glass 命中仅 `GlassButtonStyle` / `GlassProminentButtonStyle` 及对 `SwiftUICore.Glass` 的引用）；玻璃类型族实体在 **SwiftUICore** framework interface 内。今后核 SDK 存在性（§1.13 同类）**必须两个 framework 都查**，只查 SwiftUI 会产生「API 不存在」的假阴性。
+
+### 17.2 官方文档原文（09-05 实拉 `documentation/swiftui/glasseffectcontainer`）
+
+> "Use a container with the `glassEffect(_:in:)` modifier. Each view with a Liquid Glass effect contributes a shape rendered with the effect to a set of shapes. SwiftUI renders the effects together, improving rendering performance and allowing the effects to interact with and **morph into one another**."
+
+> "Configure how shapes interact with one another by customizing the **default spacing value** of the container. As shapes near one another, their paths start to blend into one another. **The higher the spacing, the sooner blending begins** as the shapes approach each other."
+
+- init 页 abstract：`Creates a glass effect container with the provided spacing, extracting glass shapes from the provided content.`；**init 页无逐项参数说明**（`primaryContentSections` 仅 declarations）。
+- **官方只给定性描述，未公布 default spacing 的数值** ⇒ 任何「系统默认 spacing = X pt」的写法一律禁止（铁律 1）。
+- 官方措辞是「customizing the **default** spacing value」：nil→默认值合法，但**容器内多面时官方建议 customize**。⇒ A2 的正确定性是「**多面容器未做官方建议的调参**」，而非「API 用错」。
+
+### 17.3 逐容器作用域实测（4 个容器调用点，引用链逐行核）
+
+| 容器调用点 | 容器子树内的玻璃面（实测引用链） | spacing | 裁定 |
+|---|---|---|---|
+| `GlassMorphTabBar.swift` L162 | 运行时**仅 1 面**（`TileFaceMode.resolve` 非选中走 `.plain`；全仓原生 `.glassEffect` 仅 L231） | 显式 `MorphTabGeometry.fullGridSpacing`（F1）✓ | 面数问题属 **A1 根因**，与 spacing 无关 |
+| `SidebarView.swift` L97 | 容器包 `Group{ isCollapsed ? collapsedBody : expandedBody }`（L87–97）；`expandedBody`(L125) 内含 L342 面 + `SidebarProjectSections(`(L307 → 该文件 3 面)；`collapsedBody`(L374) 内含 L456 面 ⇒ 展开态 **≥4 面共存且跨态 morph** | **nil** | **A2 成立（P1）**：官方语境里最该 customize 的正是这种多面＋跨态容器 |
+| `SettingsView.swift` L160 | 容器包 `HStack{ sidebar, Divider, contentPane }`；sidebar 面 L198(.prominent)；`contentPane`(L203) → `GeneralPreferencesView`(L256) → `ShortcutRow`(L489/490) → 面 L510(.thin) ⇒ **≥2 面异变体共存** | **nil** | **A2 成立（P2 观感）**：异 level 成员共存合法（§六 union 语义），但提前量未调 |
+| `ChatInputArea.swift` L135 | 容器内**仅 1 面**（L117 `.regular`，源码注释自证「当前唯一玻璃成员」） | nil | **非 GAP，勿改**：无交互对象，塞参数只会制造误导 |
+
+未计入的两处（防夸大）：`ArchiveManagerView` L78 面位于 `SidebarView` L113 的 **`.sheet{}` 闭包**内 = 独立呈现，不在 L97 容器子树；其余跨文件面同理须按引用链单判，不得按「同文件」粗算。
+
+### 17.4 判据边界（本轮新增，与 D-1 同源，务必先读）
+
+§3-A2 原静默判据是「单测断言 spacing 非 nil ＋ 值来自集中常量」——它只保证**代码形态**，**证明不了融合提前量合适**；提前量是 blend 像素现象，而 §0 五通道普查已证 A 层不存在可捕获玻璃的像素通道。⇒ 判据拆两层：**① 结构层（A 层可断言）＋ ② 观感层（只能真机目检）**，并**禁止用 ① 的通过冒充 ② 的达标**。取值三档实验（6/12/20pt）同属 ② 的目检范围。
+
+> **这不是孤例**：D-1（上一轮重述）与 A2（本轮）暴露的是同一个 v8 判据设计缺口——把「像素级观感」写成了「A 层可判定」。故增一条流程要求：**每项 G2 gap 进执行前先做判据体检**（结构可断言？还是必须目检？），当场拆层并写入 §3，不要等到执行日造不出证据。
+
+### 17.5 与其他待决项的耦合
+
+- **D-1 (c) 案**：若 A1 改造让 Tab 条 6 面常驻，spacing 立刻成为决定「何时开始融合」的主参数，且应与侧栏/设置页取值口径统一（集中常量，禁止三处各写魔数）。
+- **A12 效果总量/性能护栏**：A1 改造＋侧栏多面常驻会抬高运行时玻璃面数，spacing 越大融合域越宽 ⇒ 实施时须与 A12 口径、RSS/帧率护栏**同批复测**。
