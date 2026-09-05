@@ -96,7 +96,7 @@ A 层 before/after 像素对；材质层轮改为「结构断言 + 目检（或�
 | A3 | **`.matchedGeometry` 适用场景**（§1.14 原文终裁） | ✅ 达标（09-05） | 文档判据=「**玻璃效果**被加/移出视图层级」；我方 `TileFaceMode.resolve` 使非选中面无玻璃 ⇒ 选择切换即 remove+add，并非"常驻面"（原 ❓ 前提不成立），且原文第三段覆盖 identity 不变情形。真值表测试在册 L40–45 |
 | A4 | **玻璃锚定内容 bounds，内容保持锐利**（§1.4） | ✅ 达标 | 08-29 已按官方模式重构（`glassEffect` 直施于内容，弃 `background` 挂法），入册 GlassMorphTabBar L110-119 注释 + 像素直方图证据 |
 | A5 | **默认 shape = Capsule**（§1.4）→ 自定义形状须同型才能 union/morph（§1.5） | ✅ 达标 | 统一 `tileShape = RoundedRectangle(10, .continuous)`；union 同变体约束在 SettingsView L159 注释在册 |
-| A6 | **材质参数只有 3 变体 + tint + interactive**（§1.6）→ 不存在"曲率/模糊/高光"可调 | ✅ 已知天花板 | 已在 `P1_GLASS_API_VERIFICATION.md` §四登记；残留 GAP：主题 manifest 若仍暴露"曲率/模糊"字段=**假参数**，应显式声明不支持（D-4 相关） |
+| A6 | **材质参数只有 3 变体 + tint + interactive**（§1.6）→ 不存在"曲率/模糊/高光"可调 | ✅ 已知天花板，**假参数风险已于 08-29 `17e9f22` 诚实闭环**⁽⁰⁹⁻⁰⁵ᶠ⁾ | `P1_GLASS_API_VERIFICATION.md` §四登记 ＋ 代码实据：`ThemeSpec.blurIntensity/highlightIntensity` 为**预留提示字段**（渲染层零消费），`ThemePackageImporter.validate` 对两字段做 0…1 有限值校验（nil 合法，1.5/−0.1/NaN 拒绝，错误携带字段名），MCP 主题路径同口径校验且**非法 spec 直接回落系统基准不半生效**，设置页 `glassParamRow` 明示「已声明（0.80/0.60）· 原生 API 无数值参数，渲染由平台托管」（`FileThemePackage.swift:137-142`／`SettingsView.swift:389,395,412`，测试 `FileThemePackageTests.swift:121-136` ＋ MCP e2e 在册）。**本行原「残留 GAP＝若仍暴露则应显式声明不支持」属表格漂移残留，勿再作待办读**；仍开放的是 D-4 的取舍（保留声明 vs 直接拒绝），非缺陷。 |
 | A7 | **interactive 语义/默认值**（§1.7→§1.10 原文复核） | ✅ 达标（09-05 表格跟结论） | §1.10 官方原文＝**显式开启非默认自带**；旧注释宣称已撤销并按原文补 `.interactive()`（F2 在册 §9）。**表格此前仍挂 ❓ 与 §1.10 自相矛盾，属表格漂移，非结论未定**。残余仅悬停反馈目检（归 D-2/G3 A-h） |
 | A8 | **无障碍降级**（减弱透明度 → 非玻璃表面） | ✅ 达标 | `GlassSurface` 三态 `resolveMode` + 容器 `shouldWrap` 同源门控，测试在册（867 项 xcresult） |
 
@@ -978,3 +978,15 @@ bash tools/qa/comment-only-verify.sh          # 注释批次提交前必跑，rc
   同页 `blend`／`transparen`／`frost` **0 命中** ⇒ A14 的 API 侧明文只有 `accessibilityReduceTransparency` 那一处，勿以为玻璃 API 页也写过。
 - **残骸处理示范（§23.5 第三条坑的自我执行）**：首轮误把 404 响应存成 `glasseffect.0905.json`（15,658B），
   已改名 `REJECTED-glasseffect-404.0905.json` 保留现场（不删，防「删了就没人知道错在哪」），正确页另行归档。
+
+### 23.7 A6 假参数复核：结论＝已闭环，原「残留 GAP」是表格漂移（09-05 静默审）
+
+本轮按 §2-A6 行留下的那句「残留 GAP：主题 manifest 若仍暴露曲率/模糊字段＝假参数」去做静态审计（A 层，零前台），
+逐字段现算 `blurIntensity` / `highlightIntensity` 的全部出现处（`grep` 限定 `--include='*.swift' Apps Packages`，命中清单已核），
+结论：**该 GAP 早在 2026-08-29 `17e9f22`（P2.3）闭环**，且闭环强度高于 A6 行所要求的「显式声明不支持」——
+除声明之外还做了范围校验、MCP 路径同口径校验、非法 spec 整体回落基准（不半生效）、设置页文案明示、测试矩阵＋e2e。
+⇒ A6 行与 D-4 行同日按实据改写（§2 表格漂移第 N 次复现：**行内「残留」字样必须与代码现状同步，否则会把已闭环项当待办重复劳动**）。
+D-4 仍然开放，但它的性质从「危险缺口要不要修」降为「已诚实声明的预留字段要不要进一步拒绝」的体验取向选择。
+
+⚠️ 顺带一条环境坑（本轮实付学费）：`grep -rn … --include='*.json' .` 会灌进 `.build/**.json`（单个覆盖率文件 10MB＋，一次把输出预算打爆）。
+静态审计一律用 `git ls-files` 或显式排除 `.build`；跨大仓检索请优先 `git grep`。
