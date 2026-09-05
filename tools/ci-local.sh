@@ -49,15 +49,17 @@ run_pr() {
     if [ "${attempt}" -eq 2 ]; then echo "❌ 全量测试两轮均失败"; exit 1; fi
     echo "⚠️ 首轮全量失败 — 有限重试一次（环境调度停滞容忍，非代码回归）"
   done
-  step "PR-5 XCTest 覆盖补齐（门禁：XCTest 实执行数 ≥ 下限 且 0 失败）"
-  # 为什么必须有这一段（09-06 决定性 A/B 实测 @8847ccd，同 HEAD 同二进制）：
-  #   swift test --parallel          → Swift Testing 797 ✔ ／ XCTest 标记行数 0（**整块不执行**）
-  #   swift test（默认 --no-parallel）→ 同一 797 ✔ ＋ XCTest Executed 263（7 skipped）0 failures
-  # ⇒ PR-4 的 --parallel 只覆盖 Swift Testing 半边；XCTest 目前仅靠 xcode 门兜住 260/263，
-  #   差的 3 例全在 Apps 目标（project.yml 无 HarnessAppTests target），其中 2 例＝G4 层1
-  #   「拿来即用」证据测试（MCPCommunityAppFlowTests）。本段把 263 全量在门禁内补齐，
-  #   并硬性要求日志里出现 XCTest 执行计数——「静默漏跑」一律判失败，不得当成通过
-  #   （否定性结论必须有正向对照，QUALITY ㉕/㉙ 同源纪律）。
+  step "PR-5 XCTest 可计数证据 ＋ 顺序调度态复跑（门禁：XCTest 实执行数 ≥ 下限 且 0 失败）"
+  # 本段存在的真实理由（09-06 实测链，含两次自我推翻，勿按早期版本的理解读）：
+  #   ① 我一度据「--parallel 日志里 XCTest 标记行数＝0」判定「XCTest 整块不执行」——**错的**。
+  #      行为探针（进程外可观测副作用：XCTest 用例内写文件）实测 --parallel 下标记照样产生
+  #      ⇒ **XCTest 确实执行，只是不向 stdout 打印 XCTest 标记行**。
+  #   ② 覆盖率同口径 A/B（同分母 9856）：seq 238 / seq 241 / par 238 未覆盖
+  #      ⇒ 两调度态覆盖等价，且**运行间噪声 ±3 行**（⇒ 行覆盖率宣称一律带噪声带，禁报 ±1 行「改进」）。
+  #   ③ 结论：--parallel 并不缺执行，缺的是**可审计的执行证据**——从并行日志里根本无法证明
+  #      XCTest 跑过（我自己就被这一点骗过一次）。本段以 --no-parallel 复跑一遍全量，
+  #      产出可计数的 XCTest 执行数并硬性校验，同时让门禁覆盖两种调度态
+  #     （并行态已实测存在稀发 flake，见 QUALITY ㉙ 观察项 F-a/F-b）。
   XCTEST_FLOOR=${XCTEST_MIN_EXECUTED:-200}   # 09-06 基线 263；留 63 例余量防偶发 skip
   for attempt in 1 2; do
     if perl -e 'alarm shift @ARGV; exec @ARGV' "${TEST_TIMEOUT}" swift test --no-parallel \
@@ -88,7 +90,7 @@ run_pr() {
   if [ "${XCT_FAIL:-0}" != "0" ]; then
     echo "❌ XCTest 存在失败计数 ${XCT_FAIL}"; exit 1
   fi
-  echo "✅ XCTest 实执行 ${XCT_EXEC}（下限 ${XCTEST_FLOOR}）／失败 ${XCT_FAIL}；Swift Testing 侧见 PR-4"
+  echo "✅ 顺序态复跑：XCTest 实执行 ${XCT_EXEC}（下限 ${XCTEST_FLOOR}）／失败 ${XCT_FAIL}；并行态见 PR-4（XCTest 亦执行，仅无 stdout 标记）"
   # G4 层1 证据测试为 opt-in（依赖外部社区包，clean 环境不可复现 ⇒ 不得默认挂载）；
   # 但门禁必须**显式报出它们的状态**，使「在册证据是否真跑过」永不失明的（DoD G4 条款可审计）。
   G4_STATE=$(grep -oE "MCPCommunityAppFlowTests (passed|failed)|testCommunityServer[A-Za-z]*'?[^)]*(skipped|passed)" \
@@ -162,10 +164,11 @@ run_main() {
   step "MAIN Full Test Suite + Coverage"
   # 有界重试：同 PR-4（macOS 瞬态调度停滞容忍，见 QUALITY_REPORT P1）
   for attempt in 1 2; do
-    # 09-06 修正：覆盖率测量必须含 XCTest。此前 --parallel 使 XCTest 整块不执行
-    # （A/B 实测见 PR-5 注释），其覆盖贡献从未计入 ⇒ 在册行覆盖率为**低估**值。
-    # 并行态回归由 PR-4 承担，此处改 --no-parallel 让 profraw 覆盖全量 263 XCTest。
-    perl -e 'alarm shift @ARGV; exec @ARGV' "${TEST_TIMEOUT}" swift test --no-parallel --enable-code-coverage && break
+    # 09-06 A/B 实测：--parallel 同样执行 XCTest（行为探针证），两调度态行覆盖等价
+    # （未覆盖 seq 238/241 vs par 238，噪声 ±3 行）⇒ 覆盖率测量维持 --parallel（更快），
+    # 顺序调度态的可计数证据与复跑由 PR-5 承担。原「改 --no-parallel 因 XCTest 未计入」的
+    # 注释基于错误结论，已随 QUALITY ㉙ 一并撤回。
+    perl -e 'alarm shift @ARGV; exec @ARGV' "${TEST_TIMEOUT}" swift test --parallel --enable-code-coverage && break
     pkill -f "swift-harnessPackageTests" 2>/dev/null || true   # 同上：watchdog 孤儿清理，正常失败为 no-op
     if [ "${attempt}" -eq 2 ]; then echo "❌ 全量测试两轮均失败"; exit 1; fi
     echo "⚠️ 首轮全量失败 — 有限重试一次（环境调度停滞容忍，非代码回归）"
