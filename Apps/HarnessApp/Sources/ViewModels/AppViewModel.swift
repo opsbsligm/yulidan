@@ -579,6 +579,26 @@ final class AppViewModel: ObservableObject {
         await refreshTools()
     }
 
+    /// 连接单个启动期 stdio MCP 服务器；返回「已连接但不可用」的服务名（进工具页警告），nil＝无需警告。
+    ///
+    /// 两道 TOCTOU 守卫（D-20）：调用方在循环前先取了一次配置**快照**，卸载若落在「快照之后、本次连接完成之前」，
+    /// 快照里仍带着该服务器 ⇒ 不修则被卸载的服务器重新登记（复活），实测症状＝主题不回落系统基准／工具重新注册／列表条目复活。
+    /// 并行负载下 await 让出点增多 ⇒ 窗口变宽（QUALITY ㉙ 观察项 F-a 的真实根因）。
+    private func connectStartupMCPServer(_ config: MCPServerConfig) async -> String? {
+        // 测试缝（默认 nil＝不介入）：把「读配置快照 → 连接完成」这段窗口变成可控时序，
+        // 使两道守卫能被**结构性**复现与回归锁定，不依赖墙钟（教训：QUALITY ⑫/㉙）
+        await AppViewModel.startupMCPConnectTestGate.withLock { $0 }?(config.name)
+        // 守卫①：快照之后该配置已被卸载 ⇒ 跳过，不再发起连接
+        guard AppViewModel.configStillInstalled(config, at: mcpConfigURL) else { return nil }
+        let server = await mcpManager.connectStdio(config, into: toolRegistry)
+        // 守卫②：连接期间被卸载 ⇒ 立刻断开，杜绝「已卸载服务器复活」
+        guard AppViewModel.configStillInstalled(config, at: mcpConfigURL) else {
+            await mcpManager.disconnect(name: config.name, into: toolRegistry)
+            return nil
+        }
+        return server.isAvailable ? nil : config.name
+    }
+
     /// 启动工具装配：内置工具（按设置注入文件沙箱）+ MCP 演示服务器（内存客户端）+ 技能系统
     /// （P0.3：各子链路错误在内部单独捕获并传播到对应 Tab 状态；零工具集 = 工具子系统失败）
     private func registerStartupTools() async {
@@ -610,9 +630,8 @@ final class AppViewModel: ObservableObject {
             guard let self else { return }
             var failedServers: [String] = []
             for config in configs {
-                let server = await mcpManager.connectStdio(config, into: toolRegistry)
-                if !server.isAvailable {
-                    failedServers.append(config.name)
+                if let failed = await connectStartupMCPServer(config) {
+                    failedServers.append(failed)
                 }
             }
             if !failedServers.isEmpty {
@@ -2340,6 +2359,16 @@ final class AppViewModel: ObservableObject {
     /// 历史文件路径覆盖（单元测试隔离用；生产为 nil）
     /// 通知服务工厂覆盖（单元测试隔离用；生产为 nil → 系统通知）
     static var notificationServiceFactory: (@Sendable () -> any NotificationService)?
+
+    /// 启动期 MCP 连接测试缝：启动工具链在每个 config 连接**前**调用（默认 nil＝不介入）。
+    /// 存在意义＝让「卸载 × 启动连接」竞态可被结构化复现与回归锁死（配守卫见 registerStartupTools）。
+    static let startupMCPConnectTestGate: LockedBox<(@Sendable (String) async -> Void)?> = .init(initial: nil)
+
+    /// 某 MCP 配置此刻是否仍在 servers.json 中（按 id 判等，与 removeMCPServer 的移除口径一致）
+    static func configStillInstalled(_ config: MCPServerConfig, at url: URL) -> Bool {
+        MCPDiscovery.loadConfigs(url: url).contains { $0.id == config.id }
+    }
+
     /// 模型供应商工厂覆盖（单元测试隔离用；生产为 nil → 真实 API 适配器）
     static var providerFactory: (@Sendable (LLMConfig, String) -> (any LLMProvider))?
 
