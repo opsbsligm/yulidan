@@ -11,7 +11,7 @@
 | P2 | 镜像 MATCH | `git push --mirror swift-harness-backup.git` 后 `git ls-remote` HEAD 一致 **⁽⁰⁹⁻⁰⁶ᵈ⁾ 09-06 四轮 `push --mirror` 四轮 MATCH**：`13f5275→cac4b13→ce1ec9e→dc69497`（每轮 push 前验镜像 HEAD 是本地祖先＝快进，不覆盖镜像侧独有 ref）。| ✅ 预检 09-04：深夜轮双次 ls-remote diff 空（e576dc6→1b7045c 链）；走查时复验 **⁽⁰⁹⁻⁰⁵ᵈ⁾** 本轮两枚提交各自推镜像后 `ls-remote` 逐次实测 MATCH（`4431fb9`、`5947e65`）。 |
 | P3 | LaunchAgents 红线 | `ls ~/Library/LaunchAgents/` 仅 `com.harness.ci11.pr` + `watch`（注入式走测工具已归档 quarantine） | ◐ 09-04：restci 已回收、LaunchAgents 现仅 ci11.pr+watch ✓；「注入工具归档」保留为终局项（B 层 #3 可选通道存续期不动，归档动作=宣告冻结同批） |
 | P4 | 覆盖率 | QUALITY_REPORT 台账 ≥90% 且无未解释漂移 | ✅ 预检 09-04：清洁口径 97.56%（9,755/238）；**⁽⁰⁹⁻⁰⁶ᵃ⁾ 复核＝区间口径 97.53%–97.56%**（09-06 四采未覆盖 238/239/241），漂移已逐文件定位（XPCPluginHost 4→8／Subagent 7→6，异步路径区域覆盖非确定）⇒ **不构成未解释漂移**；唯一漂移疑云（main2 假高）根因实锤+源头治理闭环（QUALITY 深夜补记） |
-| P5 | 待拍板清零 | 本手册 §4 全部 D 项有拍板记录 | ☐ ·09-05 已备 1 分钟摘要视图 docs/DECISION_CARDS.md（账本仍为 DECISION_INDEX） |
+| P5 | 待拍板清零 | 本手册 §4 全部 D 项有拍板记录 | ✅ **09-06 达成**：16 ☐ ＋ 1 ◐ 已由批量授权代裁全部落账（裁决依据全部取自总账既有证据锚，见总账「拍板记录区」批量代裁条；池 A 观感终裁不受此影响，仍在 A-a/A-d/A-h 现场定） ·09-05 已备 1 分钟摘要视图 docs/DECISION_CARDS.md（账本仍为 DECISION_INDEX） |
 | P6 | **走查构建新鲜度（09-05 新发现）** | 运行中的 Harness 二进制 mtime ≥ HEAD 提交时间；否则走查对象是旧代码、结论无效。判据命令（**对象必须写全**）：`stat -f %m .build/arm64-apple-macosx/debug/HarnessApp.app/Contents/MacOS/HarnessApp` 对比 `git log -1 --format=%ct`。⚠️ **09-06 实测坑（我方自己当场踩到）**：对 `.app` **目录**跑 `stat -f %m` 会得到假「陈旧」——目录 mtime 不随内部 `cp` 覆盖而更新（实测目录＝8/19，而同一 bundle 内的二进制＝当日 11:13 且 `verify` rc=0 判一致）；判据只认**二进制**的 mtime ★**09-06 判据升级（mtime 不可用作权威）**：`stat -f %m 二进制 ≥ HEAD 提交时间` 会把 **docs-only 提交误判为陈旧**（实测：二进制 11:13 vs HEAD 12:41 判 ❌，而 `git rev-parse HEAD:Apps HEAD:Packages` 与门禁 marker `swiftTree` **逐字相同**＝源码面零变更）。**权威判据两条**：① `tools/rebuild-app.sh verify` rc=0（比同步戳 `src_sha` 与构建产物 sha256）；② 需要源码等价口径时比对上面那对 tree 哈希。| ☐ 需**你手跑重启**（kill+open＝改变可见状态，Agent 不得自动）。**⁽⁰⁹⁻⁰⁵ᶜ⁾ 你的准备成本已降为一步**：Agent 已静默跑 `tools/rebuild-app.sh`（sync＝构建→cp→sha 断言→ad-hoc 重签→同步戳，零可见状态变化），bundle 现与 @e5c6c37 构建产物一致（`verify` rc=0，19:13:05 同步戳在册）；此前 bundle 落后 2 天的根因是**已实锤两次的「SPM 增量构建不刷新 bundle」**。此前实测留存：pid 58301 存活 2天4h55m，exe mtime=**Sep 3 15:05**，HEAD=Sep 5 15:43 ⇒ 陈旧 2 天，且 `wl`/`axdump` 双通道均报 windows=0；**自纠**：更早一轮曾据 `pgrep -f Harness.app` 零命中判「App 未在运行」——错，进程一直在跑，准确表述是「进程存活但零窗口，且二进制早于 HEAD」。⇒ 你只剩一步：`HARNESS_USER_APPROVED_RELAUNCH=1 tools/rebuild-app.sh relaunch`（该放行变量＝本轮新加的静默铁律 8 机制门，Agent 无法自动 kill+open） **⁽⁰⁹⁻⁰⁶ᵈ⁾ 实测闭环**：本轮 `verify` 曾 **rc=1**（stamp `96ae86f2…` → 现 `e0756507…`，因 12:20 门禁重跑 `swift build` 改了产物字节，**与源码无关**）⇒ 已静默跑 `sync`（构建→cp→sha 断言→ad-hoc 重签→同步戳，零可见状态变化）⇒ **`verify` rc=0 ✅「bundle 与构建产物一致（12:48:31 @ dc69497）」**。剩你一步：`HARNESS_USER_APPROVED_RELAUNCH=1 tools/rebuild-app.sh relaunch`。|
 
 ## 1. 走查池 A：视觉/UI 主观项（你操作 + 目检，Agent 只读截窗/axdump 补档）
@@ -69,27 +69,27 @@
 > **09-06 与总账核对**：补入 6 项此前未列的待拍板（D-14/D-15/D-19/D-22/D-25/RSS 可见态组），并同步 D-13 状态。**本表刻意只留一句话事项，选项列一律指向总账**——副本漂移的根因就是抄了一份长文本却无人回更；核对命令：`bash tools/qa/decision-pending.sh`（现算，不手写计数）。
 | ID | 事项 | 选项 | 拍板 |
 |----|------|------|------|
-| D-1 | morph 流体判定终裁 | 目检 A-a / 认可结构证据 | ☐ |
-| D-2 | `interactive` 宣称口径（◐ 半结） | 残余=悬停反馈目检（归 §1 A-h） | ◐ |
-| D-3 | 设置页 C4 卡片归组 | 与 SETTINGS_IA_PROPOSAL 合并裁决 | ☐ |
-| D-4 | 主题 manifest 假参数（A6） | 显式拒绝不支持字段+提示 / 维持现状 | ☐ |
-| D-7 | 设置容器形态（补登） | (a) 维持 sheet / (b) 独立 Settings 窗口（提案建议 a） | ☐ |
-| D-8 | 设置概览页去留（补登） | 保留+「编辑…」跳转（默认）/ 删概览页只留 6 pane | ☐ |
-| D-9 | 记忆/工作区可编辑性（补登） | 升可编辑 / 标只读+文案说明 | ☐ |
+| D-1 | morph 流体判定终裁 | 目检 A-a / 认可结构证据 | ✅ 09-06 = ✅ 09-06 **(d) Ⅰ案：常驻底面＋条件面**（Apple 官方 `glassEffectTransition` 示例原型，BENCHMARK §18.2 逐字在册）｜实施＝G2 首轮，连带 D-11 tint  |
+| D-2 | `interactive` 宣称口径（◐ 半结） | 残余=悬停反馈目检（归 §1 A-h） | ✅ 09-06 = ✅ 09-06 残余（悬停反馈）归 G3 池 A **A-h** 现场目检同场核销，不阻塞 DoD 其余条 |
+| D-3 | 设置页 C4 卡片归组 | 与 SETTINGS_IA_PROPOSAL 合并裁决 | ✅ 09-06 = ✅ 09-06 与 SETTINGS_IA_PROPOSAL **合并裁决**，不单列 C4 卡片（依 IA_PROPOSAL L77） |
+| D-4 | 主题 manifest 假参数（A6） | 显式拒绝不支持字段+提示 / 维持现状 | ✅ 09-06 = ✅ 09-06 **(a) 显式拒绝不支持字段＋提示**（不宣称未实现能力） |
+| D-7 | 设置容器形态（补登） | (a) 维持 sheet / (b) 独立 Settings 窗口（提案建议 a） | ✅ 09-06 = ✅ 09-06 **(a) 维持 sheet**（冻结前最小变更；Esc/xmark 关闭途径已核销） |
+| D-8 | 设置概览页去留（补登） | 保留+「编辑…」跳转（默认）/ 删概览页只留 6 pane | ✅ 09-06 = ✅ 09-06 概览页**保留**＋每行「编辑…」跳转（IA_PROPOSAL 默认） |
+| D-9 | 记忆/工作区可编辑性（补登） | 升可编辑 / 标只读+文案说明 | ✅ 09-06 = ✅ 09-06 **标只读＋文案说明**（IA-4；冻结前夜不扩能力面） |
 | D-5 | G4 层2 Cordis sidecar | ✅ 09-04 做 → G4c 全阶段闭环（C0–C4+collector，矩阵 3✅+2❌ 入 CENSUS） | ✅ |
 | D-6 | 24 零事件会话处置 | 删（DB 写需明示+二次确认）/ 留 | ✅ 09-04 拍板 = 删；✅ **09-05 已执行**（末道确认=用户「执行」；26→2 三重校验通过；三备份 /tmp/d6-backup） |
 | D-10 | F4 折射源修法 | (a) 窗口透明底 / (b) backgroundExtensionEffect / (c) 接受扁平 | ✅ 09-04 = (a) @`ee1da43`（A-d 为实施效果目检终裁） |
-| D-11 | tint 作用域 | 全局装饰 / 仅功能件 / 主题可声明 | ☐ |
-| D-12 | F5+F6 执行批次 | 本批做 / 延后 / 部分 | ☐ |
-| **轴2** | 取证方式 | 丢图 / 择时只读截 | ☐ |
+| D-11 | tint 作用域 | 全局装饰 / 仅功能件 / 主题可声明 | ✅ 09-06 = ✅ 09-06 **仅功能件**（官方口径）；同时充当 D-1 (d) 选中区分的 tint 来源 |
+| D-12 | F5+F6 执行批次 | 本批做 / 延后 / 部分 | ✅ 09-06 = ✅ 09-06 **本批做**，与 D-15/D-19 并入同一 `.swift` 批次，一次门禁覆盖三项 |
+| **轴2** | 取证方式 | 丢图 / 择时只读截 | ✅ 09-06 = ✅ 09-06 **(b) 择时只读截观察窗**（⁽⁰⁹⁻⁰⁶ᵉ⁾ 实测锁屏可取真实窗帧＝纯 A 层）⇒ W2–W8 转为 Agent 静默取证 |
 | D-13 | leaks 门禁本机不可用（09-05 新登） | (a) 重启会话后复跑 / (b) 认可 RSS 护栏降级口径 / (c) 挂起待自然恢复 | ✅ 09-06 同步＝总账已闭环（原副本滞后）|
-| A14 | 减弱透明度语义（补登记：原表遗漏，§12 在册裁决项） | 保 solid 纯色（现状，已实机验收）/ 增 frosted 中间态（更贴系统语义） | ☐ |
-| **D-14** | launchd 重门禁静默化（新发现）（⚠️ 涉及用户级 LaunchAgent） | 见总账 `DECISION_INDEX` 对应行 | ☐ |
-| **D-15** | A2 玻璃容器 spacing 取值（09-05 改判：与 D-1 解耦的独立合规项） | 见总账 `DECISION_INDEX` 对应行 | ☐ |
-| **D-19** | 聊天顶栏材质游离在玻璃体系与主题驱动之外（09-06 新立，G1a 轴1 审计产出） | 见总账 `DECISION_INDEX` 对应行 | ☐ |
-| **D-22** | MCP 主题探测在 MainActor 上同步等待最长 30s ⇒ 导入/卸载一台不应答的服务器会冻结 UI（0… | 见总账 `DECISION_INDEX` 对应行 | ☐ |
-| **D-25** | F-d 定性完成（09-06 首次命中取证通道）：`MCPProcessDeathTests` 步骤①首次 `l… | 见总账 `DECISION_INDEX` 对应行 | ☐ |
-| **RSS 可见态组** | 可见态性能基线 | 见总账 `DECISION_INDEX` 对应行 | ☐ |
+| A14 | 减弱透明度语义（补登记：原表遗漏，§12 在册裁决项） | 保 solid 纯色（现状，已实机验收）/ 增 frosted 中间态（更贴系统语义） | ✅ 09-06 = ✅ 09-06 **保 solid 纯色**（`accessibilityReduceTransparency` API 页「should be opaque」明文支持，BENCHMARK §23） |
+| **D-14** | launchd 重门禁静默化（新发现）（⚠️ 涉及用户级 LaunchAgent） | 见总账 `DECISION_INDEX` 对应行 | ✅ 09-06 = ✅ 09-06 **(a)** `ProgramArguments` 改调 `tools/ci-quiet.sh pr`｜⚠️ 用户级 LaunchAgent 变更：改前备份原 plist，单条 `cp` 可回退 |
+| **D-15** | A2 玻璃容器 spacing 取值（09-05 改判：与 D-1 解耦的独立合规项） | 见总账 `DECISION_INDEX` 对应行 | ✅ 09-06 = ✅ 09-06 **(b)** spacing 收敛 `adjacentSpacing()`=52 ＋ 远距切换显式 `.materialize` |
+| **D-19** | 聊天顶栏材质游离在玻璃体系与主题驱动之外（09-06 新立，G1a 轴1 审计产出） | 见总账 `DECISION_INDEX` 对应行 | ✅ 09-06 = ✅ 09-06 **(a)** 顶栏改 `.glassSurface(...)` 纳入玻璃体系，档位＝`.thin`（与 composer/卡同档） |
+| **D-22** | MCP 主题探测在 MainActor 上同步等待最长 30s ⇒ 导入/卸载一台不应答的服务器会冻结 UI（0… | 见总账 `DECISION_INDEX` 对应行 | ✅ 09-06 = ✅ 09-06 **(a)** 主题探测**短超时 2s**＋写可诊断原因；文档声明「极慢的真主题服务器可能被误判」 |
+| **D-25** | F-d 定性完成（09-06 首次命中取证通道）：`MCPProcessDeathTests` 步骤①首次 `l… | 见总账 `DECISION_INDEX` 对应行 | ✅ 09-06 = ✅ 09-06 **(a2)** 响应投递与退出清理收进**同一条 FIFO**（改动局限 `StdioMCPClient` 内部）；回归判据＝**实例级**行处理闸门（禁静态缝，免重演 D-24） |
+| **RSS 可见态组** | 可见态性能基线 | 见总账 `DECISION_INDEX` 对应行 | ✅ 09-06 = ✅ 09-06 **要基线**；随 G3 走查同场后台只读采集，不单独占用你的时间 |
 
 ## 5. 达成宣告（DoD 摘要，全绿后你口头宣告 MVP）
 

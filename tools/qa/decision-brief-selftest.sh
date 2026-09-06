@@ -24,6 +24,11 @@ fresh; ( cd "${SB}/x" && python3 tools/qa/decision-brief.py --check >/dev/null 2
 
 # T1 手改 brief 状态 ⇒ 必须报状态漂移（副本漂移是铁律 3 的硬违反）
 fresh
+# ⚠️ 09-06 批量授权代裁把待拍板清零后，「源表里恰有 ☐ 可注入」这一隐式前提消失 ⇒ T1/T2 变异无处可落，
+#    核对门会在「账本全清」这个最该可信的时刻变成无法自证的门。
+#    修法：自测自备变异载体（自造 ☐ 项 → 重新 emit），不依赖真账本处于任何特定状态。
+printf '%s\n' '| **D-97** | 自测注入用待拍板项 | (a) 甲 | ☐ | 自测注入 |' >> "${SB}/x/docs/DECISION_INDEX.md"
+( cd "${SB}/x" && python3 tools/qa/decision-brief.py --emit >/dev/null )
 # ⚠️ 变异必须打在**数据行的状态列**上：首版用 `sed '3s/☐/✅/'` 打到了第 3 行的引用块（那里没有 ☐），
 #    变异根本没生效却把用例判成「checker 有洞」——变异注入不精确会伪造缺陷，与 ㊹-3 同族。
 python3 - "${SB}/x/docs/DECISION_BRIEF.md" <<'PY'
@@ -46,8 +51,10 @@ PY
 ( cd "${SB}/x" && python3 tools/qa/decision-brief.py --check >/tmp/db-t1.log 2>&1 ); expect "T1 手改 brief 状态须报漂移" 1 "$?" "$(grep -c '状态漂移' /tmp/db-t1.log) 条"
 
 # T2 删 brief 一行 ⇒ 必须报缺项（防「手册/速览漏项」复发）
-fresh; sed -i '' '/^| \*\*D-3\*\*/d;/^| D-3 /d' "${SB}/x/docs/DECISION_BRIEF.md"
-grep -q '| D-3 ' "${SB}/x/docs/DECISION_BRIEF.md" && sed -i '' '/^| D-3 /d' "${SB}/x/docs/DECISION_BRIEF.md"
+fresh; printf '%s\n' '| **D-97** | 自测注入用待拍板项 | (a) 甲 | ☐ | 自测注入 |' >> "${SB}/x/docs/DECISION_INDEX.md"
+( cd "${SB}/x" && python3 tools/qa/decision-brief.py --emit >/dev/null )
+sed -i '' '/^| D-97 /d' "${SB}/x/docs/DECISION_BRIEF.md"
+grep -q '| D-97 ' "${SB}/x/docs/DECISION_BRIEF.md" && { print -r -- "❌ T2 变异未生效（沙箱 brief 仍含 D-97）"; fails=$((fails + 1)); }
 ( cd "${SB}/x" && python3 tools/qa/decision-brief.py --check >/tmp/db-t2.log 2>&1 ); expect "T2 速览缺项须报" 1 "$?" "$(grep -c '缺项' /tmp/db-t2.log) 条"
 
 # T3 塞幽灵 ID ⇒ 必须报幽灵
