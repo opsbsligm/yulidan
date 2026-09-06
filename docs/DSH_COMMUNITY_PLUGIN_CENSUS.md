@@ -236,3 +236,37 @@ HARNESS_G4_LIVE=1 swift test --filter MCPCommunityAppFlowTests
 
 **矩阵计数口径（防注水）**：层2 正式实跑仍为 **5 样本 3✅+2❌**（未变）；层3 主题类 **2 样本＝结构性不适用**，
 **不计入层2 通过率**，只作为「覆盖面已普查到」的证据。合计已普查社区包 **9 个**（层1 3 ＋ 层2 5，二者去重＝7；层3 新增 2 个均为首次入册）。
+
+## G4 证据链·当前 HEAD 复现（2026-09-06，`ce1ec9e`，全静默 A 层）
+
+> **为什么要专门做这一节**：层1/层1.5 的原始证据写于 09-03/09-04，夹具（`/tmp/g4pkgs*`）与结论都活在 `/tmp` 里——`/tmp` 是可被系统回收的目录，**「曾经实测过」不等于「现在还能复现」**。G3 走查要按兼容矩阵逐项核，所以先把证据链在当前 HEAD 上重新拉直一遍。
+
+### 依赖在位快照（复现前置，逐项实测）
+
+| 依赖 | 路径 | 状态 |
+|---|---|---|
+| dsh-crew rc.7 包 | `/tmp/g4pkgs2/dsh-crew/package`（入口 `src/server.mjs`） | ✅ 在位 |
+| dsh-crew rc.6 包 | `/tmp/g4pkgs3/dsh-crew-rc6-x/package` | ✅ 在位 |
+| 沙箱 HOME | `/tmp/g4home` | ✅ 在位 |
+| node | `/opt/homebrew/bin/node` = **v26.6.0** | ✅ 与矩阵基线（cordis 4.0.2 + loader 1.0.3 + node v26.6.0 @09-04）一致 |
+| cordis bridge | `tools/cordis-bridge` | ✅ 在位 |
+
+### 七项 opt-in 实测（默认门禁 skip，本轮全部为**真跑非 skip**，逐条列身份）
+
+| 通道 | 测试 | 结果 |
+|---|---|---|
+| 层1 宿主客户端 | `MCPTests.MCPCommunityLiveTests.testLiveDshCrewCommunityServerLoadsViaOurClient` | ✅ passed 0.083s |
+| 层1.5 App 全链路 | `HarnessAppTests.MCPCommunityAppFlowTests.testCommunityServerViaAppFullFlow` | ✅ passed 0.093s |
+| 升级回路（rc.6→rc.7） | `HarnessAppTests.MCPCommunityAppFlowTests.testCommunityServerUpgradeActivatesViaSameNameImport` | ✅ passed 0.209s |
+| 技能形态（指令插件） | `SkillTests.SkillUpstreamCompatTests.testUpstreamCommunitySkillsParseViaOurStore` | ✅ passed 0.002s |
+| 技能 folded scalar | `SkillTests.SkillUpstreamCompatTests.testFoldedScalarBehaviorIsGraceful` | ✅ passed 0.001s |
+| 层2 bridge 握手 | `MCPTests.CordisBridgeLiveTests.testBridgeHandshakeAndFixtureTools` | ✅ passed 0.050s |
+| 层1 独立探针 | `tools/g4/bin-mcpprobe`（独立 JSON-RPC 实现） | ⏸ **本轮未重跑**，理由见下 |
+
+> **一条运行器事实（省掉后人一次误判）**：`swift test --filter MCPCommunity` **已经包含 `HarnessAppTests` 目标**（App 全链路与升级回路两条都在这条命令下真跑），**不需要**另跑 `xcodebuild test`。此前设想「App 层证据只能在 xcode 门里取」是多余的。
+>
+> **探针通道为何不随 HEAD 刷新（不谎称全刷）**：`bin-mcpprobe` 是不依赖我方任何构建产物的独立 JSON-RPC 客户端，它证明的是**生态事实**（`@zseven-w/dsh-crew` 确为标准 stdio MCP server），与我们的 HEAD 无关 ⇒ 拿它做「HEAD 复现」没有信息量。它的在册证据仍挂 09-03 三通道实测。
+>
+> **零污染自证（与 D-6 处置口径直接相关）**：`MCPCommunityAppFlowTests.makeVM()` 把 `sessionDBURL`／`mcpConfigURLOverride`／`skillUserDirectory` 全部指向 `NSTemporaryDirectory()` + **UUID** 命名的独立文件/目录，并把 `notificationServiceFactory` 注入 `NoopNotificationService()` ⇒ 本轮 App 链路实测**不会在你的真实工作区留下任何会话行、不写真实 `servers.json`、不发系统通知**。所以 D-6 待处置清单（18 历史空会话 + 6 走测副产）**没有因为本轮复现而增加**。
+>
+> **对 DoD 的影响**：G4 三条（层1 实测／D-5 已拍板／兼容矩阵 ≥3 实跑样例）从「09-03、09-04 在册」升级为「**当前 HEAD `ce1ec9e` 可复现**」。层2（5 样本 3✅+2❌）与层3（主题类 2 样本结构性不适用）的**结论**不变，本轮未重跑正式流程五样本（其流程含 npm 正式安装，属外部网络副作用，非 HEAD 判据）。
