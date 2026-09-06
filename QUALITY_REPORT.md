@@ -904,5 +904,25 @@ cf0e230  docs(quality): 刷新质量报告 — 前端阶段1/2 基线
 > **㊹-2 代价如果照做**：按 ᵈ 把 `selectionID` 拆成每 tile 一枚 ⇒ 切换时旧面 ID≠新面 ID；而本机 SDK 通道原文是「SwiftUI will use the provided identifier to **animate shapes to and from each other** during transitions」（§26.4 边界条已在册）⇒ 身份不同就不互为动画对象 ⇒ **恰好破坏 morph 而不是修复它**，还要额外付一轮门禁＋一次你的目检＋一次产品回归。这是本轮最值钱的一条，因为它省的是**反向**的一整轮。
 > **㊹-3 改判没有引入任何新 API 事实（这点决定它的可信度）**：只用三样已在册／可直读的东西——(i) 装配点核验：`:243` 的 `.glassEffectID` 位于 `tileContent` 的 `.glassMorph` 分支内，而 `:180-183` 第一行就是 `guard isSelected else { return .plain }`；(ii) 本格 ③ 的在册实测；(iii) §26.4 边界条的在册 SDK 原文。⇒ **形式化教训**：写「我方现状是 X」这类代码事实句时，**必须挂装配点（哪一行在哪个分支/条件内）**；只挂变量声明行（`:141`）不足以支撑任何关于「它如何被使用」的推论——`static let` 说明 ID 只有一枚，完全不说明它是否被并发挂载。
 > **㊹-4 补一条可执行规矩（含"暂不工具化"的诚实）**：凡台账出现**量词句**（"全部 tile 共用一枚"／"六面常驻"／"仅 1 个"），必须同时给出**任一时刻共存数**及其装配点。为何暂不做成 lint：自然语言量词的机器判定误报率高，做成门会制造噪音（噪音源会被绕过，见㊸-6 的反面）⇒ 先作为写作规矩，等真出现第二次同类误判再工具化。
-> **㊹-5 净效果（可核）**：D-1 前置实验矩阵由「ID 策略 × 动画」缩为**只剩动画维**（`.smooth(duration:0.3)` 现状 vs `.default` vs `.spring`，另加 §25.3 那个官方 opt-out 开关）⇒ **你目检从 4 格降到 3 格**；三架构案 Ⅰ／Ⅱ／Ⅲ 本身**不动**，`BENCHMARK §26.4` 就地标注改判（原文保留作沿革），ᵈ 段就地标注作废。⚠️ 边界照旧：本条只否定「改 ID 能修它」这个修法方向，**不改判观感**——morph 是否可得仍只能你目检终裁。这是 ㊷-4「能证明不用改与能证明要改等值值钱」的第二次兑现。
+> **㊹-5 净效果（可核）**：D-1 前置实验矩阵由「ID 策略 × 动画」缩为**只剩动画维**（`.smooth(duration:0.3)` 现状 vs `.default` vs `.spring`；⚠️ 我写这条时另加的「§25.3 官方 opt-out 开关」
+>  **在十分钟内被同一轮的 ㊹-6 自检推翻——它不是独立一格，见 ㊹-7／㊹-8**）⇒ **你目检从 4 格降到 3 格**；三架构案 Ⅰ／Ⅱ／Ⅲ 本身**不动**，`BENCHMARK §26.4` 就地标注改判（原文保留作沿革），ᵈ 段就地标注作废。⚠️ 边界照旧：本条只否定「改 ID 能修它」这个修法方向，**不改判观感**——morph 是否可得仍只能你目检终裁。这是 ㊷-4「能证明不用改与能证明要改等值值钱」的第二次兑现。
 > **㊹-6 本轮两次排除的共同形状（建议固化为开工动作）**：㊸ 的"脚本坏了"与 ㊹ 的"变量①偏差"都不是被新信息推翻的，而是被**回读原文＋装配点/通道核验**推翻的；两者都被写进了权威文档、都自带权威外观。⇒ 建议每轮开工先花几分钟对上一轮**最紧急或最推荐**的那条结论做一次推翻尝试（对抗式自检），本轮的两次各省一整轮，投入产出比远高于新增证据。
+
+> **㊹-7 ㊹-6 当场兑现：我上一条刚写下的「另加官方 opt-out 开关」被自己推翻，它不是第四格**。
+回读在册原文（BENCHMARK §1.14⁽⁰⁹⁻⁰⁶ᶜ⁾，`.swiftdoc` offset 685,725）：「When using the `Animation/default`, this
+transition applies additional scale and offset effects to content when the identity of the shape does not change
+but its content does. Opt out of these additional animations by providing a specific animation like
+`Animation/spring`.」⇒ 两条硬结论：① opt-out 的**方法就是换动画本身**，不存在第四个开关，我把它当成独立实验格
+是**把同一件事数了两遍**；② 我方 `:196` 用 `.smooth(duration:0.3)` 已是「a specific animation」⇒
+**现状本就处于 opt-out 态**，「再去 opt out」没有对象。⇒ 实验矩阵最终＝只剩动画曲线一维（3 格），无第四格。
+> **㊹-8 但这一维的「预期方向」官方判不了，必须如实写进裁决材料（否则你是在假预期下花那 1 分钟）**：
+那句的适用前提是「identity of the shape does **not** change but its content does」，而我方选中切换按 §1.14／A3
+在册判定是「旧面 remove、新面 add」；**可是** `glassEffectID` 的作用恰恰是让 SwiftUI 把新旧面当作同一形状
+（animate shapes to and from each other），于是「同 ID 的 remove/add 究竟算不算 identity 不变」**官方未作声明**
+（与 §26.4 边界条是同一处空白，非我新发现的洞）。⇒ 后果：`.default` 会否引入那套 additional scale/offset、
+`.spring` 与 `.smooth` 在 morph 窗口上有无可感差，**两个方向的预期都能自圆 ⇒ 只能实测**。诚实表述为
+「先验不可判」，不写「换动画大概率改善」。
+> **㊹-9 实验可执行性的真实前置（登记，不越权执行）**：三条曲线要在**不重新编译**前提下切换，需要在
+`GlassMorphTabBar.swift:196` 加一条诊断缝（环境变量→`Animation` 的纯函数＋单测，默认值＝现状 `.smooth` 零行为变化）。
+本轮**不改**：它是产品二进制的一部分，而 G2 开工闸门（D-1／D-11／D-19）未开＝未拍板不动产品代码。
+⇒ 已登记为「D-1 任一选项的执行前置」，你拍板后第一轮即补，成本约一次小提交。
