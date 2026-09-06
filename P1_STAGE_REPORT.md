@@ -172,6 +172,13 @@
 | P2 §5 #1 同步指示器本地模式不显示（无噪声） | ✅ | 本地模式下底栏设置行上方无 iCloud 行、rail 无云图标（截图核验） |
 
 ### 10.3 待用户解锁屏幕后补测（交互类，需前台键鼠）
+
+> **状态总述（09-06 落档）**：本节八项**已全部闭合**，现行状态一律以下方 §10.3-A 的「你的裁决」列为准。
+> 两条依据：① 纯代码／内核可证部分由 A 层测试与护栏在册（#7 侧 18 项、#8 侧 `GlassSurfaceTests` 19 条、
+> #6 侧 `ThemeLiveRenderTests` 像素级通道翻转＋逐点还原、#3 侧 `ChatSessionMenuParityTests` 6 条护栏）；
+> ② 含真机视觉帧的成分由 **09-04「池 B」拍板**（用户选第二项＝「认可 A 层进程内证据即满足该子句」）静默核销，
+> 拍板原文明记「**R1 八项全 ✅**」，逐行锚点于 09-06 复核无漂移。
+> **本节标题保留原文以显示它曾是实机项**，不再作为待办依据（09-06 曾因未回查拍板记录区而把它误当待办，详见 QUALITY ㊵）。
 1. ⌘N / ⌘1–⌘5 快捷键（P1.2 #4）
 2. 侧边栏折叠 rail 回归 + 折叠/展开 morph 判定（P1.2 #5 / P1.3 #1）
 3. 右键菜单：聊天顶栏会话标题右键 = 溢出菜单同动作集（P2 §5 #3）
@@ -189,10 +196,10 @@
 
 | # | 项 | 09-06 实测锚点（非记忆） | A 层**能**证到 | A 层**不能**证到 | 你的裁决 |
 |---|---|---|---|---|---|
-| **3** | 顶栏会话标题右键＝溢出菜单同动作集 | `ChatAreaView.swift:70-78` 标题 `Text(sessionTitle)` 挂 `.contextMenu { sessionMenuActions }`；`:96` 溢出菜单引用同一符号；`:133` 唯一定义（四处行号 @`cdd0840` 再次逐行实测命中）。**＋ 09-06 本轮已把该子句固化为永久判据**：`ChatSessionMenuParityTests`（6 条，T1 引用／T2 动作序列逐位相等／T3 未登记动作即红／T4 挂载位置／T5 定义体外禁内联副本），**三向变异实测**（M1 删动作→2 红、M2 改内联副本→3 红、M3 仅换序→2 红）⇒ **此后任何入口分叉或动作集增删换序都会当场让门禁变红，不再依赖一次性走测记忆** | 双入口**同源恒等**＝编译期结构事实，**且现在有可重跑的永久判据＋变异自证**（不再是「读一遍代码」式的一次性结论） | 菜单**真的弹出**（属 B 层 `ax showmenu`，改变可见状态，仅你择时同意才跑） | ⬜ **待你裁**：认可 A 层即核销／或 1 分钟手动配合／或择时授权 B 层 `ax showmenu` |
-| **6** | MCP 主题 tint 实时切换 → 还原 | `ThemeLiveRenderTests.swift:85`：`applyTheme(落日渐橙)` 后**不重启不刷新**，ImageRenderer 位图**主通道蓝→橙翻转**＋还原后与初始基准**逐点一致** ⇒ **0.069s 实跑通过** | 即时生效＝**像素级**可证（口径修正在册：内置主题 `glassTintHex=nil`，载体＝社区包 Tahoe Teal） | 真机玻璃折射下的色准观感（§0 无玻璃像素通道） | 认可即核销 ／ 或另做真机色准抽样 |
-| **7** | 会话拖拽落位原生反馈动画 | **✅ 09-06 二次实测：本项在册 18 项测试，是四项中覆盖最强的一条**（上表旧口径「零命中」＝我方假阴性，见下方更正块）。分层锚点＝① 载荷层 `WorkspaceTests.swift:90 @Suite("拖拽放置解析")` 4 分支（全局→项目／项目→全局／A→B／同源 noChange）＋ `:136 dragPayloadRoundTrip` JSON 编解码往返 ＋ `:292 @Suite("SessionDragPayload Transferable")` 表示构造；② 状态层 `AppViewModelProjectTests.swift:176 moveSessionNoOpBoundary`（同源落点 no-op 不弹 toast）／`:208 moveSessionMatrix`（全局→A→B→全局 + DB 落库）／`:251 moveSessionIgnoresForeignRecord`（**本轮新增**：过期快照外来记录防误改，带变异判别器）；③ 像素层 `SidebarDropHighlightRenderTests.swift:13`（ImageRenderer 离屏：非悬停无高亮、悬停 accent 着色且项目头 0.14 > 全局区 0.06）；④ 基线合规层 `SidebarProjectSections.swift:35 .draggable` ＋ `:162`/`:306` 双落点走 SwiftUI 原生拖放 API | **落位语义的正确性**：目标归属解析、同址 no-op、跨项目迁移、持久化、外来记录防误改、悬停高亮规则与强度序——全部 18 项 09-06 现场跑绿（Apps 侧 11 tests/4.53s ＋ Workspace 侧 6 tests ＋ Transferable 1 test） | 仅剩 `.smooth(duration: 0.22)` **动画时间曲线的观感**（以及真机玻璃折射下的落位过渡观感）——A 层无帧时序采样通道，属 v8 预设「用户手动拖一次」的正解范围 | 认可 A 层即核销（口径＝原生 API＋语义正确）／ 或你手动拖一次补观感 |
-| **8** | 减弱透明度注销式降级回归 | `GlassSurfaceTests` **19 条通过**，含 `:191`「`currentMode(envReduceTransparency: true)` 直接落 solid（**不依赖测试 override**）」＋ `:22/:29` 测试缝双向断言 | 降级链入口选择与合成规则＝纯函数可证；环境键单独即可决定入口（已去 override 依赖） | **真实系统开关闭合环**（辅助功能›显示›降低透明度 开→solid、关→恢复）属系统态切换 | 认可即核销 ／ 或你顺手拨一次系统开关 |
+| **3** | 顶栏会话标题右键＝溢出菜单同动作集 | `ChatAreaView.swift:70-78` 标题 `Text(sessionTitle)` 挂 `.contextMenu { sessionMenuActions }`；`:96` 溢出菜单引用同一符号；`:133` 唯一定义（四处行号 @`cdd0840` 再次逐行实测命中）。**＋ 09-06 本轮已把该子句固化为永久判据**：`ChatSessionMenuParityTests`（6 条，T1 引用／T2 动作序列逐位相等／T3 未登记动作即红／T4 挂载位置／T5 定义体外禁内联副本），**三向变异实测**（M1 删动作→2 红、M2 改内联副本→3 红、M3 仅换序→2 红）⇒ **此后任何入口分叉或动作集增删换序都会当场让门禁变红，不再依赖一次性走测记忆** | 双入口**同源恒等**＝编译期结构事实，**且现在有可重跑的永久判据＋变异自证**（不再是「读一遍代码」式的一次性结论） | 菜单**真的弹出**（属 B 层 `ax showmenu`，改变可见状态，仅你择时同意才跑） | ⬜ **待你裁**：认可 A 层即核销／或 1 分钟手动配合／或择时授权 B 层 `ax showmenu` ✅ **已核销 09-04（池 B 拍板＝「认可 A 层进程内证据即满足该子句」，拍板原文见 DECISION_INDEX 记录区）**；本列下方原选项文本保留为历史，其「认可即核销」分支已执行，锚点 09-06 复核无漂移 |
+| **6** | MCP 主题 tint 实时切换 → 还原 | `ThemeLiveRenderTests.swift:85`：`applyTheme(落日渐橙)` 后**不重启不刷新**，ImageRenderer 位图**主通道蓝→橙翻转**＋还原后与初始基准**逐点一致** ⇒ **0.069s 实跑通过** | 即时生效＝**像素级**可证（口径修正在册：内置主题 `glassTintHex=nil`，载体＝社区包 Tahoe Teal） | 真机玻璃折射下的色准观感（§0 无玻璃像素通道） | 认可即核销 ／ 或另做真机色准抽样 ✅ **已核销 09-04（池 B 拍板＝「认可 A 层进程内证据即满足该子句」，拍板原文见 DECISION_INDEX 记录区）**；本列下方原选项文本保留为历史，其「认可即核销」分支已执行，锚点 09-06 复核无漂移 |
+| **7** | 会话拖拽落位原生反馈动画 | **✅ 09-06 二次实测：本项在册 18 项测试，是四项中覆盖最强的一条**（上表旧口径「零命中」＝我方假阴性，见下方更正块）。分层锚点＝① 载荷层 `WorkspaceTests.swift:90 @Suite("拖拽放置解析")` 4 分支（全局→项目／项目→全局／A→B／同源 noChange）＋ `:136 dragPayloadRoundTrip` JSON 编解码往返 ＋ `:292 @Suite("SessionDragPayload Transferable")` 表示构造；② 状态层 `AppViewModelProjectTests.swift:176 moveSessionNoOpBoundary`（同源落点 no-op 不弹 toast）／`:208 moveSessionMatrix`（全局→A→B→全局 + DB 落库）／`:251 moveSessionIgnoresForeignRecord`（**本轮新增**：过期快照外来记录防误改，带变异判别器）；③ 像素层 `SidebarDropHighlightRenderTests.swift:13`（ImageRenderer 离屏：非悬停无高亮、悬停 accent 着色且项目头 0.14 > 全局区 0.06）；④ 基线合规层 `SidebarProjectSections.swift:35 .draggable` ＋ `:162`/`:306` 双落点走 SwiftUI 原生拖放 API | **落位语义的正确性**：目标归属解析、同址 no-op、跨项目迁移、持久化、外来记录防误改、悬停高亮规则与强度序——全部 18 项 09-06 现场跑绿（Apps 侧 11 tests/4.53s ＋ Workspace 侧 6 tests ＋ Transferable 1 test） | 仅剩 `.smooth(duration: 0.22)` **动画时间曲线的观感**（以及真机玻璃折射下的落位过渡观感）——A 层无帧时序采样通道，属 v8 预设「用户手动拖一次」的正解范围 | 认可 A 层即核销（口径＝原生 API＋语义正确）／ 或你手动拖一次补观感 ✅ **已核销 09-04（池 B 拍板＝「认可 A 层进程内证据即满足该子句」，拍板原文见 DECISION_INDEX 记录区）**；本列下方原选项文本保留为历史，其「认可即核销」分支已执行，锚点 09-06 复核无漂移 |
+| **8** | 减弱透明度注销式降级回归 | `GlassSurfaceTests` **19 条通过**，含 `:191`「`currentMode(envReduceTransparency: true)` 直接落 solid（**不依赖测试 override**）」＋ `:22/:29` 测试缝双向断言 | 降级链入口选择与合成规则＝纯函数可证；环境键单独即可决定入口（已去 override 依赖） | **真实系统开关闭合环**（辅助功能›显示›降低透明度 开→solid、关→恢复）属系统态切换 | 认可即核销 ／ 或你顺手拨一次系统开关 ✅ **已核销 09-04（池 B 拍板＝「认可 A 层进程内证据即满足该子句」，拍板原文见 DECISION_INDEX 记录区）**；本列下方原选项文本保留为历史，其「认可即核销」分支已执行，锚点 09-06 复核无漂移 |
 
 **本轮实跑记录**：`swift test --filter ThemeLiveRenderTests`＝1 test passed（0.069s）；
 `--filter GlassSurfaceTests`＝19 tests passed（0.004s）；两者合计 20/20 @`a53adac`。
@@ -209,7 +216,7 @@
 > 覆盖载荷编解码、归属解析四分支、no-op 防护、跨项目迁移 + 落库、外来记录防误改、
 > 悬停高亮像素规则——**它不是四项中最弱的，是覆盖最强的**。教训已入 QUALITY_REPORT ㉘。
 
-其余三项若你认可 A 层，我可当场把 §10.3 对应行改判核销。
+> **【该句已过期，就地标注而非删除】**：核销所需的裁决**早已在册**——DECISION_INDEX 记录区「池 B」条：2026-09-04 用户选第二项「认可 A 层进程内证据即满足该子句」→ 静默核销，并明记「**R1 八项全 ✅**」。09-06 建本表时未回查拍板记录区，于是把一个已闭合的裁决重新当成待办提出，并把 G0 错误挂起至今。上表四行的「你的裁决」列已补记核销状态。**教训＝建「待裁决」表之前必须先查拍板记录区，否则文档会自己制造重复待办**（同类原文见 QUALITY 09-05「已纠偏 ≠ 已上报」）。
 
 **全表二次核验结论（09-06，#7 更正后回扫其余三行）**：#3 锚点 `ChatAreaView.swift:70`"
 "`Text(viewModel.sessionTitle(for: session))`／`:78` `.contextMenu { sessionMenuActions }`／"
