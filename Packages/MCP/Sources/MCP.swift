@@ -274,6 +274,13 @@ public actor MCPServerManager {
     /// 成功返回带 toolCount/serverInfo 的 descriptor；失败返回 isAvailable=false（不抛，供发现场景批量探测）
     @discardableResult
     public func connectStdio(_ config: MCPServerConfig, into registry: ToolRegistry? = nil) async -> MCPServer {
+        // 同名重连前先终止旧 stdio 实例（D-21）：下面 `clients[config.name] = client` 是无条件覆盖，
+        // 若该名字已被占用而不先 stop，被覆盖的那个实例**再无人能引用它**⇒ 其子进程永不终止（泄漏）。
+        // importMCPServer / retryMCPServer 各自先 disconnect（此处为空操作），但启动工具链这类
+        // 「按配置快照直接连接」的路径可能在它已连过之后再次连同名服务器（实测每轮多出一个存活子进程）。
+        if let previous = clients[config.name], let stdio = previous as? StdioMCPClient {
+            await stdio.stop()
+        }
         let client = StdioMCPClient(name: config.name, configuration: StdioMCPConfiguration(
             command: config.command,
             arguments: config.arguments,

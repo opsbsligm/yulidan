@@ -404,6 +404,11 @@ final class AppViewModel: ObservableObject {
     /// MCP 配置 URL 测试缝（默认 ~/.harness/mcp/servers.json）
     /// 实例级（非 static）：全量并行门禁下 @MainActor 套件在 await 点交错，static 共享引用会跨套件互踩
     private let mcpConfigURLOverride: URL?
+    /// 启动期 MCP 连接测试缝（**实例级**，同 `mcpConfigURLOverride` 隔离纪律；生产为 nil＝不介入）。
+    /// 存在意义＝让「卸载/导入 × 启动连接」竞态可被结构化复现与回归锁死（配守卫见 `connectStartupMCPServer`）。
+    /// ⚠️ 必须实例级而非静态：并行态两个 suite 同时挂载同一静态缝时，先到者的 `defer` 会把后到者的钩子
+    /// 清成 nil ⇒ 钩子永不到达、用例挂死（实测：两套件单独并行各绿，同跑必红）。同族先例＝P4 `providerFactoryOverride`。
+    private let startupMCPConnectGate: (@Sendable (String) async -> Void)?
     var mcpConfigURL: URL {
         mcpConfigURLOverride ?? MCPDiscovery.defaultURL
     }
@@ -476,8 +481,10 @@ final class AppViewModel: ObservableObject {
          workspaceRouter: WorkspaceRouter? = nil, sharedRAG: SharedRAGEngine? = nil,
          sharedMemory: SharedMemoryEngine? = nil,
          subagentHistoryURLOverride: URL? = nil,
-         legacyMemoryURLOverride: URL? = nil) {
+         legacyMemoryURLOverride: URL? = nil,
+         startupMCPConnectGate: (@Sendable (String) async -> Void)? = nil) {
         self.mcpConfigURLOverride = mcpConfigURLOverride
+        self.startupMCPConnectGate = startupMCPConnectGate
         subagentHistoryURLOverrideInstance = subagentHistoryURLOverride
         let container = ServiceContainer()
         let eventBus = EventBus()
@@ -581,17 +588,25 @@ final class AppViewModel: ObservableObject {
 
     /// 连接单个启动期 stdio MCP 服务器；返回「已连接但不可用」的服务名（进工具页警告），nil＝无需警告。
     ///
-    /// 两道 TOCTOU 守卫（D-20）：调用方在循环前先取了一次配置**快照**，卸载若落在「快照之后、本次连接完成之前」，
-    /// 快照里仍带着该服务器 ⇒ 不修则被卸载的服务器重新登记（复活），实测症状＝主题不回落系统基准／工具重新注册／列表条目复活。
+    /// 三道守卫：①③ 是 TOCTOU（D-20）——调用方在循环前先取了一次配置**快照**，卸载若落在「快照之后、本次连接完成之前」，
+    /// 快照里仍带着该服务器 ⇒ 不修则被卸载的服务器重新登记（复活），实测症状＝主题不回落系统基准／工具重新注册／列表条目复活；
     /// 并行负载下 await 让出点增多 ⇒ 窗口变宽（QUALITY ㉙ 观察项 F-a 的真实根因）。
+    /// ② 是幂等守卫（D-21）——已连过的服务器不得重复连接（子进程泄漏 + 卸载后短暂复活，见下方注释）。
     private func connectStartupMCPServer(_ config: MCPServerConfig) async -> String? {
         // 测试缝（默认 nil＝不介入）：把「读配置快照 → 连接完成」这段窗口变成可控时序，
-        // 使两道守卫能被**结构性**复现与回归锁定，不依赖墙钟（教训：QUALITY ⑫/㉙）
-        await AppViewModel.startupMCPConnectTestGate.withLock { $0 }?(config.name)
-        // 守卫①：快照之后该配置已被卸载 ⇒ 跳过，不再发起连接
+        // 使各守卫能被**结构性**复现与回归锁定，不依赖墙钟（教训：QUALITY ⑫/㉙）
+        await startupMCPConnectGate?(config.name)
+        // 守卫①（D-20）：快照之后该配置已被卸载 ⇒ 跳过，不再发起连接
         guard AppViewModel.configStillInstalled(config, at: mcpConfigURL) else { return nil }
+        // 守卫②（D-21）：该服务器此刻已有可用连接 ⇒ 不再重复连接。重复连接＝把 clients[name] 换成
+        // 新实例并**再开一个 stdio 子进程**，旧实例从此无人引用（子进程泄漏）；并发时新客户端迟到的
+        // 工具注册/主题刷新还会让「刚卸载的工具/主题」短暂复活（门禁稀发失败 AppViewModelMCPServerTests:205 的机制）。
+        // ⚠️ 判据取「isAvailable」而非「在册」：连接失败的服务器必须留给 retryLoadTools 重试。
+        if await mcpManager.servers().contains(where: { $0.name == config.name && $0.isAvailable }) {
+            return nil
+        }
         let server = await mcpManager.connectStdio(config, into: toolRegistry)
-        // 守卫②：连接期间被卸载 ⇒ 立刻断开，杜绝「已卸载服务器复活」
+        // 守卫③（D-20）：连接期间被卸载 ⇒ 立刻断开，杜绝「已卸载服务器复活」
         guard AppViewModel.configStillInstalled(config, at: mcpConfigURL) else {
             await mcpManager.disconnect(name: config.name, into: toolRegistry)
             return nil
@@ -2359,10 +2374,6 @@ final class AppViewModel: ObservableObject {
     /// 历史文件路径覆盖（单元测试隔离用；生产为 nil）
     /// 通知服务工厂覆盖（单元测试隔离用；生产为 nil → 系统通知）
     static var notificationServiceFactory: (@Sendable () -> any NotificationService)?
-
-    /// 启动期 MCP 连接测试缝：启动工具链在每个 config 连接**前**调用（默认 nil＝不介入）。
-    /// 存在意义＝让「卸载 × 启动连接」竞态可被结构化复现与回归锁死（配守卫见 registerStartupTools）。
-    static let startupMCPConnectTestGate: LockedBox<(@Sendable (String) async -> Void)?> = .init(initial: nil)
 
     /// 某 MCP 配置此刻是否仍在 servers.json 中（按 id 判等，与 removeMCPServer 的移除口径一致）
     static func configStillInstalled(_ config: MCPServerConfig, at url: URL) -> Bool {

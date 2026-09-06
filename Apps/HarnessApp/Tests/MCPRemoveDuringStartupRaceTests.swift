@@ -40,6 +40,20 @@ struct MCPRemoveDuringStartupRaceTests {
                 continuation.resume()
             }
         }
+
+        /// 有界推进等待：true＝信号已到；false＝超时（调用方必须 Issue.record + fire() 放行钩子后 return）。
+        /// ⚠️ 这是**挂死保险**，不是判据：判据仍是「信号到达」这一结构事实。并行态高载下后台启动 Task
+        /// 任何原因（历史实测＝静态测试缝被并行 suite 清空钩子，D-24）都可能让它永不到达；无界等待会挂死整轮门禁，超时改判失败＝方向安全。
+        func waitForDone(timeout: Duration, poll: Duration = .milliseconds(5)) async -> Bool {
+            let deadline = ContinuousClock.now + timeout
+            while !done {
+                if ContinuousClock.now >= deadline {
+                    return false
+                }
+                try? await Task.sleep(for: poll)
+            }
+            return true
+        }
     }
 
     @Test("卸载落在启动连接窗口内 ⇒ 被卸载服务器不得复活（守卫判别器）")
@@ -67,28 +81,30 @@ struct MCPRemoveDuringStartupRaceTests {
         let pastVictim = Signal()
         let victimName = victim.name
 
-        AppViewModel.startupMCPConnectTestGate.withLock { box in
-            box = { name in
-                if name == victimName {
-                    await victimReached.fire()
-                    await releaseVictim.wait()
-                } else {
-                    await pastVictim.fire()
-                }
-            }
-        }
-        defer {
-            AppViewModel.startupMCPConnectTestGate.withLock { box in
-                box = nil
+        // ⚠️ 钩子经 **init 注入到实例**（而非静态全局）：并行态两个 suite 共用静态缝会互相清空对方钩子
+        // ⇒ 永不到达（实测两套件单独并行各绿、同跑必红）。QUALITY ㉜ / 同族先例 P4。
+        let gate: @Sendable (String) async -> Void = { name in
+            if name == victimName {
+                await victimReached.fire()
+                await releaseVictim.wait()
+            } else {
+                await pastVictim.fire()
             }
         }
 
         let vm = AppViewModel(skillUserDirectory: dir.appendingPathComponent("skills"),
                               sessionDBURL: dir.appendingPathComponent("sessions.sqlite"),
-                              mcpConfigURLOverride: configURL)
+                              mcpConfigURLOverride: configURL,
+                              startupMCPConnectGate: gate)
 
         // ① 循环已停在「即将连接 victim」这一点上（窗口打开）
-        await victimReached.wait()
+        let reachedVictim = await victimReached.waitForDone(timeout: .seconds(60))
+        if reachedVictim == false {
+            Issue.record("启动链 60s 内未到达 victim 连接点 ⇒ 挂死保险生效，改判失败而非拖死整轮门禁（历史根因＝静态测试缝跨 suite 争用，已修；见 QUALITY ㉜）")
+            await releaseVictim.fire()
+            await pastVictim.fire()
+            return
+        }
 
         // ② 在窗口内按 UI 同一路径卸载（同一函数、同一移除口径）
         let item = MCPDisplayItem(id: victim.id, name: victim.name, command: victim.command,
@@ -99,7 +115,11 @@ struct MCPRemoveDuringStartupRaceTests {
         // ③ 放行连接：守卫② 应在此刻发现配置已消失并立即断开
         await releaseVictim.fire()
         // ④ 循环越过哨兵 ⇒ 守卫链已跑完（无需任何 sleep/轮询）
-        await pastVictim.wait()
+        let pastDone = await pastVictim.waitForDone(timeout: .seconds(60))
+        if pastDone == false {
+            Issue.record("放行后 60s 内启动链未越过哨兵 ⇒ 挂死保险生效，改判失败而非拖死整轮门禁（同上，QUALITY ㉜）")
+            return
+        }
 
         let descriptors = await vm.mcpManager.servers().map(\.name)
         let victimResurrected = descriptors.contains("race-victim")
