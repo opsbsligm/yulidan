@@ -35,6 +35,15 @@ run_pr() {
   # 状态过时（D-13）与整项缺失（六项待拍板未进副本）。副本漂移＝违反「文档单一权威源」铁律，
   # 故从人工回读改成常驻门；rc=1 有漂移，rc=3 文件不可读（核对无效不得当成通过）。
   bash tools/qa/walkthrough-ledger-sync.sh
+  step "PR-0.6 Shell 质量门：语法按 shebang 校验 ＋ 变量展开缺陷（门禁：各 0；QUALITY ㊸-1/㊸-5）"
+  step "PR-0.6a 语法校验必须用脚本自己声明的解释器（09-06 误诊教训：bash -n 检 zsh 脚本会报假语法错）"
+  zsh tools/qa/shell-syntax-lint.sh .
+  step "PR-0.6b 变量后紧跟多字节字符（bash 3.2 按字节取名，会静默展开为空）"
+  # 09-06 新增：bash 3.2 按**字节**取变量名，`$rc（` 这类写法会把全角标点的首字节并入变量名——
+  # set -u 下炸 unbound variable，无 set -u 则**静默展开为空**（文案缺字／路径缺段且看不出原因）。
+  # 本仓实测扫出 5 处、含 2 处既有脚本 bug ⇒ 「请记住写 ${var}」防不住复发，故做成常驻门。
+  # rc=1 有命中；rc=3 扫描无效（读不到/零脚本），核对无效绝不等于通过。
+  python3 tools/qa/multibyte-var-lint.py .
   step "PR-1 SwiftLint（门禁：0 违规）"
   swiftlint lint --strict --config .swiftlint.yml
   step "PR-2 SwiftFormat（门禁：0 文件需格式化）"

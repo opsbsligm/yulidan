@@ -24,7 +24,7 @@
 > 无 token 无 TTY ⇒ `GUARD_DENY`（rc 78）；有 token 有 TTY ⇒ `GUARD_WOULD_ALLOW`（rc 0，仍不执行任何注入）。
 > 重建：`zsh tools/r1walk/build.sh`（`bin/ax.bin` 无源，闸门在其 wrapper 里）。
 >
-> **载体核查（每次改这类工具后重跑，非纸面承诺）**：`bash tools/qa/c-layer-carrier-audit.sh`（rc=0＝无任何自动化载体挂载注入式工具）。
+> **载体核查（每次改这类工具后重跑，非纸面承诺）**：`zsh tools/qa/c-layer-carrier-audit.sh`（⚠️ 09-06 实证修正：此脚本 shebang 是 `#!/bin/zsh`，此前本行误写 `bash` ⇒ 实测 rc=2 硬失败，且报错为 `syntax error: unexpected end of file`，连累两轮把它误读成「审计脚本本身损坏」；脚本另有解释器自守门，误调用时会给可行动提示而非语法错）（rc=0＝无任何自动化载体挂载注入式工具）。
 > `~/.codex/automations/` 无任何 automation 定义（目录空）／`~/Library/LaunchAgents/*.plist`
 > 无一处引用 `r1walk`/`r1loop`/`ev`/`ax`／`crontab -l` = no crontab／`launchctl list` 内 harness
 > 仅 App 本体。⇒ 不存在自动化挂载 C 层的既成事实。

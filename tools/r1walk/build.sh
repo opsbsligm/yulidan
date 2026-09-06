@@ -9,7 +9,7 @@ for pair in "ev.swift ev" "evtype.swift evtype" "axdump.swift axdump" "wl.swift 
   if swiftc -O "$src" -o "bin/$out" 2>/tmp/r1walk_build_${out}.log; then
     echo "✅ $out"
   else
-    echo "❌ $out（见 /tmp/r1walk_build_${out}.log）"
+    echo "❌ ${out}（见 /tmp/r1walk_build_${out}.log）"
     exit 1
   fi
 done
