@@ -44,6 +44,13 @@ run_pr() {
   # 本仓实测扫出 5 处、含 2 处既有脚本 bug ⇒ 「请记住写 ${var}」防不住复发，故做成常驻门。
   # rc=1 有命中；rc=3 扫描无效（读不到/零脚本），核对无效绝不等于通过。
   python3 tools/qa/multibyte-var-lint.py .
+  step "PR-0.7 待拍板速览↔总账↔权威计数三方一致（门禁：缺项/幽灵/漂移/口径差 各 0）"
+  # 09-06 新增：拍板池是 G2/G3 的共同闸门，而总账单格数千字本身就是拍板瓶颈。速览由机器从总账派生
+  # （**不是手抄副本**），判据与 decision-pending.sh 复用并互为交叉校验——不允许出现第二套账。
+  # 首版即被自测抓到两处：ID 正则不兼容中文 ID（把「轴2／RSS 可见态组」误报缺项、把表头误报幽灵，
+  # 同 QUALITY ㊶-1）；以及变异注入打在注释行导致「checker 有洞」的假阳性 ⇒ 变异自测必须自证注入生效。
+  python3 tools/qa/decision-brief.py --check
+  zsh tools/qa/decision-brief-selftest.sh
   step "PR-1 SwiftLint（门禁：0 违规）"
   swiftlint lint --strict --config .swiftlint.yml
   step "PR-2 SwiftFormat（门禁：0 文件需格式化）"
