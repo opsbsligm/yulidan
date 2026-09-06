@@ -13,6 +13,10 @@
 3. A1–A7「与 Codex 一致性」断言同理降级：现状描述可信（逐文件读码所得），对标属性待轴2 取证。
 4. 取证与差距分析接续入口 = `docs/BENCHMARK_CHECKLIST.md` §16 轴2 工作单（四件套模板+我方侧预备行）。
 
+> **⁽⁰⁹⁻⁰⁷ᵃ⁾ MVP 前刷新（G2 实施面闭环后）**：本文「我方现状」类描述此前钉在 `17a0fd8`/09-06 读码时点，G2 批次改了顶栏材质（D-19）、折叠 rail 避让（F6）、设置概览与只读标注（D-8/D-9）、主题假参数拒绝（D-4），
+> 故**逐行核对后只有一条真过期**（②行顶栏材质），已就地改写并标注；其余行经核对仍与代码一致（`SidebarView.swift:340`／`ChatInputArea` 自适应均在位）。
+> ⚠️ 不变的部分：**「Codex 行为」列与 A1–A7 的对标属性仍未取证**——刷新只覆盖「我方现状」，不新增任何对标结论（铁律 5）。
+
 | 行 | 代码处置 | 对标断言状态 |
 |---|---|---|
 | A1–A7 | 不动 | ⏳ 对标性待轴2 截图 |
@@ -44,7 +48,7 @@
 | B2 | P1 | 会话列表无在途生成状态指示 | Codex 活跃任务行显示运行中指示 | ✅ 已闭环 `171c881`：generatingSessionId 发布 + 列表行 spinner |
 | B3 | P2 | 会话行无相对时间 | Codex 任务行显示「2h」「昨天」等相对时间 | ✅ 已闭环 `171c881`：RelativeTime.format 纯函数（3 组单测）+ 行尾时间 |
 | B4 | P2 | 无全局键盘快捷键 | Codex：⌘N 新任务 / ⌘, 设置 / ⌘1-6 面板切换 | ✅ 已闭环 `171c881`：⌘N / ⌘, / ⌘1–⌘6（视觉验收待实机） |
-| B5 | P2 | 侧边栏不可折叠 | Codex 支持折叠侧边栏释放主区宽度 | ✅ 已闭环 `49d3626`：52pt 图标 rail + UserDefaults 持久化 + 主区展开按钮（视觉验收待实机） |
+| B5 | P2 | 侧边栏不可折叠 | Codex 支持折叠侧边栏释放主区宽度 | ✅ 已闭环 `49d3626`：52pt 图标 rail + UserDefaults 持久化 + 主区展开按钮（视觉验收待实机）｜⁽⁰⁹⁻⁰⁷ᵃ⁾ 避让几何收进 `SidebarRailLayout`（rail 52／红绿灯带 x∈[10,62] y∈[8,28]／clearance 38，F6 已实施；交叠判据 before/after 双锁），观感终裁归 G3 A-b |
 | B6 | P2 | 无置顶会话 | Codex 支持 pinned 任务段 | ✅ 已闭环 `c32a856`：SessionMetadata.pinned（旧 JSON 兼容解码）+ 置顶段 + 持久化往返（3 项测试） |
 | B7 | P2 | SessionSidebarView.swift 死代码（仅自身 #Preview 引用，ContentView 已用 SidebarView） | — | ✅ 已闭环 `171c881`：删除（UI 层分母 -93 插桩行） |
 | B8 | P3 | 用户消息为气泡样式 | Codex 用户消息为无气泡纯文本 | ✅ 已闭环 `b5486ec`：通栏左对齐 medium 字重（视觉验收待实机） |
@@ -69,8 +73,8 @@
 | 件套 | 内容 |
 |---|---|
 | ① Codex 截图路径 | `~/harness-wt/evidence/2026-09-06-axis2/codex-main-window.png`（2498×1586 像素＝逻辑 1249×793pt） |
-| ② 我方文件行号 | `SidebarView.swift:340`（侧栏 `.frame(width: 260)`）；`ChatAreaView.swift:14`（顶栏 `.background(.ultraThinMaterial)`）；`ChatInputArea.swift`（composer 无固定高度，随内容自适应） |
-| ③ 原生适配表达 | 布局比例**无需改**；若要贴合，顶栏改 `.glassSurface(...)` 而非新增自绘层（该表达即 D-19 (a) 案，不引入第二套材质通路） |
+| ② 我方文件行号 | **⁽⁰⁹⁻⁰⁷ᵃ⁾ 已按实施后现状刷新**：`SidebarView.swift:340`（侧栏 `.frame(width: 260)`，未变）；`ChatAreaView.swift:20`（顶栏＝`.glassSurface(.thin, cornerRadius: 0)`＝D-19(a) **已实施**，旧 `.background(.ultraThinMaterial)` 已撤 ⇒ 本行原描述作废）；`ChatInputArea.swift`（composer 无固定高度，随内容自适应，未变） |
+| ③ 原生适配表达 | 布局比例**无需改**；顶栏贴合方案＝`.glassSurface(...)` 而非新增自绘层＝D-19(a) 案，**⁽⁰⁹⁻⁰⁷ᵃ⁾ 已照此实施**（未引入第二套材质通路，并纳入减弱透明度降级链） |
 | ④ 性价比评级 | **侧栏宽度＝不做**（260pt vs 实测 ≈275pt，差 5.6%，窗口尺寸可变⇒属噪声级，改它无用户可感知收益）；**顶栏材质＝高**（轴2 与轴1 指到同一处，直接抬升 D-19 权重） |
 
 **测量方法与置信度（诚实标注）**：结构线读数来自 `FIND_EDGES` 后按列/行求梯度均值、取 `mean+3sd` 以上峰值；
