@@ -15,7 +15,24 @@ import Tools
 
 /// 通用最小 NDJSON JSON-RPC 服务器骨架（initialize / notifications/initialized / tools/list）
 private let serverSkeleton = #"""
-import json, os, sys
+import json, os, sys, time
+
+TRACE = os.environ.get("HARNESS_TEST_TRACE")
+
+
+def trace(event):
+    # F-d 取证通道（QUALITY ㉝）：让子进程自己按时间顺序写下「我看见了什么」，
+    # 于是「首次握手 .transportClosed」下次命中时能交出**有序轨迹**，而不是只留一个裸错误。
+    # 写失败一律吞掉：诊断通道绝不改变被测行为（判据不变，只是多一条证据）。
+    if not TRACE:
+        return
+    try:
+        with open(TRACE, "a") as handle:
+            handle.write("%d pid=%d %s\n" % (int(time.time() * 1000), os.getpid(), event))
+            handle.flush()
+    except Exception:
+        pass
+
 
 def send(obj):
     sys.stdout.write(json.dumps(obj) + "\n")
@@ -23,9 +40,11 @@ def send(obj):
 
 
 def serve(tools, exit_after_tools):
+    trace("serve_start")
     while True:
         line = sys.stdin.readline()
         if not line:
+            trace("stdin_eof")   # F-d 关键分叉：对面写端关闭 ⇒ 我们这边就是 transportClosed 的来源
             break
         line = line.strip()
         if not line:
@@ -45,7 +64,9 @@ def serve(tools, exit_after_tools):
             pass  # 通知无 id，不应答
         elif method == "tools/list":
             send({"jsonrpc": "2.0", "id": mid, "result": {"tools": tools}})
+            trace("served_tools n=%d" % len(tools))
             if exit_after_tools:
+                trace("exit_after_tools")
                 return
         elif mid is not None:
             send({"jsonrpc": "2.0", "id": mid, "error": {"code": -32601, "message": "n/a"}})
@@ -58,7 +79,9 @@ def serve(tools, exit_after_tools):
 private let dyingServerSource = serverSkeleton + #"""
 def main():
     marker = sys.argv[1]
+    trace("up marker_existed=%s" % os.path.exists(marker))
     if os.path.exists(marker):
+        trace("early_exit_without_handshake")   # ← 若首握手就 transportClosed，先看这一行有没有出现
         return
     open(marker, "w").write("1")
     serve([{"name": "ghost", "description": "dies with the process",
@@ -110,16 +133,22 @@ func processDeathInvalidatesToolsCache() async throws {
     defer { try? FileManager.default.removeItem(atPath: script) }
     let marker = script + ".first-run"
     defer { try? FileManager.default.removeItem(atPath: marker) }
+    let traceFile = script + ".trace"
+    defer { try? FileManager.default.removeItem(atPath: traceFile) }
     let client = StdioMCPClient(name: "dying", configuration: StdioMCPConfiguration(
         command: "/usr/bin/env",
         arguments: ["python3", script, marker],
+        environment: ["HARNESS_TEST_TRACE": traceFile],
         requestTimeout: 5,
         // 二次启动立即退出 → 握手以 startupTimeout 失败；取短值保持用例快
         startupTimeout: 2
     ))
 
     // ① 首次：握手成功 + 工具在册
-    let specs = try await client.listTools()
+    // ⚠️ F-d 取证（QUALITY ㉝）：本句在并行态稀发抛 `.transportClosed`（历史命中 03:34/03:45，早于
+    // D-21/D-23/D-24），原先只留一个裸错误 ⇒ 无法定性。改成失败时**附带子进程有序轨迹后原样重抛**：
+    // 判定语义一字不变（仍红），但下一次命中能区分「子进程没起来／立即退出」与「我们写得太早」。
+    let specs = try await withTraceOnFailure(traceFile: traceFile) { try await client.listTools() }
     let firstNames = specs.map(\.name)
     #expect(firstNames == ["ghost"])
 
@@ -135,6 +164,26 @@ func processDeathInvalidatesToolsCache() async throws {
     } catch {
         #expect(error is MCPError, "期望 MCPError，实得 \(type(of: error))")
     }
+}
+
+// MARK: - F-d 取证助手（只加证据，不改判定）
+
+/// 失败时把子进程轨迹写进 `Issue.record` 再**原样重抛**：判定不变（仍红），但证据从裸错误升级为可定性
+private func withTraceOnFailure<T>(traceFile: String, _ body: () async throws -> T) async throws -> T {
+    do {
+        return try await body()
+    } catch {
+        Issue.record("F-d 取证：调用失败 \(error)｜子进程轨迹 ↓\n\(traceText(at: traceFile))")
+        throw error
+    }
+}
+
+/// 读子进程自述轨迹；读不到就如实说明含义（不编造轨迹）
+private func traceText(at path: String) -> String {
+    guard let text = try? String(contentsOfFile: path, encoding: .utf8), !text.isEmpty else {
+        return "<空＝子进程从未开始写：它可能压根没起来（exec 失败）或死于写第一行之前>"
+    }
+    return text
 }
 
 // MARK: - 用例 B：卸载路径不等子进程死亡（D-16(a) 顺序钉）
