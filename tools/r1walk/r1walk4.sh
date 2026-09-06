@@ -2,8 +2,21 @@
 # R1 §10.3 收尾走测 v4.7（等解锁 → #3 右键 / #4 idpress 取消 / #5 双关闭 / #6 主题闭环「先导后切」 / #7 原位 noChange 拖拽悬停帧 / #8 降低透明度自动开关）
 # v4.7 根因修复：themes 目录空+无 servers.json → 任何内置切换项都不存在，旧 6a「深海蓝」前提从未成立 → 废弃硬编码段；#6 统一改为社区包 Tahoe Teal 闭环（先导 6b → 设置面板取证 → 6a 实渲染 → 自动卸载还原）。另：解锁后 caffeinate 临时防自动锁中断 + .done_v43 防重跑守卫。
 # 原则：不写用户数据（#4 只走取消；#7 起终点同一行内 = moveSession noChange 有单测锁定；#8 只读 defaults，系统开关由用户手切）
-# 用法：终端里跑 `zsh /Users/liguangming/harness-wt/r1walk2.sh [等解锁秒=900]`（用户在场有 20s 放弃窗口；Agent 代跑无 tty 自动继续）
+# 用法（⛔ v8 §〇 已改为机器强制，2026-09-06）：**仅用户本人**在终端里跑
+#   HARNESS_WALK_MANUAL=I-AM-HUMAN zsh /Users/liguangming/code/swift-harness/tools/r1walk/r1walk4.sh [等解锁秒=900]
+# 原口径「Agent 代跑无 tty 自动继续」**作废并反向**：无 token 或无 TTY（＝launchd/heartbeat/管道等自动化载体）
+# 一律 exit 78 拒绝。旧文案是 C 层禁令落地前的历史遗留，与本文件下方机器闸门并存即为自相矛盾，故就地改写。
 set -u
+# ⛔ C 层机器闸门（v8 §〇／铁律 8）：本脚本内含 ev activate / System Events key code / 拖拽注入。
+#    双条件缺一即拒；bin/ev 与 bin/ax 各自还有一道同形闸门（纵深防御，不依赖调用方自觉）。
+if [ "${HARNESS_WALK_MANUAL:-}" != "I-AM-HUMAN" ] || [ ! -t 0 ]; then
+  print -u2 -- "⛔ 拒绝运行 r1walk4.sh：含 C 层事件注入，永久禁止自动触发（v8 §〇／铁律 8）。"
+  print -u2 -- "   缺少 $([ -n "${HARNESS_WALK_MANUAL:-}" ] && echo '②交互终端 TTY' || echo '①HARNESS_WALK_MANUAL=I-AM-HUMAN')；自动化载体（launchd/heartbeat/automation）永远不满足。"
+  exit 78
+fi
+mkdir -p "$HOME/harness-wt"
+printf '%s\tpid=%s\tppid=%s\ttool=r1walk4.sh\taction=%s\n' "$(date +%s)" "$$" "$PPID" \
+  "walk WAIT_MAX=${1:-900}" >> "$HOME/harness-wt/walk-audit.log"
 cd /Users/liguangming/harness-wt
 OUT=/Users/liguangming/harness-wt/walk3; mkdir -p $OUT
 WAIT_MAX=${1:-900}

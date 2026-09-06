@@ -9,7 +9,22 @@
 > 这一条口径已被 v8 取代并作废**——它把含 C 层注入的脚本挂在自动化载体上，与上述禁令直接冲突。
 > 原文保留仅作历史沿革，**不得照做**；`r1walk4.sh` 现仅可在用户当场授权下手动单次运行。
 >
-> **本轮实测的载体核查（证明"禁令未被绕过"，非纸面承诺）**：
+> ## ⛔⛔ 2026-09-06 二次升级：从纸面标注到**机器闸门**（本节优先级仍高于本文件其余一切内容）
+> 上一条标注落地后复查发现：`bin/ev`／`bin/evtype` 二进制**自身零闸门**，且 `r1walk4.sh` 用法行还写着
+> 「Agent 代跑无 tty 自动继续」——纸面承诺与可执行现实相反，等于禁令可被无意绕过。现已改为不可绕过判定：
+>
+> | 层 | 工具 | 闸门（双条件，缺一即 `exit 78`） | 放行前缀（用户本人键入） |
+> |---|---|---|---|
+> | C | `bin/ev`／`bin/evtype`／`r1walk4.sh` | ① 环境变量逐字声明 ＋ ② stdin 为 TTY | `HARNESS_WALK_MANUAL=I-AM-HUMAN` |
+> | B | `bin/ax` 的 `press`/`showmenu`（真身 `bin/ax.bin`） | 同上两条，独立 token 以便审计区分 B/C 层 | `HARNESS_AX_ACTION=I-APPROVED-AX-ACTION` |
+> | A | `bin/axdump`、`bin/ax … dump`、`bin/wl`、`bin/lockprobe2` | **不加限**（纯只读取证，锁屏可跑） | — |
+>
+> 每次**放行**都向 `~/harness-wt/walk-audit.log` 追加一行（时刻＋pid/ppid＋工具＋动作），使"没被自动触发"可事后核查。
+> 两档闸门都带**零动作/零注入自证子命令**（`ev guard-check`、`ax <pid> guard-check`），使闸门本身可被验证而不是只能被声明：
+> 无 token 无 TTY ⇒ `GUARD_DENY`（rc 78）；有 token 有 TTY ⇒ `GUARD_WOULD_ALLOW`（rc 0，仍不执行任何注入）。
+> 重建：`zsh tools/r1walk/build.sh`（`bin/ax.bin` 无源，闸门在其 wrapper 里）。
+>
+> **载体核查（每次改这类工具后重跑，非纸面承诺）**：`bash tools/qa/c-layer-carrier-audit.sh`（rc=0＝无任何自动化载体挂载注入式工具）。
 > `~/.codex/automations/` 无任何 automation 定义（目录空）／`~/Library/LaunchAgents/*.plist`
 > 无一处引用 `r1walk`/`r1loop`/`ev`/`ax`／`crontab -l` = no crontab／`launchctl list` 内 harness
 > 仅 App 本体。⇒ 不存在自动化挂载 C 层的既成事实。

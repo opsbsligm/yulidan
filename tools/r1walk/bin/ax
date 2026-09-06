@@ -1,0 +1,34 @@
+#!/bin/zsh
+# ⛔ B 层机器闸门（项目目标 v8 §〇／铁律 8；真身在 bin/ax.bin，源码历史遗失仅存二进制）
+# 分类依据 v8 §〇：
+#   dump                ＝ A 层纯只读（默认放行，锁屏可跑）
+#   press / showmenu    ＝ B 层「不动键鼠不抢焦点，但改变 App 可见状态」⇒ 仅用户明确择时同意后
+# 双条件同 C 层：token 逐字声明 ＋ 交互终端 TTY；放行落审计行，使「没被自动触发」可事后核查。
+# 用法（用户本人）：HARNESS_AX_ACTION=I-APPROVED-AX-ACTION ./bin/ax <pid> press 对话
+set -u
+here="${0:A:h}"
+sub="${2:-}"
+case "$sub" in
+  guard-check)   # 零动作自证：只报告闸门判定并留痕，绝不 exec 真身
+    if [ "${HARNESS_AX_ACTION:-}" == "I-APPROVED-AX-ACTION" ] && [ -t 0 ]; then
+      mkdir -p "$HOME/harness-wt"
+      printf '%s\tpid=%s\tppid=%s\ttool=ax-wrapper\taction=guard-check(零动作自证)\n' \
+        "$(date +%s)" "$$" "$PPID" >> "$HOME/harness-wt/walk-audit.log"
+      echo "AX_GUARD_WOULD_ALLOW token=1 tty=1（本子命令零动作，仅自证闸门）"; exit 0
+    fi
+    echo "AX_GUARD_DENY token=${HARNESS_AX_ACTION:+1}${HARNESS_AX_ACTION:-0} tty=$([ -t 0 ] && echo 1 || echo 0)"
+    exit 78
+    ;;
+  press|showmenu)
+    if [ "${HARNESS_AX_ACTION:-}" != "I-APPROVED-AX-ACTION" ] || [ ! -t 0 ]; then
+      print -u2 -- "⛔ 拒绝执行「ax $*」：$sub 属 B 层（会改变 App 可见状态，如弹出菜单/切页）。"
+      print -u2 -- "   需你本人当场择时授权：终端里显式加 HARNESS_AX_ACTION=I-APPROVED-AX-ACTION 前缀。"
+      print -u2 -- "   依据：v8 §〇 B 层「仅在你明确择时同意后执行」＋铁律 8 静默验收。"
+      exit 78
+    fi
+    root="$HOME/harness-wt"; mkdir -p "$root"
+    printf '%s\tpid=%s\tppid=%s\ttool=ax-wrapper\taction=%s\n' \
+      "$(date +%s)" "$$" "$PPID" "ax $*" >> "$root/walk-audit.log"
+    ;;
+esac
+exec "$here/ax.bin" "$@"
