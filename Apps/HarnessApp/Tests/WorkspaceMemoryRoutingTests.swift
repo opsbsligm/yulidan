@@ -14,6 +14,13 @@ private func settle(_ ms: Int = 200) async throws {
 @MainActor
 @Suite("AppViewModel 契约 v2 记忆路由", .serialized)
 struct AppViewModelMemoryRoutingTests {
+    /// 09-06 崩溃报告点名的正是本套件（它是全仓唯一「构造 VM 却没注入通知替身」的文件）。
+    /// 真修在 `SystemNotificationCenter` 的惰性取用（D-23），此处补齐属**防御性加固**：
+    /// 即使将来有人把 UN 取用改回急切，本套件也不再是雷（实测双向证明见 QUALITY ㉜）。
+    init() {
+        AppViewModel.notificationServiceFactory = { NoopNotificationService() }
+    }
+
     // MARK: - 契约 v2：长期记忆路由本地根 + 落盘可读
 
     @Test("契约 v2：记忆重路由落本地根 + 落盘后新引擎可读（单根闭环）")

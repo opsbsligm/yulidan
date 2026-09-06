@@ -26,9 +26,24 @@ public protocol NotificationCenterProtocol: Sendable {
 }
 
 public final class SystemNotificationCenter: NotificationCenterProtocol, @unchecked Sendable {
-    private let center = UNUserNotificationCenter.current()
+    /// ⚠️ **必须惰性取用** UN 单例（D-23，09-06 实测崩溃报告定案）。
+    /// 旧写法是急切存储属性 `private let center = UNUserNotificationCenter.current()`
+    /// ⇒ 「构造 `SystemNotificationCenter`」这一步本身就崩：在裸 xctest 进程里该 API 触发
+    /// `NSAssertionHandler` → `objc_exception_throw` → 运行器 SIGABRT（不是可捕获错误）。
+    /// 崩溃链（`~/Library/Logs/DiagnosticReports/swiftpm-testing-helper-2026-09-06-074954.ips`）：
+    /// `AppViewModel.init` → `SystemNotificationService.init(center:)` 的默认参数 →
+    /// `SystemNotificationCenter.init()` → `+[UNUserNotificationCenter currentNotificationCenter]`
+    /// ⇒ 只要有一个测试文件忘了注入 `notificationServiceFactory` 替身，整轮门禁就可能崩/挂。
+    /// 惰性化后＝**不真正用到通知就永不触碰 UN**；App 侧语义不变（UN 中心是单例，只是取用时机后移）。
+    private let centerProvider: @Sendable () -> UNUserNotificationCenter
 
-    public init() {}
+    public init(center: @escaping @Sendable () -> UNUserNotificationCenter = { UNUserNotificationCenter.current() }) {
+        centerProvider = center
+    }
+
+    private var center: UNUserNotificationCenter {
+        centerProvider()
+    }
 
     /// 系统授权状态 → 内部值类型映射（纯函数，独立可测；
     /// UNUserNotificationCenter 在裸 xctest 进程中不可达，故拆分至此）
