@@ -327,6 +327,18 @@ A11 一并改写注释，消除误导。
 第三条原文另示「identity 不变而内容变化」亦有额外 scale/offset 处理 ⇒ 两种读法均被覆盖，
 A3 疑虑（常驻面是否生效）不再成立。
 
+**⁽⁰⁹⁻⁰⁶ᶜ⁾ 上述两处 `~·~` 空位由本机 SDK 通道补全（09-05 当时明示「不按猜测补全」，今日有权威离线来源）**：本机归档 `SwiftUICore-26.5-arm64e-apple-macos.swiftdoc` 同一文档正文完整，逐字如下（`.swiftdoc` 通道，offset＝短语起点）：
+
+> "Returns the matched geometry glass effect transition."〔offset 685,122〕
+> "The matched geometry transition allows the geometries of glass shapes during an appearance or disappearance phase of a transition to be derived from the geometry of a nearby shape within the glass container."〔offset 685,269〕
+> "For example, if a newly appearing shape is within the spacing of any existing shape, it will use that shapes geometry to transition out of."〔offset 685,537〕
+> "When using the `Animation/default`, this transition applies additional scale and offset effects to content when the identity of the shape does not change but its content does. Opt out of these additional animations by providing a specific animation like `Animation/spring`."〔offset 685,725〕
+
+**offset 口径注记（本轮实测，防后人误抄）**：本节 offset 采 `tools/qa/quote-verify.py` 的台账口径＝其「正文投影→原始字节」映射的回落值；同一短语在 26.5 语料里用 `python str.find` 直取字节位会得到 659,893／660,040／660,321／660,496，**与台账口径恒差 25,229**（跨硬换行的三条差 25,216），且该句在 27 语料另有位置（`str.find`＝684,647）⇒ **两套口径不可互抄**，以核验器实测为准（本文件其余 41 条 `.swiftdoc` 引文同此口径）。（逐字声明：官方此处 `that shapes geometry` **无撇号**，照录不补；`Animation/default`／`Animation/spring` 在 `.swiftdoc` 内为 DocC 链接标记 `\`\`Animation/default\`\``，本节按本文件既有风格写单反引号，非改词。**两条通道措辞一致性**：在线通道（§1.14 上引）与本机 `.swiftdoc` 除硬换行外逐字相同 ⇒ 空位补全不改变任何已核结论的文本。）
+
+**⚠️ 据补全后的原文，A3 终裁的推论强度需下调一格（改判据不改结论主体）**：A3 主判据**仍成立且不依赖该句**——官方判据是「玻璃效果被加入/移出视图层级」＋「appearance or disappearance phase」，我方 `TileFaceMode.resolve` 非选中即 `.plain`（完全无玻璃）⇒ 选中切换在层级上确为「旧面 remove、新面 add」，落在原文语义内。但上文那句「identity 不变而内容变化 ⇒ 有额外 scale/offset」带一个在册时**丢失的前提**：**「When using the `Animation/default`」**。我方 morph 事务用的是 `withAnimation(.smooth(duration: 0.3))`（`GlassMorphTabBar.swift:196`），**不在该句适用域内** ⇒ 因此「**两种读法均被覆盖**」这句**过头了**，正确表述是：**读法一（appearance/disappearance）有官方文本支撑；读法二（identity 不变内容变）的前提在我方不成立，既不能作为「我方也生效」的依据，也不能反过来当作「我方被官方排除」的依据**（官方对「同 ID 且 identity 不变」情形下 matchedGeometry 会否几何派生**未作声明**，不得下负结论）。
+**可执行副产物（不改代码，仅登记为待裁实验）**：官方明文给出一个开关——「给具体动画可 opt out 这些额外动画」。⇒ 建议在 D-1 三架构案**之前**先跑一个更便宜的最小实验矩阵：**变量①`glassEffectID` 策略**（现状 `static let selectionID`＝全 tile 共用一枚，`:141`）／**变量②morph 事务动画**（`.smooth` vs `.default` vs `.spring`）。⚠️ 但 A 层无玻璃像素通道（§0 在册实测），**观感判定必须由你目检**，Agent 不得自动截玻璃帧下结论。
+
 ## §12 新审计项（A13–A19，本轮全部来自官方原文＋本机代码事实）
 
 | 项 | 状态 | 证据 / 影响 |
