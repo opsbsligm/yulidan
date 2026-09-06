@@ -751,6 +751,46 @@ L32/L88/L160 以「官方」名义引用**正确，保留**；`MorphTabGeometry`
    ⇒ A2 从「D-1 附属」升为**与 D-1 解耦的独立待批项**，取值建议 52 一侧（`adjacentSpacing`），
    代价＝远距切换按官方口径转 `.materialize`（不再追求远距离 morph）。**仍待你拍板，Agent 不代裁。**
 
+## §26 morph 身份/union 语义的 references 还原与一条根因假设的排除（09-06，A 层：本机归档 JSON＋SDK 语料＋grep 实据）
+
+> 动机＝㊱-2 规矩的执行动作：回扫全部 `~·~` 空位（全仓实测 6 处：BENCHMARK×3／DECISION_INDEX×1（我上轮注记）／QUALITY×2（叙述）），
+> 真实依赖空位的结论只有 §1.14 A3 一处（已改判）。回扫时顺 §19.1 的「缺主语假原文」警示把整段还原，得到三条**分析层**增量。
+> **原文层增量只有 1 条**（先过 `apple-quote-index.sh` 门：`which appropriate shapes`／`determine when and which`／
+> `the default transition type is` 三条**已在册** @`:161`/`:167`——长句查询会因正文 `**加粗**` 而假 MISS，须用裸片段查）。
+
+### 26.1 逐字补录 1 条（通道③ `applying-liquid-glass-to-custom-views.json`，09-05 归档副本）
+
+> "modifiers only affect their content during view hierarchy transitions or animations."
+>（句首两个符号位在归档 JSON 中是 **codeVoice run**、正文投影里不占位 ⇒ 不并入逐字串；按 `references` 表还原整句为：「The `glassEffectID(_:in:)` and `glassEffectTransition(_:)` modifiers only affect their content during view hierarchy transitions or animations.」）
+
+**对我方的意义（不是装饰）**：官方把这两个 modifier 的生效域明文限定在「层级过渡或动画中」⇒ 我方 morph 必须处在动画事务内，
+`GlassMorphTabBar.swift:196` `withAnimation(.smooth(duration: 0.3))` 满足该域（此前「必须在动画事务里」是经验说法，现在有原文锚点）。
+
+### 26.2 空位主语还原（三处，全部由 JSON `references` 表还原，❌非猜测）
+
+| 在册原句（空位处） | 还原结果 | 还原依据 |
+|---|---|---|
+| 「Use ⟦?⟧ modifier to specify that a view contributes to a unified effect… **This combines all effects with a similar shape, Liquid Glass effect, and ID into a single shape**」 | **`View/glassEffectUnion(id:namespace:)`** | 该 paragraph 前置 codeVoice/reference run 的 identifier＝`doc://com.apple.SwiftUI/documentation/SwiftUI/View/glassEffectUnion(id:namespace:)` |
+| 「Associate each Liquid Glass effect with a **unique identifier** within a namespace that ⟦?⟧ property wrapper provides」 | **`Namespace`**（`@Namespace`），祈使句主语＝`glassEffectID(_:in:)` 用法步骤 | 同区 identifiers＝`GlassEffectTransition`／`Namespace`／`withAnimation(_:_:)` |
+| 「…the default transition type is ⟦?⟧」 | **`matchedGeometry`**（已在册 @:161，本节仅确认还原链一致） | 同区 `GlassEffectTransition` 的 case 引用 |
+
+### 26.3 排除一条根因假设（价值＝防止往错误方向修，等价于一条真实进展）
+§19.1 曾把「combines all effects with a similar shape, Liquid Glass effect, and ID into a single shape」记为「union 三同条件」，
+**当时未记主语**。26.2 还原后主语是**显式 modifier `glassEffectUnion(id:namespace:)`** ⇒ 该合并**不是 `GlassEffectContainer` 的自动行为**。
+**我方实据**：`grep -rn glassEffectUnion --include=*.swift .` 全仓命中 **1 处，且是注释**（`SettingsView.swift:159`，讲「验证文档 §六 glassEffectUnion 语义」），**无任何实际调用**
+⇒ **「我方六 tile 同 ID＋同 tileShape＋同 Glass 变体 ⇒ 被自动 union 成一枚形状 ⇒ 于是只见淡变不见 morph」这条假设被排除**，不得作为 D-1 的修复方向。
+
+### 26.4 但我方存在一处**有据可依的与官方实操指引的偏差**（精确表述，含不下负结论的边界）
+- 教程通道明文：**「Associate each Liquid Glass effect with a unique identifier within a namespace that the `Namespace` property wrapper provides.
+  These IDs ensure SwiftUI animates the same shapes correctly when a shape appears or disappears due to view hierarchy changes.」**
+- 我方现状：`GlassMorphTabBar.swift:141` `static let selectionID = "harness-sidebar-selection"` ＋ `:243` 全部 tile 共用该一枚 ID
+  ⇒ **不满足「unique identifier」的字面指引**（六 tile 若要各自成 shape，ID 无法区分彼此）。
+- **边界（必须与上条同读）**：本机 SDK 通道 `glassEffectID(_:in:)` 文档全文只说「SwiftUI will use the provided identifier to animate shapes to and from each other
+  during transitions」，**通篇无 unique 字样** ⇒ 因此只能说「教程实操指引要求 unique，我方不符」，
+  **不得**写成「官方禁止同 ID」或「同 ID 必然导致不 morph」（官方对「同 ID 且 identity 不变」时 matchedGeometry 会否几何派生**未作声明**，见 §1.14⁽⁰⁹⁻⁰⁶ᶜ⁾）。
+- **对 D-1 的净效果**：前置实验的**变量①（ID 策略：每 tile 独立 ID）从「便宜的尝试」升格为「有教程明文支撑、且与官方示例（pencil/note 两枚不同 ID）一致的偏差纠正」**；
+  变量②（动画选择）维持原级别。两案的最终判定仍须你目检（§0 无玻璃像素通道）。
+
 ## §20 「官方不存在 X」的强制检索门 ＋ 本轮固化的三件台账工具（09-05，全程静默）
 
 §18.5 误判的机制性根因不是“知识不够”，而是**没有一道检索门**：引文分散在本文多个小节、另一份核验档、以及代码注释里，
