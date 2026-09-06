@@ -30,6 +30,11 @@ run_pr() {
   step "PR-0 代码注释「官方」引用断言门（门禁：0 违规；BENCHMARK §22）"
   # 09-05 新增：反过度归属从人工抽查变成常驻门。rc=1 有未挂锚断言；rc=2 口径不闭合（须重审并更新 §22.5 基线）。
   python3 tools/qa/official-claim-lint.py --root .
+  step "PR-0.5 走查手册 §4 副本 vs 总账一致性（门禁：漂移/缺项/幽灵 各 0）"
+  # 09-06 新增：DoD 要求「G3 开始前待拍板全部有记录」，而手册 §4 是手抄副本，实测已发生
+  # 状态过时（D-13）与整项缺失（六项待拍板未进副本）。副本漂移＝违反「文档单一权威源」铁律，
+  # 故从人工回读改成常驻门；rc=1 有漂移，rc=3 文件不可读（核对无效不得当成通过）。
+  bash tools/qa/walkthrough-ledger-sync.sh
   step "PR-1 SwiftLint（门禁：0 违规）"
   swiftlint lint --strict --config .swiftlint.yml
   step "PR-2 SwiftFormat（门禁：0 文件需格式化）"
