@@ -57,6 +57,22 @@ public actor StdioMCPClient: MCPClient {
     private var stderrLog = ""
     private var readerStopped = false
     private var negotiatedCapabilities: MCPServerCapabilities?
+    /// 入站事件 FIFO（D-25(a2)）：读线程与终止回调只向这里按序投递，单一消费者串行结算。
+    /// ⚠️ 必须是 `let` 且类型线程安全：终止通知要在**非隔离**上下文（Foundation 回调线程）直接投递，
+    ///    任何「另起 Task 投递」＝旧架构的竞速形状（见 `noteProcessTerminated`）。
+    private let inbound = InboundMailbox()
+    /// 单一消费者任务（生命周期 = 一次 start() 到 stop()/EOF 取空）
+    private var inboundConsumer: Task<Void, Never>?
+    /// 收到终止通知，但读端尚未 EOF（清理延迟到 EOF 之后，见 `consumeInbound`）
+    private var pendingExit = false
+    /// 测试缝（**实例级**，D-24 教训：静态缝会重演跨 suite 互清挂死）：
+    /// 在「行已入队、尚未结算」处挂起，供退出事件确定性插入。生产路径恒为 nil ⇒ 零介入。
+    var lineGateForTesting: (@Sendable (String) async -> Void)?
+    /// 测试专用：设置行处理闸门（传 nil 清除）
+    func setLineGateForTesting(_ gate: (@Sendable (String) async -> Void)?) {
+        lineGateForTesting = gate
+    }
+
     /// 服务器 → 客户端通知回调（tools/list_changed 等）
     public nonisolated(unsafe) var onNotification: (@Sendable (MCPNotification) -> Void)?
     /// 服务器 → 客户端请求处理器（method, 参数 JSON 文本 → 结果 JSON 文本）
@@ -120,8 +136,10 @@ public actor StdioMCPClient: MCPClient {
         //   置 handler 后即使**不持有 Process 强引用**且**不调用 waitUntilExit**，5/5 回调全部触发，
         //   子进程由 Foundation 回收（kill(pid,0) 全部 ESRCH，ps 无残留 ⇒ 无僵尸、无孤儿）。
         let client = self
-        process.terminationHandler = { _ in
-            Task { await client.handleProcessExit() }
+        // D-25(a2)：终止通知不再另起一条裸 `Task` 去做清理（那正是与响应投递竞速的第二条 hop），
+        // 而是把「终止哨兵」投进与 stdout 行**同一条** FIFO，由单一消费者按序结算。
+        process.terminationHandler = { [weak self] _ in
+            self?.noteProcessTerminated()
         }
 
         do {
@@ -133,17 +151,24 @@ public actor StdioMCPClient: MCPClient {
         self.process = process
         stdinHandle = stdinPipe.fileHandleForWriting
 
-        // 后台读取 stdout/stderr（阻塞读在独立线程 Thread.detachNewThread 内，不占协作线程池）
+        // 后台读取 stdout/stderr（阻塞读在独立线程 Thread.detachNewThread 内，不占协作线程池）。
+        // D-25(a2)：stdout 的行与 EOF **同步**入队到入站 FIFO（顺序 == 读线程程序序），
+        // 结算由单一消费者 `consumeInbound` 串行执行；stderr 非协议通道，维持原异步投递。
+        // ⚠️ stop() 之后重新 start()（重连复用同一实例）时旧 FIFO 处于关闭态，必须 reopen，
+        //    否则新进程的事件会被 `append` 直接丢弃。
+        inbound.reopen()
         let stdoutHandle = stdoutPipe.fileHandleForReading
         let stderrHandle = stderrPipe.fileHandleForReading
         let maxStderr = config.maxStderrBytes
-        Task.detached {
-            Self.pumpStdout(stdoutHandle) { line in
-                await client.handleStdoutLine(line)
-            }
-            Self.pumpStderr(stderrHandle, limit: maxStderr) { chunk in
-                await client.appendStderr(chunk)
-            }
+        let pumpMailbox = inbound
+        Self.pumpStdout(stdoutHandle,
+                        onLine: { pumpMailbox.append(.line($0)) },
+                        onEOF: { pumpMailbox.append(.readerEnded) })
+        Self.pumpStderr(stderrHandle, limit: maxStderr) { chunk in
+            Task { await client.appendStderr(chunk) }
+        }
+        inboundConsumer = Task { [weak self] in
+            await self?.consumeInbound()
         }
 
         // initialize 握手 + 能力协商
@@ -199,6 +224,10 @@ public actor StdioMCPClient: MCPClient {
         toolsCache = nil
         negotiatedCapabilities = nil
         readerStopped = true
+        // 关闭入站 FIFO：消费者取空后即退出（不清空未结算事件，避免丢掉已到手的应答）
+        inbound.close()
+        inboundConsumer = nil
+        pendingExit = false
     }
 
     // MARK: MCPClient
@@ -222,11 +251,19 @@ public actor StdioMCPClient: MCPClient {
     }
 
     public func callTool(name toolName: String, arguments: [String: String]) async throws -> String {
+        try await callTool(name: toolName, arguments: arguments, timeout: nil)
+    }
+
+    /// 带**单次请求**超时的工具调用（D-22(a)：主题探测用短超时，避免一台不应答的服务器
+    /// 把整条导入/卸载路径按配置默认 30s 拖住）。
+    /// `timeout == nil` ⇒ 沿用 `config.requestTimeout`（既有语义逐字不变）。
+    /// 超时由既有的 deadline 任务实现 ⇒ 到点即 `failPending`，不留挂起请求（不产生孤儿等待）。
+    public func callTool(name toolName: String, arguments: [String: String], timeout: TimeInterval?) async throws -> String {
         try await start()
         let result = try await performRequest(method: "tools/call", params: [
             "name": toolName,
             "arguments": arguments,
-        ])
+        ], timeout: timeout)
         let isError = (result["isError"] as? Bool) ?? false
         let content = (result["content"] as? [[String: Any]]) ?? []
         let text = content.compactMap { item -> String? in
@@ -240,8 +277,9 @@ public actor StdioMCPClient: MCPClient {
 
     // MARK: JSON-RPC 内部
 
-    private func performRequest(method: String, params: [String: Any]) async throws -> [String: Any] {
-        let json = try await rawRequest(method: method, params: params, timeout: config.requestTimeout)
+    /// `timeout == nil` ⇒ 配置默认（`config.requestTimeout`）
+    private func performRequest(method: String, params: [String: Any], timeout: TimeInterval? = nil) async throws -> [String: Any] {
+        let json = try await rawRequest(method: method, params: params, timeout: timeout ?? config.requestTimeout)
         guard let data = json.data(using: .utf8) else { return [:] }
         return (try? JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed])) as? [String: Any] ?? [:]
     }
@@ -411,8 +449,43 @@ public actor StdioMCPClient: MCPClient {
         }
     }
 
-    private func handleProcessExit() {
+    /// 子进程终止通知的**唯一投递点**（非隔离：Foundation 回调线程直接执行，零 Task hop）。
+    ///
+    /// ⚠️ 这里只允许「投递」，不允许任何结算：在本函数里直接 `failAllPending` 就是 D-25 的原缺陷
+    ///    形状（独立 hop 与响应投递竞速 ⇒ 已到手的合法应答被吞）。判别器见
+    ///    `MCPInboundFIFOTests.terminatingDuringSettlementDoesNotSwallowResponse`
+    ///    （把本函数改回 `Task { await self.settle… }` 后该用例转红）。
+    nonisolated func noteProcessTerminated() {
+        inbound.append(.processExited)
+    }
+
+    /// 单一入站消费者（D-25(a2)）：行结算与退出清理在同一条串行队列上，顺序不再竞争
+    private func consumeInbound() async {
+        while let event = await inbound.next() {
+            switch event {
+            case let .line(line):
+                await lineGateForTesting?(line)
+                handleStdoutLine(line)
+            case .readerEnded:
+                readerStopped = true
+                // 退出通知可能早于 EOF 到达：此时才做清理（行的结算已在上面全部完成）
+                if pendingExit {
+                    settleProcessExit()
+                }
+            case .processExited:
+                pendingExit = true
+                // 读端已 EOF ⇒ 已到手的应答全部结算完毕，立即清理
+                if readerStopped {
+                    settleProcessExit()
+                }
+            }
+        }
+    }
+
+    /// 终止事件的清理（从 `processExited` 与 `readerEnded` 两个入口共用，幂等）
+    private func settleProcessExit() {
         readerStopped = true
+        pendingExit = false
         failAllPending(MCPError.transportClosed)
         started = false
         toolsCache = nil
@@ -429,7 +502,12 @@ public actor StdioMCPClient: MCPClient {
 
     // MARK: 管道泵（独立线程阻塞读取，按行切分）
 
-    private static func pumpStdout(_ handle: FileHandle, onLine: @escaping @Sendable (String) async -> Void) {
+    /// stdout 泵：独立线程阻塞读取、按行切分；行与 EOF **同步**投递（D-25(a2) 的顺序前提）
+    private static func pumpStdout(
+        _ handle: FileHandle,
+        onLine: @escaping @Sendable (String) -> Void,
+        onEOF: @escaping @Sendable () -> Void
+    ) {
         // 注意：此工具链上 FileHandle.read(upToCount:) 存在阻塞 bug（poll 可读却永久阻塞），
         // 故直接用原生 read(2) 读取
         let fd = handle.fileDescriptor
@@ -452,10 +530,12 @@ public actor StdioMCPClient: MCPClient {
                     let lineData = buffer.subdata(in: buffer.startIndex ..< newlineIdx)
                     buffer.removeSubrange(buffer.startIndex ... newlineIdx)
                     if let line = String(data: lineData, encoding: .utf8) {
-                        Task { await onLine(line) }
+                        onLine(line)
                     }
                 }
             }
+            // EOF / 读失败：终止哨兵排在全部数据行之后（见 InboundMailbox 存在理由）
+            onEOF()
         }
     }
 

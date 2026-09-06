@@ -107,7 +107,7 @@ A 层 before/after 像素对；材质层轮改为「结构断言 + 目检（或�
 | A3 | **`.matchedGeometry` 适用场景**（§1.14 原文终裁） | ✅ 达标（09-05） | 文档判据=「**玻璃效果**被加/移出视图层级」；我方 `TileFaceMode.resolve` 使非选中面无玻璃 ⇒ 选择切换即 remove+add，并非"常驻面"（原 ❓ 前提不成立），且原文第三段覆盖 identity 不变情形。真值表测试在册 L40–45 |
 | A4 | **玻璃锚定内容 bounds，内容保持锐利**（§1.4） | ✅ 达标 | 08-29 已按官方模式重构（`glassEffect` 直施于内容，弃 `background` 挂法），入册 GlassMorphTabBar L110-119 注释 + 像素直方图证据 |
 | A5 | **默认 shape = Capsule**（§1.4）→ 自定义形状须同型才能 union/morph（§1.5） | ✅ 达标 | 统一 `tileShape = RoundedRectangle(10, .continuous)`；union 同变体约束在 SettingsView L159 注释在册 |
-| A6 | **材质参数只有 3 变体 + tint + interactive**（§1.6）→ 不存在"曲率/模糊/高光"可调 | ✅ 已知天花板，**假参数风险已于 08-29 `17e9f22` 诚实闭环**⁽⁰⁹⁻⁰⁵ᶠ⁾ | `P1_GLASS_API_VERIFICATION.md` §四登记 ＋ 代码实据：`ThemeSpec.blurIntensity/highlightIntensity` 为**预留提示字段**（渲染层零消费），`ThemePackageImporter.validate` 对两字段做 0…1 有限值校验（nil 合法，1.5/−0.1/NaN 拒绝，错误携带字段名），MCP 主题路径同口径校验且**非法 spec 直接回落系统基准不半生效**，设置页 `glassParamRow` 明示「已声明（0.80/0.60）· 原生 API 无数值参数，渲染由平台托管」（`FileThemePackage.swift:137-142`／`SettingsView.swift:389,395,412`，测试 `FileThemePackageTests.swift:121-136` ＋ MCP e2e 在册）。**本行原「残留 GAP＝若仍暴露则应显式声明不支持」属表格漂移残留，勿再作待办读**；仍开放的是 D-4 的取舍（保留声明 vs 直接拒绝），非缺陷。 |
+| A6 | **材质参数只有 3 变体 + tint + interactive**（§1.6）→ 不存在"曲率/模糊/高光"可调 | ✅ 已知天花板；**口径再升级（09-07 D-4(a) 已实施）＝不支持字段显式拒绝**⁽⁰⁹⁻⁰⁷ᵃ⁾ | `P1_GLASS_API_VERIFICATION.md` §四登记 ＋ 代码实据：`ThemeSpec.blurIntensity/highlightIntensity` 为**预留提示字段**（渲染层零消费），`ThemePackageImporter.validate` 对两字段做 0…1 有限值校验（nil 合法，1.5/−0.1/NaN 拒绝，错误携带字段名），MCP 主题路径同口径校验且**非法 spec 直接回落系统基准不半生效**，设置页 `glassParamRow` 明示「已声明（0.80/0.60）· 原生 API 无数值参数，渲染由平台托管」（`FileThemePackage.swift:137-142`／`SettingsView.swift:389,395,412`，测试 `FileThemePackageTests.swift:121-136` ＋ MCP e2e 在册）。**本行原「残留 GAP＝若仍暴露则应显式声明不支持」属表格漂移残留，勿再作待办读**；仍开放的是 D-4 的取舍（保留声明 vs 直接拒绝），非缺陷。 |
 | A7 | **interactive 语义/默认值**（§1.7→§1.10 原文复核） | ✅ 达标（09-05 表格跟结论） | §1.10 官方原文＝**显式开启非默认自带**；旧注释宣称已撤销并按原文补 `.interactive()`（F2 在册 §9）。**表格此前仍挂 ❓ 与 §1.10 自相矛盾，属表格漂移，非结论未定**。残余仅悬停反馈目检（归 D-2/G3 A-h） |
 | A8 | **无障碍降级**（减弱透明度 → 非玻璃表面） | ✅ 达标 | `GlassSurface` 三态 `resolveMode` + 容器 `shouldWrap` 同源门控，测试在册（867 项 xcresult） |
 
@@ -155,7 +155,7 @@ A 层 before/after 像素对；材质层轮改为「结构断言 + 目检（或�
 - **D-1（morph 翻案）判据修订**：接受 §0 结论 1（离屏像素判据作废）→ 按 §4 三轨执行？
   A1 根因修复是否批准进入 G2 头号项？
 - **D-2**：A7 `interactive` 宣称——改注释口径 / 还是安排一次真机悬停目检？
-- **D-4**：主题 manifest 假参数（A6）是否显式拒绝不支持字段？
+- **D-4**：主题 manifest 假参数（A6）是否显式拒绝不支持字段？ **✅ 09-07 已按 (a) 实施**：`ThemePackageError.unsupportedField(name:)` 取代 `invalidGlassIntensity`，校验阶段对 `blurIntensity`/`highlightIntensity` **任何取值一律拒绝**（含界内 0/0.8/1），提示给出下一步动作；`glassParamRow` 的「已声明 · 平台托管」说明行同步撤除（不为不消费的能力保留 UI）。判据单测＝`FileThemePackageTests`（含导入路径与提示文案两条）。⚠️ 迁移影响＝旧「接收但不生效」的主题包重新导入会被拒（需删字段），已导入的历史包重扫时不再加载并回落系统基准。
 - **轴2 取证方式**：§5 (a)/(b)/(c) 选一。
 - 既有 D-3（C4 卡片归组）/ D-5（插件路线 A/B/C）/ D-6（空会话 24 个处置）不变。
 
@@ -358,8 +358,8 @@ A3 疑虑（常驻面是否生效）不再成立。
 | **A14 减弱透明度语义** | ⚠️ 需裁决（**09-05 改判口径：两条官方原文并列**，不再是「我方无明文」单边） | 原文①（观感描述，WWDC25-219 逐字，本轮已归档并整句复核）："Reduced Transparency, makes Liquid Glass **frostier and obscures more of the content** behind it."；原文②（**对开发者的指令**，本机在线 API 页 `environmentvalues/accessibilityreducetransparency` Discussion 逐字，此前全仓缺录）："If this property’s value is true, UI (mainly window) backgrounds should **not be semi-transparent; they should be opaque.**" ⇒ 我方 reduceTransparency → **solid 不透明**＝与原文②同向；「frosted 中间态」＝向原文①的系统自家观感靠。二选一仍由你裁，但**保 solid 一侧现已有 API 级明文支持** ⁽⁰⁹⁻⁰⁵ᶠ⁾ |
 | **A15 玻璃折射源缺失** | ◐ **09-06 实测改判：根因链第一条已被 D-10(a) 修掉，残余仅在观感面** ⁽⁰⁹⁻⁰⁶ᵃ⁾〔历史判定：❌根因级＋下列代码事实链，其中两条已失真，见更正〕 | **① 更正·窗底（原列第一条根因，实测已反转）**：在册文字称 `HarnessApp.swift:136` `window.backgroundColor = NSColor.windowBackgroundColor`（不透明窗底）——当前 HEAD 实测 `HarnessApp.swift:125-128` `applyGlassSampling(to:)` 置 `window.isOpaque=false` + `backgroundColor = .clear`，调用点 `makeWindow()` L147（启动与重建共用），即 **D-10(a) 已把「玻璃无窗后采样源」这条根因消除**；判别性单测在册（`WindowGlassSamplingTests`：装配前 `isOpaque=true`/alpha>0 → 装配后 `false`/alpha==0）。**② 行号漂移（原文两处已失效）**：`GlassSurface.swift:224/229` 现为 **L234/L239**（L224 现属「防御分支」），文件实际路径也已迁至 `Sources/Styles/`；`HarnessTheme.swift:8` 的 `bgPrimary = Color(NSColor.windowBackgroundColor)` 现为 **L7**，属**内容层**底色而非窗底，是否遮挡玻璃需单独审（未审，不在此下结论）。**③ 仍成立**：`ContentView.swift:11` `HStack(spacing: 0)` 侧栏与内容**并排**（非「侧栏浮于内容之上」）⇒ 官方「sidebar floats above your content / refracting against the sidebar」的形态前提仍未满足。**④ native 路径事实**：`GlassSurface.swift:198` `content.glassEffect(glass, in: shape)` 为唯一原生玻璃落点；`VisualEffectMaterial(blendingMode: .behindWindow)` 仅存在于 `.legacy`（macOS 15–25 降级）与防御分支 ⇒ 基线 Tahoe 常态下不走它，在册「legacy 采样能力反而强于原生态路径」**已不构成常态事实**（窗底透明后二者均有采样源）。**⑤ 判定边界**：本项残余（并排布局是否致观感扁平）按 §0 通道表**无 A 层像素证据可取**⇒ 归 G3 目检，且需与 D-1 三架构案一并裁（折射源与 morph 配对互为前提），本轮不改代码。 |
 | **A16 滚动边缘效果** | ✅ 已审·结构性 N/A（§15） | 侧栏会话列表/消息滚动进入玻璃下方时是否有 dissolve 效果；`scrollEdgeEffectStyle` 本 SDK 可用（§1.13），我们未使用 |
-| **A17 静止态内容交叠** | ◐ **09-06 结构侧审毕：静态无交叠；运行时项归 G3 目检** ⁽⁰⁹⁻⁰⁶ᶜ⁾ | **结构事实（实测）**：`ChatAreaView.swift:11` 根容器是 `VStack(spacing: 0)`，自上而下**顺序排布**——顶栏 `ChatTopBar`（L14）→ 消息区 `MessageScrollView`/`EmptyChatPrompt`（L18-26）→ 输入区 `ChatInputArea`（L28），**无 `ZStack`/`overlay` 承载这三个主体** ⇒ composer 玻璃面（`ChatInputArea.swift:117` `.glassSurface(.regular, cornerRadius: 16)`）与消息流各自占位，不存在「静止态内容压在玻璃下方」的结构前提。`ChatAreaView.swift:192` 的 `.overlay(alignment: .bottomTrailing)` 仅承载悬浮滚动按钮（非玻璃、非主体内容）。**残余**：首帧消息与玻璃下沿的实际像素间距属运行时量，按 §0 无像素通道 ⇒ 归 G3 目检（27 beta 幻影坐标口径下以 AX pos 为权威）。**本项审计的意外产出＝ D-19**：拉材质清单时发现顶栏用的是 `.ultraThinMaterial` 而非玻璃体系入口 `.glassSurface(...)` ⇒ 主题插件与减弱透明度降级链都管不到它，已另立卡交你裁（非本项结论）。 |
-| **A18 sheet 自铺背景反模式** | ◐ **09-06 逐 sheet 审毕：1/5 命中，残余唯一且已定位** ⁽⁰⁹⁻⁰⁶ᵇ⁾ | **官方口径落点先审清**：`presentationBackground` 全仓 **0 命中**（`grep -rn` 于 Apps+Packages） ⇒ 反模式若存在只能来自 sheet 内容视图自填 `.background(...)`。**全部 5 个 sheet 逐个实测**：① `SettingsView.swift:247` → `SettingsCompletePage` **其根视图 `SettingsCompletePage.swift:63` `.background(HarnessTheme.surface)` 自铺底，且该文件无 `glassEffect` ⇒ 唯一命中**；② `PluginListView.swift:216` → `MCPServerLogSheet` 有 `glassEffect`（`MCPServerViews.swift:115` P1.3 补齐），其内 `.background(...surface.opacity(0.5))` 属**子项**背景非根铺底；③ `SidebarView.swift:112` → `ArchiveManagerView` 有 `glassEffect`（`SidebarSupportViews.swift:76-77`，并带「sheet 子窗口内 glassEffect 未官方实证，最坏＝无玻璃视觉」注记）；④⑤ `SidebarProjectSections.swift:182/204`（重命名／删除确认）为内联 `VStack`，仅 `.padding(20).frame(width:)` **无自铺底**＝F5 撤底已生效的实证。**判定**：残余＝`SettingsCompletePage` 一处（P2 新增页，未纳入 F5 批次）；撤它属观感变更且与 D-12（F5 撤 sheet 自铺底批次）同源 ⇒ **归 D-12 一并裁，本轮不改代码**。 |
+| **A17 静止态内容交叠** | ✅ **09-07 F6 已实施：折叠 rail 左上角三方交叠在几何上解除；运行时/观感项归 G3 A-b 目检** ⁽⁰⁹⁻⁰⁷ᵃ⁾ | **结构事实（实测）**：`ChatAreaView.swift:11` 根容器是 `VStack(spacing: 0)`，自上而下**顺序排布**——顶栏 `ChatTopBar`（L14）→ 消息区 `MessageScrollView`/`EmptyChatPrompt`（L18-26）→ 输入区 `ChatInputArea`（L28），**无 `ZStack`/`overlay` 承载这三个主体** ⇒ composer 玻璃面（`ChatInputArea.swift:117` `.glassSurface(.regular, cornerRadius: 16)`）与消息流各自占位，不存在「静止态内容压在玻璃下方」的结构前提。`ChatAreaView.swift:192` 的 `.overlay(alignment: .bottomTrailing)` 仅承载悬浮滚动按钮（非玻璃、非主体内容）。**残余**：首帧消息与玻璃下沿的实际像素间距属运行时量，按 §0 无像素通道 ⇒ 归 G3 目检（27 beta 幻影坐标口径下以 AX pos 为权威）。**本项审计的意外产出＝ D-19**：拉材质清单时发现顶栏用的是 `.ultraThinMaterial` 而非玻璃体系入口 `.glassSurface(...)` ⇒ 主题插件与减弱透明度降级链都管不到它，已另立卡交你裁（非本项结论）。 |
+| **A18 sheet 自铺背景反模式** | ✅ **09-07 F5 已实施（唯一命中处撤除不透明底）** ⁽⁰⁹⁻⁰⁷ᵃ⁾｜09-06 逐 sheet 审毕：1/5 命中 ⁽⁰⁹⁻⁰⁶ᵇ⁾ | **官方口径落点先审清**：`presentationBackground` 全仓 **0 命中**（`grep -rn` 于 Apps+Packages） ⇒ 反模式若存在只能来自 sheet 内容视图自填 `.background(...)`。**全部 5 个 sheet 逐个实测**：① `SettingsView.swift:247` → `SettingsCompletePage` **其卡片底 `SettingsCompletePage.swift:63` `.background(HarnessTheme.surface)` 自铺不透明底，且该文件无 `glassEffect` ⇒ 唯一命中**（⚠️ 09-07 复核纠正：原写「根视图」不准——该文件根 `VStack` 无背景，`sheet` 材质本就透在卡片四周；唯一自铺底是 `card()` 辅助里的卡底）；② `PluginListView.swift:216` → `MCPServerLogSheet` 有 `glassEffect`（`MCPServerViews.swift:115` P1.3 补齐），其内 `.background(...surface.opacity(0.5))` 属**子项**背景非根铺底；③ `SidebarView.swift:112` → `ArchiveManagerView` 有 `glassEffect`（`SidebarSupportViews.swift:76-77`，并带「sheet 子窗口内 glassEffect 未官方实证，最坏＝无玻璃视觉」注记）；④⑤ `SidebarProjectSections.swift:182/204`（重命名／删除确认）为内联 `VStack`，仅 `.padding(20).frame(width:)` **无自铺底**＝F5 撤底已生效的实证。**判定**：残余＝`SettingsCompletePage` 一处（P2 新增页，未纳入 F5 批次）；撤它属观感变更且与 D-12（F5 撤 sheet 自铺底批次）同源 ⇒ **归 D-12 一并裁，本轮不改代码**。 |
 | **A19 圆角同心** | ❌ **不支持（09-06 编译判据确证，附对照组）** ⁽⁰⁹⁻⁰⁶ᵈ⁾ | **确证方式（不是 grep）**：`swiftc -typecheck` 一段 `Glass.regular.containerConcentric` ⇒ `error: value of type 'Glass' has no member 'containerConcentric'`；**对照组**同法编译 `Glass.regular.interactive().tint(.red)` 无 error ⇒ 证明工具链与探针方法本身有效，排除「环境坏了导致假阴性」。**⚠️ 方法论**：曾先试 `grep containerConcentric "$(xcrun --show-sdk-path)"/…SwiftUI.swiftmodule/`，得空——但那台机器上 `xcrun --show-sdk-path` 返回的是 CommandLineTools 的 `MacOSX.sdk` 且自报 `cannot be located`/`unable to lookup SDKVersion` ⇒ **在无效路径里搜不到毫无证明力**；「本 SDK 无此 API」一类结论一律走编译判据＋对照组。**后果不变**：本 SDK 无同心圆角 API ⇒ 只能手设各层圆角，存在视觉不同心风险；❌不得宣称已支持该最佳实践。 |
 
 ## §13 新增提案（F3/F4，等你拍板后实施）
@@ -378,11 +378,17 @@ A3 疑虑（常驻面是否生效）不再成立。
   **我的建议**：先做 (a)（小、可回退、直接决定玻璃是否"活"），(b) 视 (a) 的目检结果再定。
 
 
-- **F5｜设置完整页 sheet 撤自铺底（A18 修法，单行）**：删除 `SettingsCompletePage.swift:63`
-  `.background(HarnessTheme.surface)` → 让系统 sheet 材质透出（WWDC323 原文口径）。
-  改动极小可回退；⚠️ 可见状态变化，验收走「用户目检」或「A 层编译+测试满足即核销」二选一。
-  建议与 D-10 材质议题同批裁决（透明底窗口下，sheet 自铺不透明底同样挡折射）。
-- **F6｜折叠 rail 顶部避让红绿灯 + overlay 展开按钮错位（A17 修法，两个小改动）**：
+- **F5｜设置完整页 sheet 撤自铺底（A18 修法）** ✅ **09-07 已实施（D-12 本批）**：
+  实际改法不是「整行删除」而是 `.background(HarnessTheme.surface)` → `.surface.opacity(0.5)`——
+  删干净会让五张卡失去分组底（可读性回归），半透明子项底是本仓 `MCPServerViews` 在 sheet 内已在位的同口径做法。
+  不透明底撤除后系统 sheet 材质得以透出（D-10(a) 透明窗底之下不再被卡底挡折射）。
+  ⚠️ 可见状态变化：观感终裁归 G3 池 A 目检；本仓 A 层无玻璃像素通道 ⇒ **不宣称观感收益**。
+- **F6｜折叠 rail 顶部避让红绿灯 + overlay 展开按钮错位（A17 修法，两个小改动）** ✅ **09-07 已实施（D-12 本批）**：
+  两个改动都做，但**常量收进单一来源** `SidebarRailLayout`（rail 宽／红绿灯带矩形／避让带高／按钮起算点），
+  并由 `SidebarRailGeometryTests` 同时锁 before（原 `.padding(10)` 与带宽确交叠＝在册事实不翻案）与
+  after（rail 首图标、展开按钮、红绿灯带两两不相交 ＋ 按钮 x ≥ rail 宽）。
+  ⚠️ 一处与原案的偏差写清楚：原案只说「overlay 按钮改为避让带之下起算」，但按钮宽 26 落进 38pt 避让带内
+  会与下沉后的 rail 首图标（y∈[38,66]）重新交叠 ⇒ 改为**同时右移到 rail 之右**（x≥62，恰为带宽右缘）。
   (a) `collapsedBody` 顶部加 ≈38pt 避让带（rail 宽 52 < 红绿灯带宽 62，x 避让不可行，只能 y 下沉，
       与 Codex 等应用 rail 顶部留空一致）；
   (b) `ContentView.swift:64-79` 折叠 overlay 展开按钮从 `.padding(10)` 改为顶部避让带之下起算。
@@ -415,7 +421,7 @@ A3 疑虑（常驻面是否生效）不再成立。
   - **建议不变**：(a) 先行（小、可回退），(a) 目检不达预期再评估 (b)；(c) 为放弃质感上限项。
 - **D-11**：A13 主题 tint 定位 → 全局装饰染色（现状，卖点直观）/ 仅功能件染色（官方口径）/ 二者兼容（主题可声明 tint 作用域，默认仅功能件）。
 
-- **D-12**：F5（设置完整页撤自铺底）+ F6（折叠 rail 避让带 + overlay 错位）执行批次。
+- **D-12**：F5（设置完整页撤自铺底）+ F6（折叠 rail 避让带 + overlay 错位）执行批次。 **✅ 09-07 两项均已实施**（与 D-15/D-19 同一 `.swift` 批次链内完成；观感仍待 G3 A-b/A-d 目检）。
   两者均为可见状态变化、无静默视觉通道 → 修前/修后各需你顺手 1 分钟目检，或认可静态几何证据直接修+编译测试核销。
 
 ## §15 A16/A17/A18 审计结论（09-03 第四轮·全程静默 A 层）

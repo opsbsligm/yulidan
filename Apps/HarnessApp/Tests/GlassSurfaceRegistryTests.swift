@@ -24,9 +24,10 @@ struct GlassSurfaceRegistryTests {
         .deletingLastPathComponent() // → HarnessApp/
         .appendingPathComponent("Sources", isDirectory: true)
 
-    /// 注册表 ①：`.glassSurface(` 调用点（文件相对路径 → 调用点数），基线合计 13
+    /// 注册表 ①：`.glassSurface(` 调用点（文件相对路径 → 调用点数），基线合计 14（09-06 D-19(a) 新增 ChatAreaView 顶栏）
     private static let surfaceRegistry: [String: Int] = [
         "Styles/HarnessTheme.swift": 1,
+        "Views/ChatAreaView.swift": 1, // D-19(a) 09-06 顶栏纳入玻璃体系（原 .ultraThinMaterial 游离于体系外）
         "Views/ChatInputArea.swift": 1,
         "Views/MCPServerViews.swift": 1,
         "Views/SettingsSubPages.swift": 1,
@@ -53,7 +54,8 @@ struct GlassSurfaceRegistryTests {
     /// 原生族 API 调用点基线（文件 → 模式 → 次数）；L202 同行双调用按两处计
     private static let nativeGlassCounts: [String: [String: Int]] = [
         "Styles/GlassSurface.swift": [".glassEffect(": 1, ".glassEffectID(": 1, ".glassEffectTransition(": 2],
-        "Views/GlassMorphTabBar.swift": [".glassEffect(": 1, ".glassEffectID(": 1, ".glassEffectTransition(": 1],
+        // D-1 09-06：常驻面铺满全部分段 ⇒ 逐段稳定 ID ＋ 选中面统一 morph 身份 ＝ 两处 glassEffectID
+        "Views/GlassMorphTabBar.swift": [".glassEffect(": 1, ".glassEffectID(": 2, ".glassEffectTransition(": 1],
     ]
 
     // MARK: 源文件扫描工具
@@ -134,12 +136,12 @@ struct GlassSurfaceRegistryTests {
 
     // MARK: 护栏测试
 
-    @Test("注册表①：.glassSurface( 调用点与登记逐文件一致（基线 13 处）")
+    @Test("注册表①：.glassSurface( 调用点与登记逐文件一致（基线 14 处）")
     func surfaceRegistryMatches() throws {
         try #require(FileManager.default.fileExists(atPath: Self.sourcesDir.path), "Sources 目录不存在：\(Self.sourcesDir.path)")
         try Self.verifyRegistry(Self.surfaceRegistry, pattern: ".glassSurface(", scanned: Self.scanSources(), registryName: "surfaceRegistry")
         let total = Self.surfaceRegistry.values.reduce(0, +)
-        #expect(total == 13, "surfaceRegistry 基线总数应为 12，请确认是有意变更")
+        #expect(total == 14, "surfaceRegistry 基线总数应为 14，请确认是有意变更") // 09-06 D-19(a) ＋1（原提示文案写 12 与判据 13 自相矛盾，一并修）
     }
 
     @Test("注册表②：.glassSurfaceContainer( 调用点与登记逐文件一致（基线 4 处）")

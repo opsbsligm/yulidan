@@ -37,11 +37,12 @@ struct GlassMorphTabBarTests {
         }
     }
 
-    @Test("TileFaceMode：选中+native→玻璃morph面 / 选中+降级→solid / 未选中→素面（走查修复三态不变量）")
+    @Test("TileFaceMode：native→常驻玻璃面（D-1 面数根因）/ 降级+选中→solid / 降级+未选中→素面（三态不变量）")
     func tileFaceModeResolve() {
-        #expect(GlassMorphTabBar.TileFaceMode.resolve(isSelected: true, isNative: true) == .glassMorph)
+        #expect(GlassMorphTabBar.TileFaceMode.resolve(isSelected: true, isNative: true) == .glassBase)
         #expect(GlassMorphTabBar.TileFaceMode.resolve(isSelected: true, isNative: false) == .solid)
-        #expect(GlassMorphTabBar.TileFaceMode.resolve(isSelected: false, isNative: true) == .plain)
+        // 09-06 D-1 实施：native 态**未选中也常驻玻璃面**（旧 `.plain` ⇒ 容器内仅 1 面＝§3-A1 根因 GAP）
+        #expect(GlassMorphTabBar.TileFaceMode.resolve(isSelected: false, isNative: true) == .glassBase)
         #expect(GlassMorphTabBar.TileFaceMode.resolve(isSelected: false, isNative: false) == .plain)
     }
 }
@@ -136,5 +137,30 @@ struct SelectedGlassTests {
         let result = GlassMorphTabBar.selectedGlass(from: themed, isSelected: true)
         #expect(result == themed.interactive())
         #expect(result != Glass.regular.interactive())
+    }
+}
+
+// MARK: - D-1 实施判据（09-06）：常驻玻璃面数 == 分段数（静默口径，A 层可证）
+
+@Suite("D-1 玻璃面数与身份（§3-A1 根因 GAP 的永久护栏）")
+struct GlassFaceCoverageTests {
+    /// 静默判据：native 态参与同一容器的玻璃面数**必须等于分段数**；
+    /// 若退回到「仅选中面有玻璃」＝旧缺陷复发，本判据当场失败。
+    @Test("native 面数 == segments.count；降级态零原生玻璃面（A14 保 solid 不变量）")
+    func nativeFaceCoverageIsComplete() {
+        #expect(GlassMorphTabBar.glassFaceCount(segmentCount: 6, isNative: true) == 6)
+        #expect(GlassMorphTabBar.glassFaceCount(segmentCount: 6, isNative: false) == 0)
+        for n in [1, 2, 5, 6, 12] {
+            #expect(GlassMorphTabBar.glassFaceCount(segmentCount: n, isNative: true) == n)
+        }
+    }
+
+    /// 身份：常驻面用逐段稳定 ID（互不相同 ⇒ 可被容器分别认得），选中面另用统一 morph 身份
+    @Test("逐段 ID 互不相同且稳定，且不等于 selectionID")
+    func tileFaceIDsAreStableAndDistinct() {
+        let ids = (1 ... 6).map { GlassMorphTabBar.tileFaceID("tab" + String($0)) }
+        #expect(Set(ids).count == 6)
+        #expect(ids.first == GlassMorphTabBar.tileFaceID("tab1"))
+        #expect(!ids.contains(GlassMorphTabBar.selectionID))
     }
 }

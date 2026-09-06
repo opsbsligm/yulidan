@@ -15,6 +15,10 @@ private struct FailingMCPClient: MCPClient {
     func callTool(name _: String, arguments _: [String: String]) async throws -> String {
         throw MCPError.serverFailed("down")
     }
+
+    func callTool(name _: String, arguments _: [String: String], timeout _: TimeInterval?) async throws -> String {
+        throw MCPError.serverFailed("down")
+    }
 }
 
 /// 报告 cwd 的极简假服务器（serverInfo.name = 工作目录）

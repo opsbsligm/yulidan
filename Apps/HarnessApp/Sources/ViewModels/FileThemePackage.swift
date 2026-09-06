@@ -14,8 +14,8 @@ public enum ThemePackageError: LocalizedError, Equatable {
     case invalidJSON(String)
     case invalidID
     case invalidColor(String)
-    /// 玻璃模糊/高光强度越界（nil = 系统默认合法；非 nil 须 0...1 有限值）
-    case invalidGlassIntensity(field: String, value: Double)
+    /// 主题声明了本版本不支持的字段（D-4(a)：显式拒绝而非接收后静默不生效）
+    case unsupportedField(name: String)
 
     public var errorDescription: String? {
         switch self {
@@ -29,8 +29,9 @@ public enum ThemePackageError: LocalizedError, Equatable {
             "主题 id 非法（需非空，最长 40 字符）"
         case let .invalidColor(value):
             "颜色值非法（需 #RRGGBB 或 #AARRGGBB）：\(value)"
-        case let .invalidGlassIntensity(field, value):
-            "玻璃参数越界（\(field) 需 0...1 有限值，或省略）：\(value)"
+        case let .unsupportedField(name):
+            "主题声明了本版本不支持的字段「\(name)」：原生玻璃 API 不暴露该数值参数，渲染由平台托管，"
+                + "本版本不会消费它。请从主题 spec 中移除该字段后重新导入"
         }
     }
 }
@@ -134,17 +135,16 @@ public enum ThemePackageImporter {
             guard let color else { continue } // nil = 系统默认（合法）
             guard isValidHex(color) else { throw ThemePackageError.invalidColor(color) }
         }
-        // 诚实闭环：blurIntensity/highlightIntensity 为预留提示字段（原生 Glass API 不暴露数值参数，
-        // 见 P1 GLASS_API_VERIFICATION §四），渲染层不消费但必须范围合法 —— 越界 = manifest 错误拒绝，
-        // 防止主题作者「设了参数却静默无效」的假配置（与 hex 校验同口径）
+        // D-4(a)（2026-09-06 拍板）：不支持字段**显式拒绝**＋提示，不再「接收＋UI 明示不生效」。
+        // 理由：主题作者拿到一条可读报错，胜过在设置页读到一段「已声明但平台托管」的说明文字；
+        // 也兑现「不宣称未实现能力」（原生玻璃 API 不暴露数值参数，见 P1 GLASS_API_VERIFICATION §四）。
+        // 原「越界才拒绝」的宽容态已由本条取代 ⇒ 越界与在界内一律拒绝，校验不再区分取值。
         for (field, value) in [
             ("blurIntensity", spec.blurIntensity),
             ("highlightIntensity", spec.highlightIntensity),
         ] {
-            guard let value else { continue } // nil = 系统默认（合法）
-            guard value.isFinite, (0 ... 1).contains(value) else {
-                throw ThemePackageError.invalidGlassIntensity(field: field, value: value)
-            }
+            guard value != nil else { continue } // nil = 系统默认（合法）
+            throw ThemePackageError.unsupportedField(name: field)
         }
     }
 

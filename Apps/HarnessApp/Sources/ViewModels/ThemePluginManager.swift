@@ -37,15 +37,26 @@ struct ThemeOption: Identifiable, Hashable {
 /// - MCP 服务器：isAvailable 且暴露约定工具 `get_theme_spec`（返回 ThemeSpec JSON 文本）
 @MainActor
 final class ThemePluginManager {
-    /// MCP 主题服务器工具约定名
-    static let themeToolName = "get_theme_spec"
+    /// MCP 主题服务器工具约定名（`nonisolated`：纯常量，需可被非隔离上下文/测试引用）
+    nonisolated static let themeToolName = "get_theme_spec"
     /// 激活主题持久化键（UserDefaults）
     static let activeKey = "harness.themePluginID"
+    /// MCP 主题探测的单次请求超时（D-22(a)，2026-09-06 拍板）
+    ///
+    /// 为什么不是配置的 30s：`refresh()` 被 `importMCPServer` / `removeMCPServer` 在 MainActor
+    /// 上 await，一台不回应 `tools/call` 的服务器会把整条导入/卸载路径按 requestTimeout 冻住
+    /// （实测夹具差值 31.9s vs 0.065s，见总账 D-22 证据列）。
+    /// ⚠️ 已知代价（拍板时明示）：**极慢的真主题服务器会被误判为非主题服务器**；判为误判后
+    ///    该服务器不进主题候选，并写 `probeDiagnostics` 可诊断原因（重连/再次刷新会重试）。
+    nonisolated static let themeProbeTimeout: TimeInterval = 2
 
     private(set) var themes: [ThemeOption] = []
     private(set) var activeThemeID: String
     /// 最近一次回落原因（App 层消费后清 nil，用于 toast）
     var lastFallbackReason: String?
+    /// 主题探测失败原因（服务器名 → 原因）。D-22(a) 要求「超时＝非主题服务器**并写可诊断原因**」，
+    /// 不落 toast（每次刷新都可能命中，弹提示是噪声），供诊断与单测读取。
+    private(set) var probeDiagnostics: [String: String] = [:]
 
     private let pluginManager: PluginManager
     private let mcpManager: MCPServerManager
@@ -112,23 +123,44 @@ final class ThemePluginManager {
     // MARK: - 私有
 
     /// 调用 MCP 主题工具取规格；无该工具 / 调用失败 / 非法 JSON → nil（非主题服务器或暂不可用）
+    ///
+    /// 探测走 `Self.themeProbeTimeout` 的**短超时**（D-22(a)），失败原因写 `probeDiagnostics`；
+    /// 成功则清除该服务器此前的诊断（避免陈旧原因）。
     private func fetchMCPTheme(from serverName: String) async -> ThemeSpec? {
         do {
-            let raw = try await mcpManager.callTool(client: serverName, name: Self.themeToolName, arguments: [:])
+            let raw = try await mcpManager.callTool(
+                client: serverName,
+                name: Self.themeToolName,
+                arguments: [:],
+                timeout: Self.themeProbeTimeout
+            )
             guard let data = raw.data(using: .utf8),
                   let spec = try? JSONDecoder().decode(ThemeSpec.self, from: data)
             else {
+                probeDiagnostics[serverName] = "返回内容不是合法 ThemeSpec JSON"
                 return nil
             }
-            // 与文件型主题包同一校验口径（id/name 非空 + 颜色合法 + 玻璃强度 0...1）：
+            // 与文件型主题包同一校验口径（id/name 非空 + 颜色合法 + 不支持字段显式拒绝）：
             // 非法 spec = 视为非主题服务器 → 回落系统基准，不半生效（防假配置静默）
             do {
                 try ThemePackageImporter.validate(spec)
             } catch {
+                probeDiagnostics[serverName] = "spec 未通过校验：\(error.localizedDescription)"
                 return nil
             }
+            probeDiagnostics[serverName] = nil
             return spec
+        } catch let error as MCPError {
+            probeDiagnostics[serverName] = {
+                if case .requestTimeout = error {
+                    return "主题探测 \(Int(Self.themeProbeTimeout))s 未应答，按非主题服务器处理"
+                        + "（极慢的真主题服务器可能被误判；重新连接后会自动重试）"
+                }
+                return error.localizedDescription
+            }()
+            return nil
         } catch {
+            probeDiagnostics[serverName] = error.localizedDescription
             return nil
         }
     }

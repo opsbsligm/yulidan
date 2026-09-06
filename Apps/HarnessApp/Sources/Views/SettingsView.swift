@@ -122,6 +122,14 @@ struct SettingsNavigationState {
     mutating func goBack() {
         path = []
     }
+
+    /// 从概览页跳转到指定编辑 pane（D-8）。
+    /// 为什么不复用 `selectSub`：它对「不属于当前一级分类」的子页直接忽略（侧栏语义保持不变），
+    /// 而概览跳转必须跨分类可达 ⇒ 先切目标分类，再入子页。
+    mutating func jumpToSub(_ sub: SettingsSubTab) {
+        selectTab(sub.parentTab)
+        selectSub(sub)
+    }
 }
 
 // MARK: - 设置页（两级菜单 + 子页面导航/跳转）
@@ -245,7 +253,11 @@ struct SettingsView: View {
             subPageView(currentSub)
         }
         .sheet(isPresented: $showCompleteSettings) {
-            SettingsCompletePage(viewModel: viewModel)
+            SettingsCompletePage(viewModel: viewModel, onEdit: { pane in
+                // D-8：概览页「编辑…」＝关弹窗 + 跨分类跳到对应编辑 pane
+                showCompleteSettings = false
+                jumpToSub(pane)
+            })
         }
     }
 
@@ -283,6 +295,13 @@ struct SettingsView: View {
     private func selectSub(_ sub: SettingsSubTab) {
         withAnimation(.smooth) {
             nav.selectSub(sub)
+        }
+    }
+
+    /// 概览页跳转（D-8）：允许跨一级分类，故走 `jumpToSub` 而非 `selectSub`
+    private func jumpToSub(_ sub: SettingsSubTab) {
+        withAnimation(.smooth) {
+            nav.jumpToSub(sub)
         }
     }
 
@@ -386,38 +405,27 @@ struct GeneralPreferencesView: View {
 
     /// P1.4：激活主题玻璃参数展示行（材质档位明示 = P1.1 决策「主题玻璃参数 = 材质档位 + tint」的 UI 兑现；
     /// 系统基准/未配置 = 系统默认，文案不硬编主题值（铁律 5）。
-    /// 诚实闭环（P2.3）：blurIntensity/highlightIntensity 为预留提示字段（原生 Glass API 不暴露数值参数），
-    /// 主题声明后渲染层不消费 —— 设置界面明示「已声明 · 平台托管」，禁止静默无效（与导入校验同口径）
+    /// D-4(a)（2026-09-06 拍板，取代 P2.3 的「接收＋UI 明示不生效」诚实态）：
+    /// blurIntensity/highlightIntensity 在**校验阶段即显式拒绝**（`ThemePackageImporter.validate`
+    /// → `.unsupportedField`），因此不存在「声明了却不被消费」的活动主题，这里也不再为
+    /// 不消费的能力保留说明行（不宣称未实现能力）。
     @ViewBuilder
     private var glassParamRow: some View {
         let spec = viewModel.activeThemeSpec
         let hasTintOrMaterial = spec.glassTintHex != nil || spec.glassMaterial != nil
-        let hasIntensity = spec.blurIntensity != nil || spec.highlightIntensity != nil
-        if !hasTintOrMaterial, !hasIntensity {
+        if !hasTintOrMaterial {
             Text("玻璃：系统默认（当前主题未配置玻璃参数）")
                 .font(.system(size: 11)).foregroundStyle(HarnessTheme.textTertiary)
         } else {
-            VStack(alignment: .leading, spacing: 4) {
-                if hasTintOrMaterial {
-                    HStack(spacing: 6) {
-                        if let tint = spec.glassTintHex.flatMap({ Color(hex: $0) }) {
-                            RoundedRectangle(cornerRadius: 3).fill(tint).frame(width: 12, height: 12)
-                                .overlay(RoundedRectangle(cornerRadius: 3).stroke(HarnessTheme.border, lineWidth: 0.5))
-                        }
-                        Text("玻璃：tint \(spec.glassTintHex ?? "无（系统默认）") · 材质档位 \(GlassSurfaceModifier.materialLabel(glassMaterial: spec.glassMaterial))")
-                            .font(.system(size: 11)).foregroundStyle(HarnessTheme.textTertiary)
-                    }
+            HStack(spacing: 6) {
+                if let tint = spec.glassTintHex.flatMap({ Color(hex: $0) }) {
+                    RoundedRectangle(cornerRadius: 3).fill(tint).frame(width: 12, height: 12)
+                        .overlay(RoundedRectangle(cornerRadius: 3).stroke(HarnessTheme.border, lineWidth: 0.5))
                 }
-                if hasIntensity {
-                    Text("玻璃模糊/高光：已声明（\(glassIntensityText(spec.blurIntensity)) / \(glassIntensityText(spec.highlightIntensity))）· 原生 API 无数值参数，渲染由平台托管")
-                        .font(.system(size: 11)).foregroundStyle(HarnessTheme.textTertiary)
-                }
+                Text("玻璃：tint \(spec.glassTintHex ?? "无（系统默认）") · 材质档位 \(GlassSurfaceModifier.materialLabel(glassMaterial: spec.glassMaterial))")
+                    .font(.system(size: 11)).foregroundStyle(HarnessTheme.textTertiary)
             }
         }
-    }
-
-    private func glassIntensityText(_ value: Double?) -> String {
-        value.map { String(format: "%.2f", $0) } ?? "默认"
     }
 
     var body: some View {

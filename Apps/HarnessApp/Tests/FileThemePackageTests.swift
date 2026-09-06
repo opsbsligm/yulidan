@@ -96,7 +96,7 @@ struct FileThemePackageTests {
         #expect(reloaded[0].themeSpec.glassMaterial == "clear")
     }
 
-    @Test("P2.3：blur/highlight 强度边界校验 — 0/1/nil 通过，1.5/−0.1/NaN 拒绝（导入同口径）")
+    @Test("D-4(a)：blur/highlight 属不支持字段 — 任何取值（含 0/0.8/1）一律拒绝，省略才合法（导入同口径）")
     func glassIntensityValidation() throws {
         let root = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("themes-intensity-\(UUID().uuidString)", isDirectory: true)
@@ -106,7 +106,7 @@ struct FileThemePackageTests {
         func expectRejection(_ spec: ThemeSpec, _ expected: ThemePackageError? = nil) {
             do {
                 try ThemePackageImporter.validate(spec)
-                Issue.record("越界 spec 应被拒绝")
+                Issue.record("声明了不支持字段的 spec 应被拒绝")
             } catch let e as ThemePackageError {
                 if let expected {
                     #expect(e == expected)
@@ -116,24 +116,41 @@ struct FileThemePackageTests {
             }
         }
 
-        // nil = 系统默认（合法）；0...1 边界通过
+        // 省略 = 系统默认（唯一合法态）
         try ThemePackageImporter.validate(ThemeSpec(id: "t", name: "n"))
-        try ThemePackageImporter.validate(ThemeSpec(id: "t", name: "n", blurIntensity: 0, highlightIntensity: 1))
-        // 越界/非有限拒绝（错误携带字段名）
+
+        // D-4(a) 的关键翻转：**界内取值也拒绝**（原 P2.3 口径是「界内接收 + UI 明示不生效」）。
+        // 0/0.8/1 这三条就是判别器：把它们改回界内接收，本用例即转红。
+        try ThemePackageImporter.validate(ThemeSpec(id: "t", name: "n", blurIntensity: nil, highlightIntensity: nil))
+        expectRejection(ThemeSpec(id: "t", name: "n", blurIntensity: 0),
+                        .unsupportedField(name: "blurIntensity"))
+        expectRejection(ThemeSpec(id: "t", name: "n", highlightIntensity: 1),
+                        .unsupportedField(name: "highlightIntensity"))
+        expectRejection(ThemeSpec(id: "t", name: "n", blurIntensity: 0.8, highlightIntensity: 0.6),
+                        .unsupportedField(name: "blurIntensity"))
+        // 越界/非有限同样拒绝（NaN 参与 == 恒 false，只验拒绝）
         expectRejection(ThemeSpec(id: "t", name: "n", blurIntensity: 1.5),
-                        .invalidGlassIntensity(field: "blurIntensity", value: 1.5))
+                        .unsupportedField(name: "blurIntensity"))
         expectRejection(ThemeSpec(id: "t", name: "n", highlightIntensity: -0.1),
-                        .invalidGlassIntensity(field: "highlightIntensity", value: -0.1))
+                        .unsupportedField(name: "highlightIntensity"))
         expectRejection(ThemeSpec(id: "t", name: "n", blurIntensity: .nan))
 
-        // 导入路径同口径：越界 spec.json 拒绝，合法 spec.json 导入往返保持
+        // 提示必须可执行：错误文案要告诉主题作者「移除该字段」，不能只报「非法」
+        let hint = ThemePackageError.unsupportedField(name: "blurIntensity").localizedDescription
+        #expect(hint.contains("blurIntensity"), "提示需点名字段，实际：\(hint)")
+        #expect(hint.contains("移除"), "提示需给出下一步动作，实际：\(hint)")
+
+        // 导入路径同口径：声明不支持字段 ⇒ 整包拒绝；不声明 ⇒ 正常往返
         let source = root.appendingPathComponent("src.json")
         try Data(#"{"id":"ok","name":"x","blurIntensity":1.5}"#.utf8).write(to: source)
         #expect((try? ThemePackageImporter.importPackage(fileURL: source, into: root)) == nil)
         try Data(#"{"id":"ok","name":"x","blurIntensity":0.8,"highlightIntensity":0.6}"#.utf8).write(to: source)
+        #expect((try? ThemePackageImporter.importPackage(fileURL: source, into: root)) == nil,
+                "界内取值也不得再被接收（D-4(a) 前的旧行为）")
+        try Data(#"{"id":"ok","name":"x"}"#.utf8).write(to: source)
         let plugin = try ThemePackageImporter.importPackage(fileURL: source, into: root)
-        #expect(plugin.themeSpec.blurIntensity == 0.8)
-        #expect(plugin.themeSpec.highlightIntensity == 0.6)
+        #expect(plugin.themeSpec.blurIntensity == nil)
+        #expect(plugin.themeSpec.highlightIntensity == nil)
     }
 
     @Test("sanitizeID：大小写/非法字符/长度")

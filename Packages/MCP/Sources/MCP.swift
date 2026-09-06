@@ -137,6 +137,10 @@ public protocol MCPClient: Sendable {
     var name: String { get }
     func listTools() async throws -> [MCPToolSpec]
     func callTool(name: String, arguments: [String: String]) async throws -> String
+    /// 带单次请求超时的调用（D-22(a)）。`timeout == nil` ⇒ 该客户端的默认超时。
+    /// ⚠️ 刻意**不给协议默认实现**：默认实现只能收下参数却不生效（静默失效陷阱）；
+    ///    本仓全部 conformer 都在仓内，编译期强制实现比默认实现更诚实。
+    func callTool(name: String, arguments: [String: String], timeout: TimeInterval?) async throws -> String
 }
 
 /// 内存版 mock 客户端：无真实服务器时用于 UI 与集成流程开发
@@ -163,6 +167,12 @@ public actor MockMCPClient: MCPClient {
     }
 
     public func callTool(name: String, arguments: [String: String]) async throws -> String {
+        try await callTool(name: name, arguments: arguments, timeout: nil)
+    }
+
+    /// 内存版无传输通道 ⇒ 无超时语义（timeout 仅记录在案，不参与判定）
+    public func callTool(name: String, arguments: [String: String], timeout: TimeInterval?) async throws -> String {
+        _ = timeout
         guard let entry = entries[name] else {
             throw MCPError.unknownTool(name)
         }
@@ -318,11 +328,15 @@ public actor MCPServerManager {
     }
 
     /// 直接调用某客户端的工具（管理/调试入口）
-    public func callTool(client clientName: String, name: String, arguments: [String: String]) async throws -> String {
+    /// `timeout == nil` ⇒ 客户端默认超时；短超时用途见 D-22(a)（主题探测 2s）
+    public func callTool(client clientName: String,
+                         name: String,
+                         arguments: [String: String],
+                         timeout: TimeInterval? = nil) async throws -> String {
         guard let client = clients[clientName] else {
             throw MCPError.unknownClient(clientName)
         }
-        return try await client.callTool(name: name, arguments: arguments)
+        return try await client.callTool(name: name, arguments: arguments, timeout: timeout)
     }
 
     /// 断开并注销（stdio 客户端终止子进程）；提供注册表时同步移除**归属该服务器**的工具

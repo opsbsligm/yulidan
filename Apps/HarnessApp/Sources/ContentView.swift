@@ -68,7 +68,11 @@ struct ContentView: View {
                 }
                 .buttonStyle(.plain)
                 .help("展开侧边栏")
-                .padding(10)
+                // F6(b)（D-12）：原 `.padding(10)` ⇒ 按钮落在红绿灯带（实测 x∈[10,62]、y∈[8,28]）
+                // 与 rail 首图标之上（A17 三方交叠簇）。改为避让带之下、rail 之右起算，
+                // 数值与不交叠判据见 SidebarRailLayout（单测锁定，防回归）。
+                .padding(.leading, SidebarRailLayout.overlayButtonLeading)
+                .padding(.top, SidebarRailLayout.overlayButtonTop)
             }
         }
         // 全局 Toast

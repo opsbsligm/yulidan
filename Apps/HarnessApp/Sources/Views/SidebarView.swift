@@ -373,6 +373,12 @@ struct SidebarView: View {
 
     private var collapsedBody: some View {
         VStack(spacing: 2) {
+            // F6(a)（D-12，2026-09-06 本批做）：顶部避让带。折叠 rail 宽 52 < 红绿灯横向带 62
+            // ⇒ x 方向无法避让，只能整体 y 下沉到红绿灯带（实测 y∈[8,28]）之下；
+            // 与 Codex 等应用 rail 顶部留空同型。几何常量与交叠判据见 SidebarRailLayout（可单测）。
+            Spacer()
+                .frame(height: SidebarRailLayout.railTopClearance)
+
             Button(action: startNewChat) {
                 Image(systemName: "square.and.pencil")
                     .font(.system(size: 14))
@@ -450,7 +456,7 @@ struct SidebarView: View {
             .help("展开侧边栏")
             .padding(.bottom, 10)
         }
-        .frame(width: 52)
+        .frame(width: SidebarRailLayout.railWidth)
         // P1.3：与展开面同 ID 同 namespace（level 仅影响 legacy/solid fallback 材质，原生 Glass 值恒为
         // resolvedGlass .regular+tint → 两态同变体＝满足官方 union 三同中的「同 effect」一项；
         // 另两同＝同 shape／同 ID（§1.8 逐字，§21.2 第 9 条）

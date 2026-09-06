@@ -10,8 +10,14 @@ struct ChatAreaView: View {
     var body: some View {
         VStack(spacing: 0) {
             // 顶部栏
+            // D-19(a) 09-06：顶栏材质**纳入玻璃体系**（旧 `.background(.ultraThinMaterial)` 是游离在
+            // Liquid Glass 与主题驱动之外的独立材质通路）。改走 .glassSurface 后：
+            // ① 受主题 manifest 驱动（glassMaterial 档位 + glassTintHex，与 composer/卡片同一解析点）；
+            // ② 进「减弱透明度」solid 降级链（A14＝保 solid，系统开关注销式即时生效）；
+            // ③ 档位 .thin ＝ 与侧栏 .prominent／卡片 .thin 的组件地图分层一致；
+            // ④ cornerRadius 0 ＝ 顶栏满宽直角，不新增自绘层（❌不引入第二套材质通路）。
             ChatTopBar(viewModel: viewModel, session: session, draftText: messageText)
-                .background(.ultraThinMaterial)
+                .glassSurface(.thin, cornerRadius: 0)
 
             // 消息区域
             if viewModel.messages.isEmpty {

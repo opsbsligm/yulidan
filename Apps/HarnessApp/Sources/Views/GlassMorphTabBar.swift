@@ -138,7 +138,9 @@ struct GlassMorphTabBar: View {
     /// 条件面**不同 ID**（§18.2）⇒ 本构造的流体观感待目检，不得当作官方结论引用。
     /// ❌ 不得改为每段一个 ID —— 我方预测（**未实测**）：会退化成官方示例那种
     /// 「A 面消亡 + B 面新生」双胶囊形态（§21.2 第 4/5 条）
-    static let selectionID = "harness-sidebar-selection"
+    /// ⚠️ `nonisolated`：一枚纯字符串常量，无 MainActor 需求；面数/身份护栏测试须在非隔离
+    /// 上下文引用它（Swift 6 下 MainActor 隔离的静态量在 nonisolated 测试里不可见）。
+    nonisolated static let selectionID = "harness-sidebar-selection"
 
     /// 分段面 shape。union 官方三同＝similar shape / Liquid Glass effect / **and ID**（§1.8 逐字）；
     /// morph 判据是另一件事＝最近边 ≤ 容器 spacing ⇒ 两套机制各自成立，勿合并引用（§21.2 第 3 条）
@@ -165,26 +167,43 @@ struct GlassMorphTabBar: View {
             }
         }
         // 同区域玻璃组同一容器（目标 P1 §1 光学采样一致；P1.1 修饰器，降级 no-op）
-        // F1：容器 spacing 必须 ≥ 最坏最近边距离，否则远距离切换静默退化为淡变（官方判据见文件头）
+        // D-15(b) 09-06：spacing 由全网格量级（≈179）收敛到**相邻量级** `adjacentSpacing()`（=52）。
+        // 依据（BENCHMARK §19 逐字原文）：容器 spacing 大于内部布局容器 spacing 时，
+        //   Liquid Glass 效应会 "blend together at **rest**" ⇒ 179 量级下静止态必然过度融合。
+        // 先例（BENCHMARK §18.2 F-b 官方示例）：容器 spacing 与内部布局 spacing 取同值（10.0 : 10.0）。
+        // 代价（明示，我方取舍）：跨多格的远距离切换不再保证落在 morph 适用域，改走系统默认过渡；
+        //   静止态过度融合是 §19 原文的必然结果，远距淡变只是少一个加成，非新增缺陷。
         // 降级态（solid/legacy）容器本身不包裹 → spacing 参数在该路径无消费方，保持 nil 不变
-        .glassSurfaceContainer(spacing: isNative ? MorphTabGeometry.fullGridSpacing : nil)
+        .glassSurfaceContainer(spacing: isNative ? MorphTabGeometry.adjacentSpacing() : nil)
     }
 
     /// 分段面模式（纯函数，可单测）：选中 + native → 内容入玻璃（morph 面）；
     /// 选中 + 降级 → solid 块；未选中 → 素面（无玻璃）
     enum TileFaceMode {
-        case glassMorph
+        case glassBase
         case solid
         case plain
 
         static func resolve(isSelected: Bool, isNative: Bool) -> TileFaceMode {
-            guard isSelected else { return .plain }
-            return isNative ? .glassMorph : .solid
+            isNative ? .glassBase : (isSelected ? .solid : .plain)
         }
     }
 
+    /// 玻璃面身份（09-06 D-1 实施）：常驻面用**逐段稳定 ID**；选中面改用统一 morph 身份
+    /// （`selectionID`）覆盖，使「同 ID 面在常驻面之间跨 tile 迁移」这一既有构造继续成立。
+    nonisolated static func tileFaceID(_ segmentID: String) -> String {
+        "harness-tile-face:\(segmentID)"
+    }
+
+    /// native 态参与同一 `GlassEffectContainer` 的玻璃面数（A12 口径的机器判据）：
+    /// 降级态无原生玻璃面（solid/plain 走纯色/素面）⇒ 0；native 态**每段一面** ⇒ segmentCount。
+    nonisolated static func glassFaceCount(segmentCount: Int, isNative: Bool) -> Int {
+        isNative ? segmentCount : 0
+    }
+
     /// 选中面材质解析（纯函数，可单测）：选中 → 追加 `.interactive()`（F2 显式开启指针反馈）；
-    /// 未选中 → 原样（当前架构下未选中面无玻璃，此分支为口径完整性/未来补面时复用）
+    /// 未选中 → 原样。**09-06 D-1 实施后本函数成为全部玻璃面的材质单点**（未选中＝主题档位材质、
+    /// 不加 interactive，守 HIG「sparingly」并避免全网格指针反馈噪声）
     nonisolated static func selectedGlass(from glass: Glass, isSelected: Bool) -> Glass {
         isSelected ? glass.interactive() : glass
     }
@@ -232,16 +251,25 @@ struct GlassMorphTabBar: View {
         .frame(height: 46)
         .contentShape(Self.tileShape)
         switch Self.TileFaceMode.resolve(isSelected: isSelected, isNative: isNative) {
-        case .glassMorph:
+        case .glassBase:
             // 原生 morph 选中玻璃面：内容直接入玻璃（官方容器内语义＝each view … renders with
             // the effects behind it，逐字见 §21.5 第 3 句）
             // F2：interactive 须**显式添加**（官方原文 "Add interactive(_:) to custom components
             // to make them react to touch and pointer interactions"）——旧注释称「材质自带」无依据，
             // 已撤销；本面为导航功能层自定义件，符合 HIG「sparingly」边界（仅选中面加）
-            base
-                .glassEffect(Self.selectedGlass(from: glass, isSelected: true), in: Self.tileShape)
-                .glassEffectID(Self.selectionID, in: morphNS)
-                .glassEffectTransition(.matchedGeometry)
+            // 09-06 D-1 实施：**常驻玻璃面铺满全部分段**（旧实现未选中走 `.plain` ⇒ 容器内运行时
+            // 仅 1 面，§3-A1 根因 GAP＝morph 根本没有可配对的第二面）。面数判据见 glassFaceCount。
+            let face = base
+                .glassEffect(Self.selectedGlass(from: glass, isSelected: isSelected), in: Self.tileShape)
+                .glassEffectID(Self.tileFaceID(seg.id), in: morphNS)
+            if isSelected {
+                // 选中面改用统一 morph 身份（覆盖逐段 ID），既有「同 ID 跨 tile 迁移＋matchedGeometry」
+                // 构造原样保留 ⇒ 本轮只补面数、不改 morph 机制，观感终裁仍归 G3 池 A A-a。
+                face.glassEffectID(Self.selectionID, in: morphNS)
+                    .glassEffectTransition(.matchedGeometry)
+            } else {
+                face
+            }
         case .solid:
             // 降级（reduceTransparency）：solid 选中块，无 morph
             base.background(Self.tileShape.fill(HarnessTheme.sidebarHover))
