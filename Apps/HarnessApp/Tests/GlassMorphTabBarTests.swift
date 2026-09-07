@@ -37,12 +37,13 @@ struct GlassMorphTabBarTests {
         }
     }
 
-    @Test("TileFaceMode：native→常驻玻璃面（D-1 面数根因）/ 降级+选中→solid / 降级+未选中→素面（三态不变量）")
+    @Test("TileFaceMode：选中+native→玻璃面 / 选中+降级→solid / **未选中共素面**（三态不变量）")
     func tileFaceModeResolve() {
         #expect(GlassMorphTabBar.TileFaceMode.resolve(isSelected: true, isNative: true) == .glassBase)
         #expect(GlassMorphTabBar.TileFaceMode.resolve(isSelected: true, isNative: false) == .solid)
-        // 09-06 D-1 实施：native 态**未选中也常驻玻璃面**（旧 `.plain` ⇒ 容器内仅 1 面＝§3-A1 根因 GAP）
-        #expect(GlassMorphTabBar.TileFaceMode.resolve(isSelected: false, isNative: true) == .glassBase)
+        // ⁽⁰⁹⁻⁰⁷ᵉ⁾ 09-07 用户目检（G3 A-a）判「六面融成一整片、内容被洗淡」⇒ 未选中恢复素面。
+        // 本行是**反向护栏**：谁再把未选中也铺上常驻玻璃面，这里先红，且必须先拿出观感证据才能改判据。
+        #expect(GlassMorphTabBar.TileFaceMode.resolve(isSelected: false, isNative: true) == .plain)
         #expect(GlassMorphTabBar.TileFaceMode.resolve(isSelected: false, isNative: false) == .plain)
     }
 }
@@ -142,25 +143,21 @@ struct SelectedGlassTests {
 
 // MARK: - D-1 实施判据（09-06）：常驻玻璃面数 == 分段数（静默口径，A 层可证）
 
-@Suite("D-1 玻璃面数与身份（§3-A1 根因 GAP 的永久护栏）")
+@Suite("D-1 玻璃面数（09-07 观感证据锁死的上限）")
 struct GlassFaceCoverageTests {
-    /// 静默判据：native 态参与同一容器的玻璃面数**必须等于分段数**；
-    /// 若退回到「仅选中面有玻璃」＝旧缺陷复发，本判据当场失败。
-    @Test("native 面数 == segments.count；降级态零原生玻璃面（A14 保 solid 不变量）")
-    func nativeFaceCoverageIsComplete() {
-        #expect(GlassMorphTabBar.glassFaceCount(segmentCount: 6, isNative: true) == 6)
+    /// 静默判据：native 态容器内玻璃面数**固定为 1（仅选中段）**；降级态 0。
+    ///
+    /// **这条判据的方向和 09-06 那版正好相反，理由是用眼见证据改的**：09-06 曾把未选中段也铺上
+    /// 常驻面（=segmentCount），结构判据全绿，但 09-07 用户实机目检结论＝「整片融成一块橙色玻璃、
+    /// 图标与文字被洗淡」⇒ 铺满方案回退。⇒ 本判据现在钉的是**上限**：任何人再用「铺满」去填
+    /// morph 的第二面缺口（§3-A1），这里先红；要改判据必须同时提交**观感证据**（截图/像素直方图
+    /// 或用户目检通过记录），不接受只拿结构测试放行（铁律 6 的可证边界）。
+    @Test("native 面数 == 1（仅选中面）；降级态 0；**铺满＝违反本判据**")
+    func nativeFaceCountIsCappedAtSelection() {
+        #expect(GlassMorphTabBar.glassFaceCount(segmentCount: 6, isNative: true) == 1)
         #expect(GlassMorphTabBar.glassFaceCount(segmentCount: 6, isNative: false) == 0)
         for n in [1, 2, 5, 6, 12] {
-            #expect(GlassMorphTabBar.glassFaceCount(segmentCount: n, isNative: true) == n)
+            #expect(GlassMorphTabBar.glassFaceCount(segmentCount: n, isNative: true) == 1)
         }
-    }
-
-    /// 身份：常驻面用逐段稳定 ID（互不相同 ⇒ 可被容器分别认得），选中面另用统一 morph 身份
-    @Test("逐段 ID 互不相同且稳定，且不等于 selectionID")
-    func tileFaceIDsAreStableAndDistinct() {
-        let ids = (1 ... 6).map { GlassMorphTabBar.tileFaceID("tab" + String($0)) }
-        #expect(Set(ids).count == 6)
-        #expect(ids.first == GlassMorphTabBar.tileFaceID("tab1"))
-        #expect(!ids.contains(GlassMorphTabBar.selectionID))
     }
 }

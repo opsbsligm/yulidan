@@ -174,31 +174,34 @@ struct GlassMorphTabBar: View {
         // 代价（明示，我方取舍）：跨多格的远距离切换不再保证落在 morph 适用域，改走系统默认过渡；
         //   静止态过度融合是 §19 原文的必然结果，远距淡变只是少一个加成，非新增缺陷。
         // 降级态（solid/legacy）容器本身不包裹 → spacing 参数在该路径无消费方，保持 nil 不变
-        .glassSurfaceContainer(spacing: isNative ? MorphTabGeometry.adjacentSpacing() : nil)
+        .glassSurfaceContainer(spacing: isNative ? MorphTabGeometry.fullGridSpacing : nil)
+        // ⁽⁰⁹⁻⁰⁷ᵉ⁾ D-15(b) 的 spacing=52 随 D-1「铺满常驻面」一并回退：只剩选中面时收敛 spacing
+        // 没有配对收益，却保留官方明文的「blend together at rest」副作用（09-07 用户目检＝整格融成一整片）。
     }
 
     /// 分段面模式（纯函数，可单测）：选中 + native → 内容入玻璃（morph 面）；
-    /// 选中 + 降级 → solid 块；未选中 → 素面（无玻璃）
+    /// 选中 + 降级 → solid 块；未选中 → 素面（无玻璃）。⁽⁰⁹⁻⁰⁷ᵉ⁾ 09-07 目检回退后恢复此三态口径。
     enum TileFaceMode {
         case glassBase
         case solid
         case plain
 
         static func resolve(isSelected: Bool, isNative: Bool) -> TileFaceMode {
-            isNative ? .glassBase : (isSelected ? .solid : .plain)
+            // ⁽⁰⁹⁻⁰⁷ᵉ⁾ 用户 09-07 目检（G3 A-a）判「整片融成一块橙色玻璃、内容被洗淡」＝不通过 ⇒
+            // 回退「常驻面铺满全部分段」，恢复仅选中段带面。morph 缺第二面（§3-A1 根因 GAP）随本回退
+            // 回到在册未决状态；**观感证据优先于结构判据**（铁律 6 的可证边界：结构判据成立≠观感成立）。
+            guard isSelected else { return .plain }
+            return isNative ? .glassBase : .solid
         }
     }
 
-    /// 玻璃面身份（09-06 D-1 实施）：常驻面用**逐段稳定 ID**；选中面改用统一 morph 身份
-    /// （`selectionID`）覆盖，使「同 ID 面在常驻面之间跨 tile 迁移」这一既有构造继续成立。
-    nonisolated static func tileFaceID(_ segmentID: String) -> String {
-        "harness-tile-face:\(segmentID)"
-    }
-
     /// native 态参与同一 `GlassEffectContainer` 的玻璃面数（A12 口径的机器判据）：
-    /// 降级态无原生玻璃面（solid/plain 走纯色/素面）⇒ 0；native 态**每段一面** ⇒ segmentCount。
-    nonisolated static func glassFaceCount(segmentCount: Int, isNative: Bool) -> Int {
-        isNative ? segmentCount : 0
+    /// 降级态无原生玻璃面（solid/plain 走纯色/素面）⇒ 0；native 态**仅选中段一面** ⇒ 1。
+    /// ⁽⁰⁹⁻⁰⁷ᵉ⁾ 09-07 目检回退：曾短暂改为 `segmentCount`（铺满常驻面）以给 morph 配对第二面，
+    /// 实测后果＝六面在容器内融成一整片玻璃并洗淡 tile 内容（用户截图为证）⇒ 判据回到 1，
+    /// 「morph 需要第二面」这一结构缺口重新挂回在册（§3-A1），**不再用铺满去填**。
+    nonisolated static func glassFaceCount(segmentCount _: Int, isNative: Bool) -> Int {
+        isNative ? 1 : 0
     }
 
     /// 选中面材质解析（纯函数，可单测）：选中 → 追加 `.interactive()`（F2 显式开启指针反馈）；
@@ -257,19 +260,12 @@ struct GlassMorphTabBar: View {
             // F2：interactive 须**显式添加**（官方原文 "Add interactive(_:) to custom components
             // to make them react to touch and pointer interactions"）——旧注释称「材质自带」无依据，
             // 已撤销；本面为导航功能层自定义件，符合 HIG「sparingly」边界（仅选中面加）
-            // 09-06 D-1 实施：**常驻玻璃面铺满全部分段**（旧实现未选中走 `.plain` ⇒ 容器内运行时
-            // 仅 1 面，§3-A1 根因 GAP＝morph 根本没有可配对的第二面）。面数判据见 glassFaceCount。
-            let face = base
-                .glassEffect(Self.selectedGlass(from: glass, isSelected: isSelected), in: Self.tileShape)
-                .glassEffectID(Self.tileFaceID(seg.id), in: morphNS)
-            if isSelected {
-                // 选中面改用统一 morph 身份（覆盖逐段 ID），既有「同 ID 跨 tile 迁移＋matchedGeometry」
-                // 构造原样保留 ⇒ 本轮只补面数、不改 morph 机制，观感终裁仍归 G3 池 A A-a。
-                face.glassEffectID(Self.selectionID, in: morphNS)
-                    .glassEffectTransition(.matchedGeometry)
-            } else {
-                face
-            }
+            // ⁽⁰⁹⁻⁰⁷ᵉ⁾ 09-06 D-1 曾实施「铺满全部分段」，09-07 用户目检不通过 ⇒ 已回退为仅选中面
+            // （本分支只在 isSelected 时到达，见 TileFaceMode.resolve）。回退理由与证据见 glassFaceCount 注释。
+            base
+                .glassEffect(Self.selectedGlass(from: glass, isSelected: true), in: Self.tileShape)
+                .glassEffectID(Self.selectionID, in: morphNS)
+                .glassEffectTransition(.matchedGeometry)
         case .solid:
             // 降级（reduceTransparency）：solid 选中块，无 morph
             base.background(Self.tileShape.fill(HarnessTheme.sidebarHover))

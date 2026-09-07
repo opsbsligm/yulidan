@@ -54,8 +54,8 @@ struct GlassSurfaceRegistryTests {
     /// 原生族 API 调用点基线（文件 → 模式 → 次数）；L202 同行双调用按两处计
     private static let nativeGlassCounts: [String: [String: Int]] = [
         "Styles/GlassSurface.swift": [".glassEffect(": 1, ".glassEffectID(": 1, ".glassEffectTransition(": 2],
-        // D-1 09-06：常驻面铺满全部分段 ⇒ 逐段稳定 ID ＋ 选中面统一 morph 身份 ＝ 两处 glassEffectID
-        "Views/GlassMorphTabBar.swift": [".glassEffect(": 1, ".glassEffectID(": 2, ".glassEffectTransition(": 1],
+        // ⁽⁰⁹⁻⁰⁷ᵉ⁾ 09-07 目检回退「铺满常驻面」⇒ 逐段 ID 撤除，回到仅选中面统一 morph 身份＝1 处
+        "Views/GlassMorphTabBar.swift": [".glassEffect(": 1, ".glassEffectID(": 1, ".glassEffectTransition(": 1],
     ]
 
     // MARK: 源文件扫描工具
