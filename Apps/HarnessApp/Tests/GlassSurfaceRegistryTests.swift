@@ -24,7 +24,9 @@ struct GlassSurfaceRegistryTests {
         .deletingLastPathComponent() // → HarnessApp/
         .appendingPathComponent("Sources", isDirectory: true)
 
-    /// 注册表 ①：`.glassSurface(` 调用点（文件相对路径 → 调用点数），基线合计 14（09-06 D-19(a) 新增 ChatAreaView 顶栏）
+    /// 注册表 ①：`.glassSurface(` 调用点（文件相对路径 → 调用点数）。
+    /// 基线合计 13（⁽⁰⁹⁻⁰⁷ᵉ⁾ D-10(b) 回退 −1：侧栏全屏玻璃底撤除；09-06 D-19(a) 曾 +1 ChatAreaView 顶栏）。
+    /// ⚠️ 本基线为**上限护栏**：新增全屏/大面积玻璃面必须同时更新此表并附目检证据（制度㊾-3）。
     private static let surfaceRegistry: [String: Int] = [
         "Styles/HarnessTheme.swift": 1,
         "Views/ChatAreaView.swift": 1, // D-19(a) 09-06 顶栏纳入玻璃体系（原 .ultraThinMaterial 游离于体系外）
@@ -34,7 +36,7 @@ struct GlassSurfaceRegistryTests {
         "Views/SettingsView.swift": 2,
         "Views/SidebarProjectSections.swift": 3,
         "Views/SidebarSupportViews.swift": 1,
-        "Views/SidebarView.swift": 3, // D-10(a) F4 侧栏玻璃底（09-04 有意新增，登记于补记❹）
+        "Views/SidebarView.swift": 2, // ⁽⁰⁹⁻⁰⁷ᵉ⁾ D-10(a) 侧栏玻璃底已随窗底实底化撤除（A-d 目检否决）
     ]
 
     /// 注册表 ②：`.glassSurfaceContainer(` 调用点，基线合计 4
@@ -136,12 +138,12 @@ struct GlassSurfaceRegistryTests {
 
     // MARK: 护栏测试
 
-    @Test("注册表①：.glassSurface( 调用点与登记逐文件一致（基线 14 处）")
+    @Test("注册表①：.glassSurface( 调用点与登记逐文件一致（基线 13 处）")
     func surfaceRegistryMatches() throws {
         try #require(FileManager.default.fileExists(atPath: Self.sourcesDir.path), "Sources 目录不存在：\(Self.sourcesDir.path)")
         try Self.verifyRegistry(Self.surfaceRegistry, pattern: ".glassSurface(", scanned: Self.scanSources(), registryName: "surfaceRegistry")
         let total = Self.surfaceRegistry.values.reduce(0, +)
-        #expect(total == 14, "surfaceRegistry 基线总数应为 14，请确认是有意变更") // 09-06 D-19(a) ＋1（原提示文案写 12 与判据 13 自相矛盾，一并修）
+        #expect(total == 13, "surfaceRegistry 基线总数应为 13（上限护栏），请确认是有意变更") // ⁽⁰⁹⁻⁰⁷ᵉ⁾ D-10(b) 回退 −1（侧栏全屏玻璃底）；09-06 D-19(a) 曾 ＋1（原提示文案写 12 与判据 13 自相矛盾，一并修）
     }
 
     @Test("注册表②：.glassSurfaceContainer( 调用点与登记逐文件一致（基线 4 处）")

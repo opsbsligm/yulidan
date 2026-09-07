@@ -44,11 +44,12 @@ struct ContentView: View {
 
             Divider().frame(width: 1)
 
-            // 主内容区（D-10(a)/F4：不透明实底只贴主区——根背景不再满铺，
-            // 侧栏区域由 SidebarView 的 GlassSurface(.regular) 底承接桌面采样）
+            // 主内容区
             mainContent
-                .background(HarnessTheme.bgPrimary)
         }
+        // D-10(b)/09-07：bgPrimary 实底重新满铺整窗（含侧栏区）——为侧栏/顶栏等全屏玻璃面提供
+        // 中性采样源，界面不再随用户桌面壁纸染色（详见 HarnessApp.applyOpaqueBackdrop 注释）。
+        .background(HarnessTheme.bgPrimary)
         .frame(minWidth: 800, minHeight: 500)
         // P0.4 主题插件：激活主题即时生效（tint 全局传播 + Environment 注入观察）
         .tint(viewModel.activeThemeSpec.accentColor)

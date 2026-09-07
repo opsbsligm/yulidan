@@ -121,10 +121,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// D-10(a) 透明窗底配置（测试缝：进程内单测对装配实例断言旗标；不产生任何 ordering/前台动作）
-    static func applyGlassSampling(to window: NSWindow) {
-        window.isOpaque = false
-        window.backgroundColor = .clear
+    /// 主窗底装配 = 实底（D-10(b) 09-07 回退，测试缝：进程内单测断言旗标；零 ordering/前台动作）。
+    /// 方向反转护栏：任何「置透明以让玻璃采桌面」的改动会被 WindowGlassSamplingTests 直接判红，
+    /// 上调须附 09-07 之后新的 A-d 目检通过证据（制度㊾-3：改运行时可见形态必须有 before/after 目检）。
+    static func applyOpaqueBackdrop(to window: NSWindow) {
+        window.isOpaque = true
+        window.backgroundColor = .windowBackgroundColor
     }
 
     /// 创建标准主窗口（启动与重建共用）
@@ -139,12 +141,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
         window.minSize = NSSize(width: 800, height: 500)
-        // D-10(a)/BENCHMARK §13-F4：透明窗底——让玻璃获得「窗后」（桌面）采样源，恢复 macOS 侧栏传统。
-        // 透窗采样实况成败仅 G3 A-d 目检裁决（补记㊹）。官方正面明文只到「blurs content
-        // behind it」＝其**身后内容**（§21.5 第 1 句）；「可采样窗口之外的内容」经 §21.3 四步检索门
-        // 确认**无官方明文** ⇒ 锚定 legacy behindWindow 在册能力，不宣称官方支持；
-        // 可读性兜底 = 侧栏 GlassSurface(.regular) 底（native 玻璃 / legacy 材质 / solid 回落）+ 主区 bgPrimary 实底。
-        Self.applyGlassSampling(to: window)
+        // D-10(b)/09-07 回退：窗底必须实底。透明窗底（原 D-10(a)/§13-F4）让全屏玻璃面
+        // （侧栏展开/折叠面 + 侧栏玻璃底）把「窗后」= 用户桌面壁纸当作采样源 ⇒ 界面色相随壁纸漂移：
+        // 用户实机壁纸左上为暖棕（实测 R−B≈+44），侧栏渲染成浓橙面板（实测 R−B=+54），用户两次目检否决。
+        // 官方明文只到「blurs content behind it」＝身后**内容**（§21.5 第 1 句），「可采窗后桌面」
+        // 无官方明文（§21.3 四步检索门）⇒ 该效果属未证实实验，按 G3 裁决口径回退为实底 + bgPrimary 满铺。
+        Self.applyOpaqueBackdrop(to: window)
         return window
     }
 

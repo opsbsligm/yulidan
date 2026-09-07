@@ -176,7 +176,7 @@ struct GlassMorphTabBar: View {
         // 降级态（solid/legacy）容器本身不包裹 → spacing 参数在该路径无消费方，保持 nil 不变
         .glassSurfaceContainer(spacing: isNative ? MorphTabGeometry.fullGridSpacing : nil)
         // ⁽⁰⁹⁻⁰⁷ᵉ⁾ D-15(b) 的 spacing=52 随 D-1「铺满常驻面」一并回退：只剩选中面时收敛 spacing
-        // 没有配对收益，却保留官方明文的「blend together at rest」副作用（09-07 用户目检＝整格融成一整片）。
+        // 没有配对收益，却保留官方明文的「blend together at rest」融合副作用（锚点 §19.1-1；09-07 用户目检＝整格融成一整片）。
     }
 
     /// 分段面模式（纯函数，可单测）：选中 + native → 内容入玻璃（morph 面）；

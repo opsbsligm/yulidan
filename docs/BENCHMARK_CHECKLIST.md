@@ -356,7 +356,7 @@ A3 疑虑（常驻面是否生效）不再成立。
 |---|---|---|
 | **A13 装饰性全局 tint** | ⚠️ **冲突（需裁决）**⁽⁰⁹⁻⁰⁵ᶠ⁾ 出处已核：引文真实但**不在 HIG Materials 页**——"But **use them selectively**. When items or elements serve a **distinct functional purpose**, you can tint them" ＋ "If you want to imbue color into your app, **do it in the content layer instead**." ＝ WWDC25 Session 219 逐字稿（本轮归档 `wwdc2025-219.0905.html`，整句命中；HIG Materials 页 `tint`/`selectively` 均 **0 命中** ⇒ 拿错页面就会误判「官方无此表述」，属 §18.5 同族地理条件） | 我方 P1.4 把主题 `glassTintHex` 铺到**所有**玻璃面（纯装饰性全局染色）→ 与官方口径冲突，且影响"主题插件"卖点定义（主题该染什么） ⁽⁰⁹⁻⁰⁶ᵉ⁾｜**09-06 基数精确化（给 D-11 一个准确分母）**：按「类型名 ∪ 小写方法名」双模式重搜，`glassSurface(`/`glassEffect(` 共 **17 处**，其中 `Styles/HarnessTheme.swift` 内 4 处是便捷 helper 定义（L102/169/173/177）⇒ **真实视图落点 13 处**；档位分布 regular 8／thin 4／prominent 3／`GlassMorphTabBar.swift:242` 直用 `glassEffect` 1 处（含 helper 计）。统一解析入口 `GlassSurface.resolvedGlass(explicitTint:themeTintHex:themeMaterial:)`（L142）对所有走 `.glassSurface` 的面生效：材质档位取主题 manifest、tint 优先级「显式 > 主题 > 无」⇒ **「所有玻璃面」＝这 13 处，且不含顶栏/Toast**（见 D-19，二者用 `.ultraThinMaterial` 绕过体系）。故本项冲突面精确为 13，D-11 裁「tint 作用域」时按此分母权衡。 |
 | **A14 减弱透明度语义** | ⚠️ 需裁决（**09-05 改判口径：两条官方原文并列**，不再是「我方无明文」单边） | 原文①（观感描述，WWDC25-219 逐字，本轮已归档并整句复核）："Reduced Transparency, makes Liquid Glass **frostier and obscures more of the content** behind it."；原文②（**对开发者的指令**，本机在线 API 页 `environmentvalues/accessibilityreducetransparency` Discussion 逐字，此前全仓缺录）："If this property’s value is true, UI (mainly window) backgrounds should **not be semi-transparent; they should be opaque.**" ⇒ 我方 reduceTransparency → **solid 不透明**＝与原文②同向；「frosted 中间态」＝向原文①的系统自家观感靠。二选一仍由你裁，但**保 solid 一侧现已有 API 级明文支持** ⁽⁰⁹⁻⁰⁵ᶠ⁾ |
-| **A15 玻璃折射源缺失** | ◐ **09-06 实测改判：根因链第一条已被 D-10(a) 修掉，残余仅在观感面** ⁽⁰⁹⁻⁰⁶ᵃ⁾〔历史判定：❌根因级＋下列代码事实链，其中两条已失真，见更正〕 | **① 更正·窗底（原列第一条根因，实测已反转）**：在册文字称 `HarnessApp.swift:136` `window.backgroundColor = NSColor.windowBackgroundColor`（不透明窗底）——当前 HEAD 实测 `HarnessApp.swift:125-128` `applyGlassSampling(to:)` 置 `window.isOpaque=false` + `backgroundColor = .clear`，调用点 `makeWindow()` L147（启动与重建共用），即 **D-10(a) 已把「玻璃无窗后采样源」这条根因消除**；判别性单测在册（`WindowGlassSamplingTests`：装配前 `isOpaque=true`/alpha>0 → 装配后 `false`/alpha==0）。**② 行号漂移（原文两处已失效）**：`GlassSurface.swift:224/229` 现为 **L234/L239**（L224 现属「防御分支」），文件实际路径也已迁至 `Sources/Styles/`；`HarnessTheme.swift:8` 的 `bgPrimary = Color(NSColor.windowBackgroundColor)` 现为 **L7**，属**内容层**底色而非窗底，是否遮挡玻璃需单独审（未审，不在此下结论）。**③ 仍成立**：`ContentView.swift:11` `HStack(spacing: 0)` 侧栏与内容**并排**（非「侧栏浮于内容之上」）⇒ 官方「sidebar floats above your content / refracting against the sidebar」的形态前提仍未满足。**④ native 路径事实**：`GlassSurface.swift:198` `content.glassEffect(glass, in: shape)` 为唯一原生玻璃落点；`VisualEffectMaterial(blendingMode: .behindWindow)` 仅存在于 `.legacy`（macOS 15–25 降级）与防御分支 ⇒ 基线 Tahoe 常态下不走它，在册「legacy 采样能力反而强于原生态路径」**已不构成常态事实**（窗底透明后二者均有采样源）。**⑤ 判定边界**：本项残余（并排布局是否致观感扁平）按 §0 通道表**无 A 层像素证据可取**⇒ 归 G3 目检，且需与 D-1 三架构案一并裁（折射源与 morph 配对互为前提），本轮不改代码。 |
+| **A15 玻璃折射源缺失** | ◐ **09-06 实测改判：根因链第一条已被 D-10(a) 修掉，残余仅在观感面** ⁽⁰⁹⁻⁰⁶ᵃ⁾〔历史判定：❌根因级＋下列代码事实链，其中两条已失真，见更正〕 | **① 更正·窗底（原列第一条根因，实测已反转）**：在册文字称 `HarnessApp.swift:136` `window.backgroundColor = NSColor.windowBackgroundColor`（不透明窗底）——当前 HEAD 实测 `HarnessApp.swift:125-128` `applyGlassSampling(to:)` 置 `window.isOpaque=false` + `backgroundColor = .clear`，调用点 `makeWindow()` L147（启动与重建共用），即 **D-10(a) 已把「玻璃无窗后采样源」这条根因消除**；判别性单测在册（`WindowGlassSamplingTests`：装配前 `isOpaque=true`/alpha>0 → 装配后 `false`/alpha==0）。**② 行号漂移（原文两处已失效）**：`GlassSurface.swift:224/229` 现为 **L234/L239**（L224 现属「防御分支」），文件实际路径也已迁至 `Sources/Styles/`；`HarnessTheme.swift:8` 的 `bgPrimary = Color(NSColor.windowBackgroundColor)` 现为 **L7**，属**内容层**底色而非窗底，是否遮挡玻璃需单独审（未审，不在此下结论）。**③ 仍成立**：`ContentView.swift:11` `HStack(spacing: 0)` 侧栏与内容**并排**（非「侧栏浮于内容之上」）⇒ 官方「sidebar floats above your content / refracting against the sidebar」的形态前提仍未满足。**④ native 路径事实**：`GlassSurface.swift:198` `content.glassEffect(glass, in: shape)` 为唯一原生玻璃落点；`VisualEffectMaterial(blendingMode: .behindWindow)` 仅存在于 `.legacy`（macOS 15–25 降级）与防御分支 ⇒ 基线 Tahoe 常态下不走它，在册「legacy 采样能力反而强于原生态路径」**已不构成常态事实**（窗底透明后二者均有采样源）。**⑤ 判定边界**：本项残余（并排布局是否致观感扁平）按 §0 通道表**无 A 层像素证据可取**⇒ 归 G3 目检，且需与 D-1 三架构案一并裁（折射源与 morph 配对互为前提），本轮不改代码。**⁽⁰⁹⁻⁰⁷ᶠ⁾ 状态再改判**：上文 ① 的「D-10(a) 已修掉根因」于 09-07 失效——(a) 已被 G3 A-d 目检否决并整条回退（透明窗底使全屏玻璃面以用户壁纸为采样源 ⇒ 侧栏浓橙，R−B=+54），窗底恢复 opaque+bgPrimary 满铺 ⇒ **本项根因重新成立**，但结论不变（残余无 A 层像素证据，归 G3 目检；MVP 冻结前不再动结构）。 |
 | **A16 滚动边缘效果** | ✅ 已审·结构性 N/A（§15） | 侧栏会话列表/消息滚动进入玻璃下方时是否有 dissolve 效果；`scrollEdgeEffectStyle` 本 SDK 可用（§1.13），我们未使用 |
 | **A17 静止态内容交叠** | ✅ **09-07 F6 已实施：折叠 rail 左上角三方交叠在几何上解除；运行时/观感项归 G3 A-b 目检** ⁽⁰⁹⁻⁰⁷ᵃ⁾ | **结构事实（实测）**：`ChatAreaView.swift:11` 根容器是 `VStack(spacing: 0)`，自上而下**顺序排布**——顶栏 `ChatTopBar`（L14）→ 消息区 `MessageScrollView`/`EmptyChatPrompt`（L18-26）→ 输入区 `ChatInputArea`（L28），**无 `ZStack`/`overlay` 承载这三个主体** ⇒ composer 玻璃面（`ChatInputArea.swift:117` `.glassSurface(.regular, cornerRadius: 16)`）与消息流各自占位，不存在「静止态内容压在玻璃下方」的结构前提。`ChatAreaView.swift:192` 的 `.overlay(alignment: .bottomTrailing)` 仅承载悬浮滚动按钮（非玻璃、非主体内容）。**残余**：首帧消息与玻璃下沿的实际像素间距属运行时量，按 §0 无像素通道 ⇒ 归 G3 目检（27 beta 幻影坐标口径下以 AX pos 为权威）。**本项审计的意外产出＝ D-19**：拉材质清单时发现顶栏用的是 `.ultraThinMaterial` 而非玻璃体系入口 `.glassSurface(...)` ⇒ 主题插件与减弱透明度降级链都管不到它，已另立卡交你裁（非本项结论）。 |
 | **A18 sheet 自铺背景反模式** | ✅ **09-07 F5 已实施（唯一命中处撤除不透明底）** ⁽⁰⁹⁻⁰⁷ᵃ⁾｜09-06 逐 sheet 审毕：1/5 命中 ⁽⁰⁹⁻⁰⁶ᵇ⁾ | **官方口径落点先审清**：`presentationBackground` 全仓 **0 命中**（`grep -rn` 于 Apps+Packages） ⇒ 反模式若存在只能来自 sheet 内容视图自填 `.background(...)`。**全部 5 个 sheet 逐个实测**：① `SettingsView.swift:247` → `SettingsCompletePage` **其卡片底 `SettingsCompletePage.swift:63` `.background(HarnessTheme.surface)` 自铺不透明底，且该文件无 `glassEffect` ⇒ 唯一命中**（⚠️ 09-07 复核纠正：原写「根视图」不准——该文件根 `VStack` 无背景，`sheet` 材质本就透在卡片四周；唯一自铺底是 `card()` 辅助里的卡底）；② `PluginListView.swift:216` → `MCPServerLogSheet` 有 `glassEffect`（`MCPServerViews.swift:115` P1.3 补齐），其内 `.background(...surface.opacity(0.5))` 属**子项**背景非根铺底；③ `SidebarView.swift:112` → `ArchiveManagerView` 有 `glassEffect`（`SidebarSupportViews.swift:76-77`，并带「sheet 子窗口内 glassEffect 未官方实证，最坏＝无玻璃视觉」注记）；④⑤ `SidebarProjectSections.swift:182/204`（重命名／删除确认）为内联 `VStack`，仅 `.padding(20).frame(width:)` **无自铺底**＝F5 撤底已生效的实证。**判定**：残余＝`SettingsCompletePage` 一处（P2 新增页，未纳入 F5 批次）；撤它属观感变更且与 D-12（F5 撤 sheet 自铺底批次）同源 ⇒ **归 D-12 一并裁，本轮不改代码**。 |
@@ -369,7 +369,7 @@ A3 疑虑（常驻面是否生效）不再成立。
   (b) **官方 segmented 形态**：6 面常驻 + `glassEffectUnion` 合成**单一形状**（§1.5 "even when your
   content is at rest"＋§1.11 "singular floating plane"），选中态用 tint/前景强调 → 更像系统分段控件。
   两者都有官方出处，**只有真机目检能裁决**（无静默像素通道，§0）。
-- **F4｜让玻璃有东西可折射（A15 修法，二选一或并用）**： **〔执行态 09-04：用户拍板 (a) 已实施 @`ee1da43`，实况终裁 G3 A-d〕**
+- **F4｜让玻璃有东西可折射（A15 修法，二选一或并用）**： **〔执行态 09-04：用户拍板 (a) 已实施 @`ee1da43`，实况终裁 G3 A-d〕** **〔⁽⁰⁹⁻⁰⁷ᶠ⁾ 终裁结果＝否决 ⇒ (a) 已回退，改判 (c) 接受扁平；F4 重新回到「未解」〕**
   (a) **窗口透明底**：`window.isOpaque=false` + `backgroundColor=.clear`（AppKit 层，改动小、可回退）
   → 侧栏玻璃采**桌面**，恢复 macOS 侧栏传统；可读性由 regular 变体的 blur/luminosity 调整负责（§1.9 原文）。
   ⚠️ 风险：窗口内文字对比度与"内容区是否也变透"需目检；`NSWindow` 行为改动属可见状态变化，验收需你 1 分钟。
@@ -381,7 +381,7 @@ A3 疑虑（常驻面是否生效）不再成立。
 - **F5｜设置完整页 sheet 撤自铺底（A18 修法）** ✅ **09-07 已实施（D-12 本批）**：
   实际改法不是「整行删除」而是 `.background(HarnessTheme.surface)` → `.surface.opacity(0.5)`——
   删干净会让五张卡失去分组底（可读性回归），半透明子项底是本仓 `MCPServerViews` 在 sheet 内已在位的同口径做法。
-  不透明底撤除后系统 sheet 材质得以透出（D-10(a) 透明窗底之下不再被卡底挡折射）。
+  不透明底撤除后系统 sheet 材质得以透出（D-10(a) 透明窗底之下不再被卡底挡折射）。 **⁽⁰⁹⁻⁰⁷ᶠ⁾ F5 已撤销**：F5 的唯一立论是 D-10(a) 透明窗底，(a) 回退后立论失效 ⇒ 概览页卡底恢复不透明 `HarnessTheme.surface`（09-07 用户截图①＝设置 sheet 白成一片、卡片无边界，与半透明卡底同源）。
   ⚠️ 可见状态变化：观感终裁归 G3 池 A 目检；本仓 A 层无玻璃像素通道 ⇒ **不宣称观感收益**。
 - **F6｜折叠 rail 顶部避让红绿灯 + overlay 展开按钮错位（A17 修法，两个小改动）** ✅ **09-07 已实施（D-12 本批）**：
   两个改动都做，但**常量收进单一来源** `SidebarRailLayout`（rail 宽／红绿灯带矩形／避让带高／按钮起算点），
@@ -399,7 +399,7 @@ A3 疑虑（常驻面是否生效）不再成立。
 
 ## §14 【待确认】新增两项
 
-- **D-10**：F4 折射源修法 → **(a) ✅ 拍板并实施 @09-04 `ee1da43`**（透明窗底；(b) backgroundExtensionEffect 未选、(c) 未选——账本 DECISION_INDEX）。
+- **D-10**：F4 折射源修法 → **(a) ✅ 拍板并实施 @09-04 `ee1da43`**（透明窗底；(b) backgroundExtensionEffect 未选、(c) 未选——账本 DECISION_INDEX）。 **⁽⁰⁹⁻⁰⁷ᶠ⁾ 改判 = (c) 接受扁平**：G3 A-d 目检否决 ⇒ `ee1da43` 三处联动整条撤销（窗底回 opaque+windowBackgroundColor／bgPrimary 实底满铺整窗／撤侧栏全屏玻璃底）＋ F5 卡底回 `.surface`。取证：透明窗底之下全屏玻璃面以**用户壁纸**为采样源（用户壁纸暖棕 R−B=+44 ⇒ 侧栏 R−B=+54 浓橙），界面色相不受我方控制 ⇒ 不可交付；修复态探针实测玻璃面＝中性 (230,230,230)。A15 根因链第一条随此**回到未解**（MVP 后与 D-1 三架构案同批再议）。
   不选 (c) 的话，玻璃质感提升的上限基本由此决定 —— 这是本轮最重要的单项。
 - **D-10 拍板材料加固（09-03 补记㊹·官方原文双项，A 层静默）**：
   - **(a) 窗口透明底**：官方**无**「glassEffect 透过透明窗底采样桌面」明文——该因果属机制推断；
@@ -421,7 +421,7 @@ A3 疑虑（常驻面是否生效）不再成立。
   - **建议不变**：(a) 先行（小、可回退），(a) 目检不达预期再评估 (b)；(c) 为放弃质感上限项。
 - **D-11**：A13 主题 tint 定位 → 全局装饰染色（现状，卖点直观）/ 仅功能件染色（官方口径）/ 二者兼容（主题可声明 tint 作用域，默认仅功能件）。
 
-- **D-12**：F5（设置完整页撤自铺底）+ F6（折叠 rail 避让带 + overlay 错位）执行批次。 **✅ 09-07 两项均已实施**（与 D-15/D-19 同一 `.swift` 批次链内完成；观感仍待 G3 A-b/A-d 目检）。
+- **D-12**：F5（设置完整页撤自铺底）+ F6（折叠 rail 避让带 + overlay 错位）执行批次。 **✅ 09-07 两项均已实施**（与 D-15/D-19 同一 `.swift` 批次链内完成；观感仍待 G3 A-b/A-d 目检）。 **⁽⁰⁹⁻⁰⁷ᶠ⁾ F5 已撤销**（立论随 D-10(a) 失效，见 §13-F5 行）；**F6 未动**（纯几何避让，无色彩/材质依赖，仍待 A-b 目检）。
   两者均为可见状态变化、无静默视觉通道 → 修前/修后各需你顺手 1 分钟目检，或认可静态几何证据直接修+编译测试核销。
 
 ## §15 A16/A17/A18 审计结论（09-03 第四轮·全程静默 A 层）
@@ -483,7 +483,7 @@ composer 三段并排，**消息永不从任何玻璃面下滑经过**；顶栏 
 - 修法 F5（单行撤底）。建议与 D-10 材质议题同批（透明底窗口方案下，sheet 不透明底同样阻断折射源）。
 
 ### A12 附产（顺带登记）
-**⁽⁰⁹⁻⁰⁷ᵉ⁾ 注册表基线回退**：`.glassEffectID` 在 `Views/GlassMorphTabBar.swift` 的基线 **2 → 1**（09-06 铺满常驻面时曾升到 2＝逐段 ID＋选中 morph ID；09-07 用户目检否决铺满 ⇒ 逐段 ID 撤除）。`.glassSurface(` 基线仍 14（D-19 顶栏未回退）。**A1 口径联动教训**：A12 的「面数越多越能配对 morph」是**结构口径**，09-07 实测证明它与观感方向相反——面数上限判据（native 态＝1）已在 `GlassFaceCoverageTests` 钉死，任何上调必须附观感证据（截图/目检记录），不得只凭结构测试放行。
+**⁽⁰⁹⁻⁰⁷ᵉ⁾ 注册表基线回退**：`.glassEffectID` 在 `Views/GlassMorphTabBar.swift` 的基线 **2 → 1**（09-06 铺满常驻面时曾升到 2＝逐段 ID＋选中 morph ID；09-07 用户目检否决铺满 ⇒ 逐段 ID 撤除）。`.glassSurface(` 基线 **14 → 13**（⁽⁰⁹⁻⁰⁷ᶠ⁾ D-10(b) 回退＝侧栏全屏玻璃底 `SidebarView.swift` 撤除；D-19 顶栏未回退）。本基线按**上限护栏**使用：新增玻璃面须同时改表并附目检证据。**A1 口径联动教训**：A12 的「面数越多越能配对 morph」是**结构口径**，09-07 实测证明它与观感方向相反——面数上限判据（native 态＝1）已在 `GlassFaceCoverageTests` 钉死，任何上调必须附观感证据（截图/目检记录），不得只凭结构测试放行。
 `SidebarProjectSections.swift:339` 会话行 `.glassSurface(.thin)` → **运行时玻璃面数随会话列表行数线性增长**，
 G2 的运行时面数护栏必须把此调用点列入统计口径（静态计数 12 处掩盖了这一点）。
 

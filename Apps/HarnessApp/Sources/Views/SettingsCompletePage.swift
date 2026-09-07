@@ -100,10 +100,11 @@ struct SettingsCompletePage: View {
 
     /// 卡片外壳（标题 + 说明 + 内容，统一视觉）
     ///
-    /// D-12/F5（A18 修法）：卡底由不透明 `HarnessTheme.surface` 改为半透明
-    /// （`surface.opacity(0.5)`，与 `MCPServerViews` 在 sheet 内既有子项背景同口径）——
-    /// 透明窗底（D-10(a)）之下不透明自铺底会挡住系统 sheet 材质的透出。
-    /// ⚠️ 属可见状态变化：观感终裁归 G3 池 A 目检（本仓 A 层无玻璃像素通道，不自证）。
+    /// ⁽⁰⁹⁻⁰⁷ᵉ⁾ F5 随 D-10(b) 撤销：F5 的唯一立论是「透明窗底（D-10(a)）之下不透明自铺底会挡住
+    /// 系统 sheet 材质透出」；D-10(a) 已因用户实机目检否决回退为实底窗底 ⇒ 立论失效，卡底回到
+    /// 不透明 `HarnessTheme.surface`（09-07 用户截图①＝设置 sheet 白成一片、卡片无边界，与此同源）。
+    /// 其余 sheet 内子项（MCPServerViews/ToolTraceViews 等）的 `surface.opacity(0.5)` 为 09-06 之前
+    /// 既存口径，不在本次回退范围（无用户否决证据，不夹带）。
     private func card(
         _ overview: SettingsOverviewCard,
         title: String,
@@ -124,7 +125,7 @@ struct SettingsCompletePage: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(HarnessTheme.surface.opacity(0.5))
+        .background(HarnessTheme.surface) // ⁽⁰⁹⁻⁰⁷ᵉ⁾ F5 撤销：立论（透明窗底）已失效
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
