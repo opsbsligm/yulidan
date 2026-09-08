@@ -62,7 +62,7 @@ struct ChatInputArea: View {
                     }
                 }
 
-                TextField("给 Harness 发送消息…", text: $text, axis: .vertical)
+                TextField("给 \(AppBrand.displayName) 发送消息…", text: $text, axis: .vertical)
                     .font(.system(.body, design: .rounded))
                     .textFieldStyle(.plain)
                     .lineLimit(1 ... 8)
@@ -123,7 +123,7 @@ struct ChatInputArea: View {
             // 提示行（卡片外）
             HStack(spacing: 12) {
                 Text("Enter 发送 · Shift+Enter 换行")
-                Text("Harness 使用 AI，请检查输出。")
+                Text("\(AppBrand.displayName) 使用 AI，请检查输出。")
                 Spacer()
             }
             .font(.system(size: 10))

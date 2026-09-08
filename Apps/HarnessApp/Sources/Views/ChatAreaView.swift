@@ -406,11 +406,11 @@ struct GeneratingIndicator: View {
                 }
             }
             if let activeToolName {
-                Text("Harness 正在运行工具：\(activeToolName) …")
+                Text("\(AppBrand.displayName) 正在运行工具：\(activeToolName) …")
                     .font(.system(size: 12, design: .rounded))
                     .foregroundStyle(HarnessTheme.textTertiary)
             } else {
-                Text("Harness 正在思考…").font(.system(size: 12)).foregroundStyle(HarnessTheme.textTertiary)
+                Text("\(AppBrand.displayName) 正在思考…").font(.system(size: 12)).foregroundStyle(HarnessTheme.textTertiary)
             }
             Spacer()
         }
@@ -425,15 +425,8 @@ struct EmptyChatPrompt: View {
     @ObservedObject var viewModel: AppViewModel
     var body: some View {
         VStack(spacing: 14) {
-            Spacer().frame(height: 48)
-            ZStack {
-                Circle()
-                    .fill(HarnessTheme.accent.opacity(0.1))
-                    .frame(width: 40, height: 40)
-                Image(systemName: "sparkles")
-                    .font(.system(size: 18, weight: .medium))
-                    .foregroundStyle(HarnessTheme.accent)
-            }
+            Spacer()
+            FelAuraAvatar(diameter: 64)
             Text("我能帮你做什么？")
                 .font(.system(size: 17, weight: .semibold, design: .rounded))
             Text("让我来编写代码、分析文件、执行命令或搜索信息")
@@ -482,7 +475,7 @@ enum ChatRole {
     var displayName: String {
         switch self {
         case .user: "你"
-        case .assistant: "Harness"
+        case .assistant: AppBrand.displayName
         case .system: "系统"
         case .tool: "工具"
         }

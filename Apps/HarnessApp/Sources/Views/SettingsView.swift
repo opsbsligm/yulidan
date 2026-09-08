@@ -67,7 +67,7 @@ enum SettingsSubTab: CaseIterable, Identifiable, Hashable {
         case .params: "请求参数"
         case .connection: "连接测试"
         case .pluginManagement: "插件管理"
-        case .about: "关于 Harness"
+        case .about: "关于 \(AppBrand.displayName)"
         }
     }
 

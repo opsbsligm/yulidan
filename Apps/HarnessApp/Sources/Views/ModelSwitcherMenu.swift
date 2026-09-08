@@ -12,7 +12,9 @@ struct ModelSwitcherMenu: View {
 
     var body: some View {
         Menu {
-            ForEach(ModelProvider.allCases, id: \.self) { provider in
+            // 09-08 用户决定：菜单只列有保存配置的提供商（未配置的占位模型目录不再展示）；
+            // 预设目录仍保留在「设置 → 模型服务」供首次配置时点选。
+            ForEach(ModelProvider.allCases.filter { $0.rawValue == viewModel.llmConfig.providerRaw }, id: \.self) { provider in
                 let models = provider.selectableModels.isEmpty
                     ? [viewModel.llmConfig.modelName]
                     : provider.selectableModels

@@ -17,15 +17,8 @@ struct WelcomeAreaView: View {
 
             // hero：水平垂直完全居中
             VStack(spacing: 0) {
-                ZStack {
-                    Circle()
-                        .fill(HarnessTheme.accent.opacity(0.12))
-                        .frame(width: 44, height: 44)
-                    Image(systemName: "sparkles")
-                        .font(.system(size: 20, weight: .medium))
-                        .foregroundStyle(HarnessTheme.accent)
-                }
-                Text("Harness")
+                FelAuraAvatar(diameter: 72)
+                Text(AppBrand.displayName)
                     .font(.system(size: 28, weight: .medium, design: .rounded))
                     .foregroundStyle(HarnessTheme.textPrimary)
                     .padding(.top, 12)

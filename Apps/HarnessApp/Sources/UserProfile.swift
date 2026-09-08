@@ -70,3 +70,50 @@ struct UserAvatarBadge: View {
         }
     }
 }
+
+/// 应用图标位图：直接读 bundle 内 AppIcon.icns（与 Dock 图标同源文件，但不经 LaunchServices 缓存）。
+/// 09-08 实测：LS 图标缓存对新写入的 icns 反应滞后，NSApplicationIcon 会拿到灰色通用图标；
+/// 改从 Bundle.main 确定加载，icns 缺失/解码失败时回退 NSApplicationIconName 保底不空白。
+enum AppIconImage {
+    static let value: NSImage = {
+        if let url = Bundle.main.url(forResource: "AppIcon", withExtension: "icns"),
+           let img = NSImage(contentsOf: url) { return img }
+        return NSImage(named: NSImage.applicationIconName) ?? NSImage()
+    }()
+}
+
+/// 邪能光圈头像：多彩朦胧光晕缓慢旋转（AngularGradient＋blur＋linear repeatForever，全 SwiftUI 原生）。
+/// 配色取伊利丹角色色系（邪能绿→紫→粉→青→回环），首尾同色保证旋转无缝；
+/// 仅存在于欢迎页/空态——来消息即离场，不构成常态动画负载。
+struct FelAuraAvatar: View {
+    let diameter: CGFloat
+    @State private var spinning = false
+
+    private static let felSpectrum: [Color] = [
+        Color(red: 0.45, green: 0.92, blue: 0.35),  // 邪能绿
+        Color(red: 0.62, green: 0.35, blue: 0.90),  // 恶魔紫
+        Color(red: 0.95, green: 0.45, blue: 0.75),  // 魔粉
+        Color(red: 0.35, green: 0.80, blue: 0.95),  // 奥术青
+        Color(red: 0.45, green: 0.92, blue: 0.35),  // 回环起点
+    ]
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(AngularGradient(colors: Self.felSpectrum, center: .center))
+                .frame(width: diameter * 1.32, height: diameter * 1.32)
+                .blur(radius: diameter * 0.13)                    // 朦胧感
+                .opacity(0.8)
+                .rotationEffect(.degrees(spinning ? 360 : 0))
+                .animation(.linear(duration: 7).repeatForever(autoreverses: false), value: spinning)
+            Image(nsImage: AppIconImage.value)
+                .resizable()
+                .scaledToFill()
+                .frame(width: diameter, height: diameter)
+                .clipShape(Circle())
+                .overlay(Circle().strokeBorder(.white.opacity(0.55), lineWidth: 1.2)) // 内圈描边与光分离
+        }
+        .frame(width: diameter * 1.32, height: diameter * 1.32)
+        .onAppear { spinning = true }
+    }
+}

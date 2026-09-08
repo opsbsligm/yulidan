@@ -342,7 +342,7 @@ struct AboutSettingsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 SettingsCard(title: "版本", icon: "info.circle") {
-                    Text("Harness v0.2.0（Swift 原生复刻 deepseek-harness）")
+                    Text("\(AppBrand.displayName) v0.2.0（Swift 原生复刻 deepseek-harness）")
                         .font(.system(.body, design: .monospaced))
                 }
 

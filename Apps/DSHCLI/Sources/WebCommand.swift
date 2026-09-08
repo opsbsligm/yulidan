@@ -54,7 +54,7 @@ struct WebCommand: AsyncParsableCommand {
             print("⚠️ 无法绑定 \(host)（EADDRNOTAVAIL，环境限制），已回退到 0.0.0.0（局域网可达，请注意访问控制）")
         }
         let displayHost = host == "0.0.0.0" ? "127.0.0.1" : host
-        print("Swift Harness Web UI: http://\(displayHost):\(boundPort)")
+        print("鱼利丹 Web UI: http://\(displayHost):\(boundPort)")
         print("按 Ctrl+C 停止服务")
 
         await SignalGate.wait()

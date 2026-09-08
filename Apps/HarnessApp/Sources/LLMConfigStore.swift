@@ -70,7 +70,7 @@ struct LLMConfig: Codable, Equatable {
                   modelName: "deepseek-chat",
                   maxTokens: 4096,
                   localBaseURL: "http://localhost:11434/v1",
-                  systemPrompt: "你是 Harness，一个运行在 macOS 上的 AI 开发助手。回答简洁专业，代码使用代码块。",
+                  systemPrompt: "你是 \(AppBrand.displayName)，一个运行在 macOS 上的 AI 开发助手。回答简洁专业，代码使用代码块。",
                   baseURLOverride: nil,
                   thinkingLevel: .off)
     }

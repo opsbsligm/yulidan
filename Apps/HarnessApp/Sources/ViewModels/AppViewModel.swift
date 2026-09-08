@@ -113,7 +113,7 @@ struct PluginDisplayItem: Identifiable, Hashable {
         isActive = info.state == .active
         // P0.4：权限数据源 = manifest 真实声明（不再依赖 App 层硬编码目录）
         permissions = info.permissions.map(\.display)
-        author = "Harness 内置"
+        author = "\(AppBrand.displayName) 内置"
         description = BuiltInPluginCatalog.info[info.id.rawValue]?.description ?? "内置插件"
         self.isTheme = isTheme
     }
@@ -2660,10 +2660,10 @@ final class AppViewModel: ObservableObject {
         panel.allowedContentTypes = []
         let nameFmt = DateFormatter()
         nameFmt.dateFormat = "yyyyMMdd-HHmm"
-        panel.nameFieldStringValue = "Harness对话-\(nameFmt.string(from: Date())).md"
+        panel.nameFieldStringValue = "\(AppBrand.displayName)对话-\(nameFmt.string(from: Date())).md"
         panel.message = "选择导出位置"
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        var md = "# Harness 对话导出\n\n> 模型：\(llmConfig.provider.displayName) / \(llmConfig.modelName)\n> 导出时间：\(Date.now.formatted())\n\n"
+        var md = "# \(AppBrand.displayName) 对话导出\n\n> 模型：\(llmConfig.provider.displayName) / \(llmConfig.modelName)\n> 导出时间：\(Date.now.formatted())\n\n"
         for m in messages {
             md += "## \(m.role.displayName)（\(tsFormatter.string(from: m.timestamp))）\n\n\(m.content)\n\n"
         }

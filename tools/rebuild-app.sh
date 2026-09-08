@@ -24,17 +24,20 @@ sync_bundle() {
   if [ "$a" != "$b" ]; then
     echo "❌ bundle 同步失败：cp 后 sha 不一致（src=$a bundle=${b}）"; exit 1
   fi
+  mkdir -p "$APP/Contents/Resources"
+  cp "$(dirname "$0")/../Apps/HarnessApp/Resources/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns" 2>/dev/null || echo "⚠️ AppIcon.icns 缺失：本次构建无图标（不致命）" >&2
   cat > "$APP/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CFBundleName</key><string>Harness</string>
-    <key>CFBundleDisplayName</key><string>Harness</string>
+    <key>CFBundleName</key><string>鱼利丹</string>
+    <key>CFBundleDisplayName</key><string>鱼利丹</string>
     <key>CFBundleIdentifier</key><string>com.deepseek.harness</string>
     <key>CFBundleVersion</key><string>0.2.0</string>
     <key>CFBundleShortVersionString</key><string>0.2.0</string>
     <key>CFBundleExecutable</key><string>HarnessApp</string>
+    <key>CFBundleIconFile</key><string>AppIcon</string>
     <key>CFBundlePackageType</key><string>APPL</string>
     <key>LSMinimumSystemVersion</key><string>26.0</string>
     <key>NSHighResolutionCapable</key><true/>

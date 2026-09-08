@@ -18,7 +18,7 @@ import WebUI
 struct DSH: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "dsh",
-        abstract: "Swift Harness — macOS Native AI Agent Framework",
+        abstract: "鱼利丹 — macOS Native AI Agent Framework",
         version: "0.1.0",
         subcommands: [WebCommand.self, HeadlessCommand.self, PluginCommand.self, AgentsCommand.self,
                       SkillsCommand.self, MCPCommand.self, CordisCommand.self]

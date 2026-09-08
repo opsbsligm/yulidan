@@ -132,12 +132,12 @@ struct SidebarView: View {
                     Button("归档管理") {
                         showArchiveManager = true
                     }
-                    Button("关于 Harness") {
+                    Button("关于 \(AppBrand.displayName)") {
                         NSApp.orderFrontStandardAboutPanel(nil)
                     }
                 } label: {
                     HStack(spacing: 4) {
-                        Text("Harness").font(.system(size: 15, weight: .semibold))
+                        Text(AppBrand.displayName).font(.system(size: 15, weight: .semibold))
                         Image(systemName: "chevron.down").font(.system(size: 9, weight: .medium))
                     }
                     .foregroundStyle(HarnessTheme.textPrimary)
@@ -145,7 +145,7 @@ struct SidebarView: View {
                 }
                 .menuIndicator(.hidden)
                 .buttonStyle(.plain)
-                .help("Harness 菜单")
+                .help("\(AppBrand.displayName) 菜单")
                 // P1.5 走查项（89a5966 疑似违规，2026-08-29 预防性修复）：边到边透明标题栏下红绿灯占左上区域
                 // （约 x 10–62 / y 8–28），品牌文字原起点 x=14 与之重叠 → 仅本行 Menu 左缩进 56（总 70pt 越过红绿灯区）；
                 // 右侧按钮经 Spacer 保持原位，rail 折叠态为独立布局不受影响
