@@ -106,11 +106,6 @@ struct SidebarBottomBar: View {
     /// 设置行 hover
     @State private var settingsHover = false
 
-    /// 用户姓名首字（头像用）
-    private var avatarInitial: String {
-        String(NSFullUserName().prefix(1))
-    }
-
     var body: some View {
         VStack(spacing: 0) {
             Divider().padding(.horizontal, 10)
@@ -151,14 +146,8 @@ struct SidebarBottomBar: View {
 
                 Button(action: onToggleCollapse) {
                     HStack(spacing: 9) {
-                        ZStack {
-                            Circle().fill(HarnessTheme.surface)
-                            Text(avatarInitial)
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundStyle(HarnessTheme.accent)
-                        }
-                        .frame(width: 20, height: 20)
-                        Text(NSFullUserName())
+                        UserAvatarBadge(diameter: 20, fontSize: 11)
+                        Text(UserProfile.displayName)
                             .font(.system(size: 12))
                             .foregroundStyle(HarnessTheme.textSecondary)
                             .lineLimit(1)

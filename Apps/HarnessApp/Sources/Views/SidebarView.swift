@@ -56,11 +56,6 @@ struct SidebarView: View {
     /// P1.3：侧边栏折叠 morph 身份（展开/折叠玻璃面统一 ID）
     private static let collapseMorphID = "harness-sidebar-collapse"
 
-    /// 用户姓名首字（头像用）
-    private var avatarInitial: String {
-        String(NSFullUserName().prefix(1))
-    }
-
     /// 侧栏分区模型（纯函数；主区排除归档项）
     private var model: SidebarModel {
         SidebarModelBuilder.build(projects: projects, sessions: sessions)
@@ -440,13 +435,7 @@ struct SidebarView: View {
 
             // 头像（点击展开侧边栏）
             Button(action: onToggleCollapse) {
-                ZStack {
-                    Circle().fill(HarnessTheme.surface)
-                    Text(avatarInitial)
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(HarnessTheme.accent)
-                }
-                .frame(width: 26, height: 26)
+                UserAvatarBadge(diameter: 26, fontSize: 12)
             }
             .buttonStyle(.plain)
             .help("展开侧边栏")
