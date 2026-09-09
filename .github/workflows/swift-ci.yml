@@ -155,7 +155,7 @@ jobs:
         run: strip .build/release/dsh
 
       - name: Upload CLI
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: dsh-macos
           path: .build/release/dsh
@@ -168,7 +168,7 @@ jobs:
           cd HarnessApp.artifact && zip -r ../HarnessApp-macos.zip HarnessApp
 
       - name: Upload macOS App
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: HarnessApp-macos
           path: HarnessApp-macos.zip
