@@ -1,10 +1,13 @@
-# Swift Harness — macOS 原生 AI Agent 框架
+# 鱼利丹（Yulidan）— macOS 原生 AI Agent
 
-> 使用 Swift 6 原生（SwiftUI + AppKit）复刻的 DeepSeek Harness AI Agent 框架。
+> 鱼利丹——取魔兽世界伊利丹（Illidan）谐音梗，一个 Swift 6 原生（SwiftUI + AppKit）的本地 AI Agent 应用。
 > 无 WebView / Electron / JS，全部本地代码，macOS 26（Tahoe）基线（`Package.swift .macOS(.v26)` +
 > deployment target 26.0，彻底不兼容旧系统），Apple Silicon 优先。
 >
-> **现状与权威信息源**：功能冻结前打磨期。四门禁台账见 `QUALITY_REPORT.md` 头部主表；
+> 工程代号 **Harness**：目录名 / 模块名 / bundle id / 数据路径沿用该代号（身份锚与依赖图约束）；用户可见品牌统一为鱼利丹（`AppBrand` 单点管理）。
+> 预构建版：[Releases](https://github.com/opsbsligm/yulidan/releases) 下载 DMG，拖入应用程序即可（ad-hoc 签名，首次右键→打开）。
+>
+> **现状与权威信息源**：MVP 已交付（tag `mvp-0.1.0`），打磨迭代中。四门禁台账见 `QUALITY_REPORT.md` 头部主表；
 > 阶段史与核销链见 `P1_STAGE_REPORT.md`；待拍板事项见 `docs/DECISION_INDEX.md`；
 > 社区插件兼容矩阵见 `docs/DSH_COMMUNITY_PLUGIN_CENSUS.md`；性能护栏见 `docs/PERFORMANCE.md`。
 
@@ -48,7 +51,7 @@ swift-harness/
 
 ```bash
 swift build              # 构建全部 target
-swift test               # 142 个 Swift Testing 测试，33 个 suite
+swift test               # 207 个 Swift Testing 测试（2026-09-08 门禁实测）
 swift run dsh            # 运行 CLI
 swift run HarnessApp     # 运行 macOS App
 ```
@@ -110,7 +113,7 @@ open Package.swift
 
 ## 📊 测试与覆盖率
 
-- SPM：`swift test` — 142 tests / 33 suites 全过（含 LLM HTTP mock、内置工具、GRDB 持久化）
+- SPM：`swift test` — 207 tests 全过（2026-09-08 门禁实测；含 LLM HTTP mock、内置工具、GRDB 持久化）
 - Xcode：`xcodebuild test` — 5 个测试 bundle（XCTest）全过
 - 覆盖率（coverage-report.txt，2026-08-14 基线）：ServiceContainer 91% / Session 96% / Agent 98% / Tools 94%
 
@@ -119,7 +122,7 @@ open Package.swift
 - `exec_command` 工具会以当前用户身份执行 `/bin/zsh -c`，**具备真实系统操作能力**（有超时保护）。
   接入生产/共享环境前建议：增加高危命令确认、限制工作目录、或走 `Sandbox` 包做沙箱化。
 - 工具读写文件目前不做路径白名单，建议按部署场景在 App 层补充约束。
-- 本仓库未启用 git 托管前的变更均无版本保护，建议 `git init` 并提交。
+- GitHub 私有库：https://github.com/opsbsligm/yulidan （main 分支；Release 提供 macOS DMG）
 
 ## 📄 License
 
