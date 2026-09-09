@@ -1,4 +1,16 @@
-# 鱼利丹（Yulidan）— macOS 原生 AI Agent
+<p align="center">
+  <img src="docs/assets/icon.png" width="128" alt="鱼利丹 icon"/>
+  <h1 align="center">鱼利丹（Yulidan）</h1>
+  <p align="center"><em>“The Fel, the Deceiver… 现在是你的本地 AI Agent。”</em></p>
+  <p align="center">
+    <img alt="Swift" src="https://img.shields.io/badge/Swift-6-F05138?logo=swift&logoColor=white">
+    <img alt="Platform" src="https://img.shields.io/badge/macOS-26%20Tahoe%20·%20Apple%20Silicon-000000?logo=apple&logoColor=white">
+    <img alt="Tests" src="https://img.shields.io/badge/tests-207%20passing-brightgreen">
+    <img alt="No Electron" src="https://img.shields.io/badge/UI-SwiftUI%20%2B%20AppKit%20·%200%25%20Electron-blueviolet">
+    <img alt="Release" src="https://img.shields.io/github/v/release/opsbsligm/yulidan?label=release&color=important">
+    <img alt="License" src="https://img.shields.io/badge/license-MIT-green">
+  </p>
+</p>
 
 > 鱼利丹——取魔兽世界伊利丹（Illidan）谐音梗，一个 Swift 6 原生（SwiftUI + AppKit）的本地 AI Agent 应用。
 > 无 WebView / Electron / JS，全部本地代码，macOS 26（Tahoe）基线（`Package.swift .macOS(.v26)` +
@@ -7,7 +19,7 @@
 > 工程代号 **Harness**：目录名 / 模块名 / bundle id / 数据路径沿用该代号（身份锚与依赖图约束）；用户可见品牌统一为鱼利丹（`AppBrand` 单点管理）。
 > 预构建版：[Releases](https://github.com/opsbsligm/yulidan/releases) 下载 DMG，拖入应用程序即可（ad-hoc 签名，首次右键→打开）。
 >
-> **现状与权威信息源**：MVP 已交付（tag `mvp-0.1.0`），打磨迭代中。四门禁台账见 `QUALITY_REPORT.md` 头部主表；
+> **现状与权威信息源**：MVP 已交付（tag `mvp-0.1.0`），打磨迭代中。贡献前请先读 [CONTRIBUTING.md](CONTRIBUTING.md)；安全边界见 [SECURITY.md](SECURITY.md)。四门禁台账见 `QUALITY_REPORT.md` 头部主表；
 > 阶段史与核销链见 `P1_STAGE_REPORT.md`；待拍板事项见 `docs/DECISION_INDEX.md`；
 > 社区插件兼容矩阵见 `docs/DSH_COMMUNITY_PLUGIN_CENSUS.md`；性能护栏见 `docs/PERFORMANCE.md`。
 
