@@ -5,7 +5,7 @@
   <p align="center">
     <img alt="Swift" src="https://img.shields.io/badge/Swift-6-F05138?logo=swift&logoColor=white">
     <img alt="Platform" src="https://img.shields.io/badge/macOS-26%20Tahoe%20·%20Apple%20Silicon-000000?logo=apple&logoColor=white">
-    <img alt="Tests" src="https://img.shields.io/badge/tests-207%20passing-brightgreen">
+    <img alt="Tests" src="https://img.shields.io/badge/tests-829%20passing-brightgreen">
     <img alt="No Electron" src="https://img.shields.io/badge/UI-SwiftUI%20%2B%20AppKit%20·%200%25%20Electron-blueviolet">
     <img alt="Release" src="https://img.shields.io/github/v/release/opsbsligm/yulidan?label=release&color=important">
     <img alt="License" src="https://img.shields.io/badge/license-MIT-green">
@@ -63,7 +63,7 @@ swift-harness/
 
 ```bash
 swift build              # 构建全部 target
-swift test               # 207 个 Swift Testing 测试（2026-09-08 门禁实测）
+swift test               # 829 个 Swift Testing 测试 / 181 suites（2026-09-10 门禁实测）
 swift run dsh            # 运行 CLI
 swift run HarnessApp     # 运行 macOS App
 ```
@@ -125,7 +125,7 @@ open Package.swift
 
 ## 📊 测试与覆盖率
 
-- SPM：`swift test` — 207 tests 全过（2026-09-08 门禁实测；含 LLM HTTP mock、内置工具、GRDB 持久化）
+- SPM：`swift test` — 829 tests / 181 suites 全过（2026-09-10 门禁实测；含 LLM HTTP mock、内置工具、GRDB 持久化）
 - Xcode：`xcodebuild test` — 5 个测试 bundle（XCTest）全过
 - 覆盖率（coverage-report.txt，2026-08-14 基线）：ServiceContainer 91% / Session 96% / Agent 98% / Tools 94%
 

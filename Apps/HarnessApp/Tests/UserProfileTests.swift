@@ -9,17 +9,21 @@ struct UserProfileTests {
     @Test func emptyAttrValueIsNil() {
         #expect(UserProfile.jpegData(fromDsclOutput: "JPEGPhoto:") == nil)
     }
+
     @Test func missingAttrIsNil() {
         #expect(UserProfile.jpegData(fromDsclOutput: "NFSHomeDirectory: /Users/x") == nil)
     }
+
     @Test func foldedBase64Decodes() {
         let img = Data([0xFF, 0xD8, 0x01])
         #expect(UserProfile.jpegData(fromDsclOutput: "JPEGPhoto:\n\t\(img.base64EncodedString())") == img)
     }
+
     @Test func sameLineValueDecodes() {
         let img = Data([0xFF, 0xD8, 0x01])
         #expect(UserProfile.jpegData(fromDsclOutput: "JPEGPhoto: \(img.base64EncodedString())") == img)
     }
+
     @Test func displayNameAndInitialNonEmpty() {
         #expect(!UserProfile.displayName.isEmpty)
         #expect(!UserProfile.initial.isEmpty)

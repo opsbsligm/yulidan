@@ -1,14 +1,18 @@
-import SwiftUI
 import AppKit
+import SwiftUI
 
 /// 本机用户身份唯一数据源（展开态底栏与折叠态 rail 共用；2026-09-08 解耦收口）。
 /// 此前两处 View 各自直调 NSFullUserName()（逻辑重复、无头像图能力），现收敛到本文件。
 enum UserProfile {
     /// macOS 系统账户全名（系统设置 → 用户与群组；未设全名时系统回退 POSIX 名，不会为空串）
-    static var displayName: String { NSFullUserName() }
+    static var displayName: String {
+        NSFullUserName()
+    }
 
     /// 头像缺省字＝全名首字（与解耦前逐字一致）
-    static var initial: String { String(NSFullUserName().prefix(1)) }
+    static var initial: String {
+        String(NSFullUserName().prefix(1))
+    }
 
     /// 系统自定义头像（dslocal JPEGPhoto 属性，与系统设置显示的头像是同一份数据）。
     /// 未设置 / 不可读 ⇒ nil，调用方回退首字徽标。
@@ -77,7 +81,9 @@ struct UserAvatarBadge: View {
 enum AppIconImage {
     static let value: NSImage = {
         if let url = Bundle.main.url(forResource: "AppIcon", withExtension: "icns"),
-           let img = NSImage(contentsOf: url) { return img }
+           let img = NSImage(contentsOf: url) {
+            return img
+        }
         return NSImage(named: NSImage.applicationIconName) ?? NSImage()
     }()
 }
@@ -90,11 +96,11 @@ struct FelAuraAvatar: View {
     @State private var spinning = false
 
     private static let felSpectrum: [Color] = [
-        Color(red: 0.45, green: 0.92, blue: 0.35),  // 邪能绿
-        Color(red: 0.62, green: 0.35, blue: 0.90),  // 恶魔紫
-        Color(red: 0.95, green: 0.45, blue: 0.75),  // 魔粉
-        Color(red: 0.35, green: 0.80, blue: 0.95),  // 奥术青
-        Color(red: 0.45, green: 0.92, blue: 0.35),  // 回环起点
+        Color(red: 0.45, green: 0.92, blue: 0.35), // 邪能绿
+        Color(red: 0.62, green: 0.35, blue: 0.90), // 恶魔紫
+        Color(red: 0.95, green: 0.45, blue: 0.75), // 魔粉
+        Color(red: 0.35, green: 0.80, blue: 0.95), // 奥术青
+        Color(red: 0.45, green: 0.92, blue: 0.35), // 回环起点
     ]
 
     var body: some View {
@@ -102,7 +108,7 @@ struct FelAuraAvatar: View {
             Circle()
                 .fill(AngularGradient(colors: Self.felSpectrum, center: .center))
                 .frame(width: diameter * 1.32, height: diameter * 1.32)
-                .blur(radius: diameter * 0.13)                    // 朦胧感
+                .blur(radius: diameter * 0.13) // 朦胧感
                 .opacity(0.8)
                 .rotationEffect(.degrees(spinning ? 360 : 0))
                 .animation(.linear(duration: 7).repeatForever(autoreverses: false), value: spinning)
