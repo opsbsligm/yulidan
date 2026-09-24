@@ -147,7 +147,7 @@ jobs:
       # 门控：私有仓库需 CODECOV_TOKEN secret；启用方法 = 配好 secret 后 Settings→Variables 加 ENABLE_CODECOV=true
       - name: Upload Coverage
         if: vars.ENABLE_CODECOV == 'true'
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v7
         with:
           fail_ci_if_error: false
 
