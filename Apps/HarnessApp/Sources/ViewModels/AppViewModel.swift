@@ -2678,9 +2678,9 @@ final class AppViewModel: ObservableObject {
         messages.removeAll()
         generationError = nil
         lastUserMessage = ""
-        if let idx = selectedSession.flatMap({ sid in sessions.firstIndex { $0.id == sid } }) {
-            sessions[idx] = SessionRecord(id: sessions[idx].id, metadata: sessions[idx].metadata,
-                                          events: [], currentTurn: sessions[idx].currentTurn)
+        if let session = selectedSession, let idx = sessions.firstIndex(where: { $0.id == session.id }) {
+            sessions[idx] = SessionRecord(id: session.id, metadata: session.metadata,
+                                          events: [], currentTurn: session.currentTurn)
             selectedSession = sessions[idx]
             if let db = sessionDB {
                 let s = sessions[idx]; let db2 = db

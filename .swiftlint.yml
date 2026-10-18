@@ -1,5 +1,9 @@
 # SwiftLint 配置 — CI 门禁（swiftlint lint --strict）
 disabled_rules:
+  # repeatedGuard / nestedIf：SwiftLint 0.65 在此版本对"不同条件、相同 body"的连续 guard
+  # 及带作用域绑定的嵌套 if 误报（合并会丢失作用域绑定），属主观风格且无法安全自动合并，禁用
+  - repeatedGuard
+  - nestedIf
   - trailing_whitespace
   # trailing_comma：与 SwiftFormat 配置保持一致（不强制尾逗号），避免双工具冲突
   - trailing_comma
