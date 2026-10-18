@@ -7,10 +7,6 @@
 # Runner prerequisites (installed 2026-10-18 via brew): swiftlint,
 # swiftformat, xcodegen.
 
-concurrency:
-  group: $CI_PROJECT_PATH
-  cancel-in-progress: true
-
 stages:
   - lint
   - test
