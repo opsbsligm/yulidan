@@ -24,7 +24,8 @@ workflow:
 
 lint:
   stage: lint
-  tags: [macos]  script:
+  tags: [macos]
+  script:
     - swiftlint lint --strict --config .swiftlint.yml
     - swiftformat --lint . --config .swiftformat
 build-test:
