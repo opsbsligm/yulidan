@@ -124,10 +124,7 @@ public enum ThemePackageImporter {
 
     /// 二次校验（工具输出校验口径）：id/name 非空 + 颜色合法
     public nonisolated static func validate(_ spec: ThemeSpec) throws {
-        guard !spec.id.trimmingCharacters(in: .whitespaces).isEmpty, spec.id.count <= 40 else {
-            throw ThemePackageError.invalidID
-        }
-        guard !spec.name.trimmingCharacters(in: .whitespaces).isEmpty else {
+        guard !spec.id.trimmingCharacters(in: .whitespaces).isEmpty, spec.id.count <= 40, !spec.name.trimmingCharacters(in: .whitespaces).isEmpty else {
             throw ThemePackageError.invalidID
         }
         // P1.4：glassTintHex 纳入颜色校验（与其余颜色同口径；glassMaterial 未知值不拒绝 = 渲染层宽容回落）

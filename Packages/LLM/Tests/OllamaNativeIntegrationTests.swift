@@ -21,7 +21,7 @@ final class OllamaNativeIntegrationTests: XCTestCase {
             throw XCTSkip("未设 HARNESS_INTEGRATION（实机集成测试，需本机 Ollama；桩单测已覆盖 wire 契约）")
         }
         let env = ProcessInfo.processInfo.environment
-        let base = URL(string: env["OLLAMA_BASE_URL"] ?? "http://localhost:11434")!
+        let base = try XCTUnwrap(URL(string: env["OLLAMA_BASE_URL"] ?? "http://localhost:11434"))
         let model = env["OLLAMA_TEST_MODEL"] ?? "qwen3:4b"
         let numCtx = 32768
 
@@ -41,13 +41,11 @@ final class OllamaNativeIntegrationTests: XCTestCase {
             let (data, response) = try await URLSession.shared.data(for: req)
             if let http = response as? HTTPURLResponse, (200 ..< 300).contains(http.statusCode),
                let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let models = obj["models"] as? [[String: Any]] {
-                if let hit = models.first(where: {
-                    ($0["name"] as? String) == model && ($0["context_length"] as? Int) == numCtx
-                }) {
-                    found = hit["context_length"] as? Int
-                    break
-                }
+               let models = obj["models"] as? [[String: Any]], let hit = models.first(where: {
+                   ($0["name"] as? String) == model && ($0["context_length"] as? Int) == numCtx
+               }) {
+                found = hit["context_length"] as? Int
+                break
             }
             try await Task.sleep(nanoseconds: 500_000_000)
         }

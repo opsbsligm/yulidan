@@ -131,8 +131,7 @@ public actor NotificationCoordinator {
 
     /// 生成完成/失败通知
     public func postGenerationFinished(sessionTitle: String, error: String?) async {
-        guard isEnabled else { return }
-        guard await service.requestAuthorization() else { return }
+        guard isEnabled, await service.requestAuthorization() else { return }
         if let error {
             service.post(title: "生成失败", body: "\(sessionTitle)：\(error)", identifier: "harness.generation.failed")
         } else {
@@ -142,8 +141,7 @@ public actor NotificationCoordinator {
 
     /// 通用事件通知（子 Agent 完成等）
     public func post(event: String, detail: String?) async {
-        guard isEnabled else { return }
-        guard await service.requestAuthorization() else { return }
+        guard isEnabled, await service.requestAuthorization() else { return }
         service.post(title: event, body: detail, identifier: "harness.event")
     }
 }

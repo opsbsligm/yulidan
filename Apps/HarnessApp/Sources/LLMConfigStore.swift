@@ -145,7 +145,7 @@ extension ModelProvider {
     }
 }
 
-extension ClosedRange where Bound == Int {
+extension ClosedRange<Int> {
     func clamp(_ v: Int) -> Int {
         Swift.min(Swift.max(v, lowerBound), upperBound)
     }

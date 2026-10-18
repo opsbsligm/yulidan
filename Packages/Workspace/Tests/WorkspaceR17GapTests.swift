@@ -70,11 +70,11 @@ struct WorkspaceR17GapTests {
         #expect(model.projectSections.first { $0.project.id.rawValue == p1 }?.sessions.count == 2)
         // 全局会话 createdAt 倒序
         #expect(model.globalSessions.count == 2)
-        #expect(try #require(model.globalSessions.first?.metadata.createdAt) > model.globalSessions.last!.metadata.createdAt)
+        #expect(try #require(model.globalSessions.first?.metadata.createdAt) > #require(model.globalSessions.last?.metadata.createdAt))
         // 归档项目 sortOrder 升序
         #expect(model.archivedProjects.map(\.name) == ["归档乙", "归档甲"])
         // 归档会话（createdAt 倒序）
         #expect(model.archivedSessions.count == 2)
-        #expect(try #require(model.archivedSessions.first?.metadata.createdAt) > model.archivedSessions.last!.metadata.createdAt)
+        #expect(try #require(model.archivedSessions.first?.metadata.createdAt) > #require(model.archivedSessions.last?.metadata.createdAt))
     }
 }

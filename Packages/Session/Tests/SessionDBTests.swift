@@ -249,10 +249,8 @@ final class SessionDBTests: XCTestCase {
         try await db.save(s2)
         let hits = try await db.search(query: "50% 的 a_b")
         XCTAssertEqual(hits.count, 1)
-        if case let .userMessage(m)? = hits.first?.events.first {
-            if case let .text(t)? = m.content.first {
-                XCTAssertEqual(t, "进度 50% 的 a_b 报告")
-            }
+        if case let .userMessage(m)? = hits.first?.events.first, case let .text(t)? = m.content.first {
+            XCTAssertEqual(t, "进度 50% 的 a_b 报告")
         }
     }
 

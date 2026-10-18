@@ -3,17 +3,16 @@ import AppKit
 import Foundation
 import HarnessCore
 import LLM
+
+// 技术债：本文件/类超过长度阈值，计划拆分为 会话管理 / 生成流程 / 设置 三个 ViewModel（见 docs/CODE_REVIEW.md）
+// swiftlint:disable file_length type_body_length
+import MCP
 import Memory
 import Notifications
 import PluginXPC
 import Prompt
 import RAG
 import Sandbox
-import Workspace
-
-// 技术债：本文件/类超过长度阈值，计划拆分为 会话管理 / 生成流程 / 设置 三个 ViewModel（见 docs/CODE_REVIEW.md）
-// swiftlint:disable file_length type_body_length
-import MCP
 import ServiceContainer
 import Session
 import Skill
@@ -21,6 +20,7 @@ import Subagent
 import SwiftUI
 import Terminal
 import Tools
+import Workspace
 
 // MARK: - 模型提供商
 
@@ -2022,9 +2022,7 @@ final class AppViewModel: ObservableObject {
     /// 把内置插件改挂到 XPC worker（先卸进程内实例，再安装 proxy）
     private func installIsolated(_ id: String) async -> Bool {
         guard let workerPath = xpcWorkerPath,
-              let manifest = makeBuiltInPlugin(id)?.manifest
-        else { return false }
-        guard await xpcHost.ensureWorkerRegistered(workerPath: workerPath),
+              let manifest = makeBuiltInPlugin(id)?.manifest, await xpcHost.ensureWorkerRegistered(workerPath: workerPath),
               await xpcHost.connect(),
               await xpcHost.isAlive(timeout: 5),
               let proxy = await xpcHost.makeProxy(manifest: manifest)
@@ -2119,10 +2117,10 @@ final class AppViewModel: ObservableObject {
 
     /// 依赖是否满足：已安装且版本 ≥ minVersion；可选依赖未安装也算满足
     nonisolated static func dependencySatisfied(_ dep: PluginDependency, installed: [PluginInfo]) -> Bool {
-        guard let info = installed.first(where: { $0.id.rawValue == dep.id.rawValue }) else {
+        guard let info = installed.first(where: { $0.id.rawValue == dep.id.rawValue }),
+              let v = PluginVersion(description: info.version) else {
             return !dep.required
         }
-        guard let v = PluginVersion(description: info.version) else { return !dep.required }
         return v >= dep.minVersion
     }
 
@@ -2680,15 +2678,13 @@ final class AppViewModel: ObservableObject {
         messages.removeAll()
         generationError = nil
         lastUserMessage = ""
-        if let session = selectedSession {
-            if let idx = sessions.firstIndex(where: { $0.id == session.id }) {
-                sessions[idx] = SessionRecord(id: session.id, metadata: session.metadata,
-                                              events: [], currentTurn: session.currentTurn)
-                selectedSession = sessions[idx]
-                if let db = sessionDB {
-                    let s = sessions[idx]; let db2 = db
-                    Task { try? await db2.save(s) }
-                }
+        if let idx = selectedSession.flatMap({ sid in sessions.firstIndex { $0.id == sid } }) {
+            sessions[idx] = SessionRecord(id: sessions[idx].id, metadata: sessions[idx].metadata,
+                                          events: [], currentTurn: sessions[idx].currentTurn)
+            selectedSession = sessions[idx]
+            if let db = sessionDB {
+                let s = sessions[idx]; let db2 = db
+                Task { try? await db2.save(s) }
             }
         }
         showToast("已清空对话")

@@ -175,8 +175,7 @@ final class ThemePluginManager {
 extension Color {
     /// 解析 "#RRGGBB" / "#AARRGGBB"；非法 → nil
     init?(hex: String?) {
-        guard var s = hex?.trimmingCharacters(in: .whitespaces) else { return nil }
-        guard s.hasPrefix("#") else { return nil }
+        guard var s = hex?.trimmingCharacters(in: .whitespaces), s.hasPrefix("#") else { return nil }
         s.removeFirst()
         guard s.count == 6 || s.count == 8, let value = UInt64(s, radix: 16) else { return nil }
         let r: UInt64, g: UInt64, b: UInt64, a: UInt64

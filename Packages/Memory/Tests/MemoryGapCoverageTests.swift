@@ -1,10 +1,10 @@
 import Foundation
-import Testing
-
-// MARK: - Memory 包薄弱分支覆盖（覆盖审计轮 9）
 
 // @testable：访问 internal 蒸馏静态函数（extractMemorized/extractCorrection）
 @testable import Memory
+import Testing
+
+// MARK: - Memory 包薄弱分支覆盖（覆盖审计轮 9）
 
 @Suite("Memory Gap Coverage")
 struct MemoryGapCoverageTests {

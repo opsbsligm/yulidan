@@ -130,8 +130,7 @@ struct AppViewModelProjectTests {
             Issue.record("sessionDB 缺失"); return
         }
         let ok = await waitFor("释放落库") {
-            guard let rows = try? await db.loadProjectRows() else { return false }
-            guard let sessions = try? await db.loadSessions() else { return false }
+            guard let rows = try? await db.loadProjectRows(), let sessions = try? await db.loadSessions() else { return false }
             return rows.isEmpty && sessions.allSatisfy { $0.metadata.projectId == nil }
         }
         #expect(ok)
@@ -162,8 +161,7 @@ struct AppViewModelProjectTests {
             Issue.record("sessionDB 缺失"); return
         }
         let ok = await waitFor("DB 清理完成") {
-            guard let rows = try? await db.loadProjectRows() else { return false }
-            guard let sessions = try? await db.loadSessions() else { return false }
+            guard let rows = try? await db.loadProjectRows(), let sessions = try? await db.loadSessions() else { return false }
             return rows.isEmpty && sessions.count == 1
                 && !sessions.contains { $0.metadata.projectId == project.id.rawValue }
         }
@@ -388,8 +386,7 @@ struct AppViewModelProjectTests {
             Issue.record("sessionDB 缺失"); return
         }
         let ok = await waitFor("归属落库") {
-            guard let rows = try? await db.loadProjectRows() else { return false }
-            guard let sessions = try? await db.loadSessions() else { return false }
+            guard let rows = try? await db.loadProjectRows(), let sessions = try? await db.loadSessions() else { return false }
             return rows.count == 1
                 && sessions.first { $0.metadata.projectId == project.id.rawValue } != nil
         }

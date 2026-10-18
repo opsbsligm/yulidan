@@ -274,8 +274,7 @@ struct ServerRoundTripTests {
             let (firstData, firstStatus) = try await post(base, path: "/api/chat", body: Data(#"{"message":"first"}"#.utf8))
             #expect(firstStatus == 200)
             let first = try jsonDict(firstData)
-            guard let sessionId = first["sessionId"] as? String else { throw StubStreamError() }
-            guard let firstReply = first["reply"] as? String else { throw StubStreamError() }
+            guard let sessionId = first["sessionId"] as? String, let firstReply = first["reply"] as? String else { throw StubStreamError() }
             #expect(firstReply == "echo[1]:first#1")
 
             let secondBody = Data(#"{"sessionId":"\#(sessionId)","message":"second"}"#.utf8)

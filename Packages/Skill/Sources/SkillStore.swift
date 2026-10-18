@@ -62,8 +62,7 @@ public enum SkillStore {
             }
             index += 1
         }
-        guard closed else { return nil }
-        guard let name = frontmatter["name"], !name.isEmpty else { return nil }
+        guard closed, let name = frontmatter["name"], !name.isEmpty else { return nil }
         let body = lines[index...].joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
         let tags = (frontmatter["tags"] ?? "")
             .split(separator: ",")
@@ -149,12 +148,10 @@ public enum SkillStore {
         let target = dir.appendingPathComponent("SKILL.md")
         let isNew = !FileManager.default.fileExists(atPath: target.path)
         var finalSkill = skill
-        if !isNew {
-            if let oldText = try? String(contentsOf: target, encoding: .utf8),
-               let oldSkill = parse(oldText, source: target.path) {
-                try? SkillVersioning.record(oldSkill, note: "导入覆盖（覆盖前快照）", directory: dir)
-                finalSkill.version = max(oldSkill.version, skill.version) + 1
-            }
+        if !isNew, let oldText = try? String(contentsOf: target, encoding: .utf8),
+           let oldSkill = parse(oldText, source: target.path) {
+            try? SkillVersioning.record(oldSkill, note: "导入覆盖（覆盖前快照）", directory: dir)
+            finalSkill.version = max(oldSkill.version, skill.version) + 1
         }
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         try serialize(finalSkill).write(to: target, atomically: true, encoding: .utf8)

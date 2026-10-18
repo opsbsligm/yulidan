@@ -84,9 +84,7 @@ public enum ProjectOperations {
         session: SessionRecord,
         projects: [Project]
     ) -> ProjectID? {
-        guard let pid = session.metadata.projectId else { return nil }
-        guard let project = projects.first(where: { $0.id.rawValue == pid }) else { return nil }
-        guard !project.archived else { return nil }
+        guard let pid = session.metadata.projectId, let project = projects.first(where: { $0.id.rawValue == pid }), !project.archived else { return nil }
         return project.id
     }
 
