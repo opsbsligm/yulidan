@@ -54,12 +54,10 @@ xcode-check:
   tags: [macos]
   script:
     - xcodegen generate
-    - xcodebuild -project swift-harness.xcodeproj -scheme HarnessApp \
-        -configuration Debug -derivedDataPath "$XCODE_DERIVED_DATA" build
+    - xcodebuild -project swift-harness.xcodeproj -scheme HarnessApp -configuration Debug -derivedDataPath "$XCODE_DERIVED_DATA" build
     - |
       for attempt in 1 2; do
-        xcodebuild -project swift-harness.xcodeproj -scheme HarnessApp \
-          -configuration Debug -derivedDataPath "$XCODE_DERIVED_DATA" test && exit 0
+        xcodebuild -project swift-harness.xcodeproj -scheme HarnessApp -configuration Debug -derivedDataPath "$XCODE_DERIVED_DATA" test && exit 0
         if [ "$attempt" -eq 2 ]; then exit 1; fi
         echo "First run failed - one bounded retry (env stall tolerance, not code regression)"
       done
