@@ -1,0 +1,78 @@
+# GitLab CI for yulidan (Swift 6 / macOS 26, xcodegen project).
+# Mirrors the GitHub Actions swift-ci.yml gates on the macOS M2 runner:
+#   lint (SwiftLint strict + SwiftFormat lint)  -> build & test (SPM, bounded retry)
+#   xcode-check (xcodegen + build + test)       -> publish-github mirror
+# CodeQL / leaks / coverage stay on GitHub Actions (tooling not on the M2 runner).
+#
+# Runner prerequisites (installed 2026-10-18 via brew): swiftlint,
+# swiftformat, xcodegen.
+
+stages:
+  - lint
+  - test
+  - package
+
+variables:
+  LANG: en_US.UTF-8
+  LC_ALL: en_US.UTF-8
+  XCODE_DERIVED_DATA: "build/ci-derived-data"
+
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push"'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+
+lint:
+  stage: lint
+  tags: [macos]
+  script:
+    - swiftlint lint --strict --config .swiftlint.yml
+    - swiftformat --lint . --config .swiftformat 
+
+build-test:
+  stage: test
+  tags: [macos]
+  script:
+    - swift build
+    # Bounded retry: macOS has a transient cooperative-pool scheduling stall
+    # (~10-13s, see QUALITY_REPORT P1). One retry distinguishes environment
+    # stalls from real regressions.
+    - |
+      for attempt in 1 2; do
+        swift test --parallel && exit 0
+        if [ "$attempt" -eq 2 ]; then exit 1; fi
+        echo "First run failed - one bounded retry (env stall tolerance, not code regression)"
+      done
+
+xcode-check:
+  stage: test
+  tags: [macos]
+  script:
+    - xcodegen generate
+    - xcodebuild -project swift-harness.xcodeproj -scheme HarnessApp \
+        -configuration Debug -derivedDataPath "$XCODE_DERIVED_DATA" build
+    - |
+      for attempt in 1 2; do
+        xcodebuild -project swift-harness.xcodeproj -scheme HarnessApp \
+          -configuration Debug -derivedDataPath "$XCODE_DERIVED_DATA" test && exit 0
+        if [ "$attempt" -eq 2 ]; then exit 1; fi
+        echo "First run failed - one bounded retry (env stall tolerance, not code regression)"
+      done
+
+# GitHub mirror sync (same pattern as moonlight-macos-enhanced).
+publish-github:
+  stage: package
+  dependencies: []
+  script:
+    - umask 077
+    - mkdir -p ~/.ssh && cat "$GH_DEPLOY_KEY" > ~/.ssh/gh_deploy
+    - chmod 600 ~/.ssh/gh_deploy
+    - |
+      cat > ~/.ssh/config <<EOF
+      Host github.com
+        HostName github.com
+        IdentityFile ~/.ssh/gh_deploy
+        StrictHostKeyChecking accept-new
+      EOF
+    - git remote add github git@github.com:opsbsligm/yulidan.git
+    - git push github --mirror
