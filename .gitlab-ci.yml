@@ -19,16 +19,25 @@ variables:
 
 workflow:
   rules:
-    - if: '$CI_PIPELINE_SOURCE == "push"'
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_PIPELINE_SOURCE == "push"'
+    - if: '$CI_PIPELINE_SOURCE == "web"'
 
 lint:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_PIPELINE_SOURCE == "push"'
+    - if: '$CI_PIPELINE_SOURCE == "web"'
   stage: lint
   tags: [macos]
   script:
     - swiftlint lint --strict --config .swiftlint.yml
     - swiftformat --lint . --config .swiftformat
 build-test:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_PIPELINE_SOURCE == "push"'
+    - if: '$CI_PIPELINE_SOURCE == "web"'
   stage: test
   tags: [macos]
   script:
@@ -44,6 +53,10 @@ build-test:
       done
 
 xcode-check:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_PIPELINE_SOURCE == "push"'
+    - if: '$CI_PIPELINE_SOURCE == "web"'
   stage: test
   tags: [macos]
   script:
@@ -58,6 +71,9 @@ xcode-check:
 
 # GitHub mirror sync (same pattern as moonlight-macos-enhanced).
 publish-github:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push"'
+    - if: '$CI_PIPELINE_SOURCE == "web"'
   stage: package
   dependencies: []
   script:
